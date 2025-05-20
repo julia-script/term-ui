@@ -199,6 +199,7 @@ export class Document {
         x: event.x,
         y: event.y,
       });
+      this.state.clicked = null;
       return;
     }
     const hovered = this.renderer.getNodeAt(
