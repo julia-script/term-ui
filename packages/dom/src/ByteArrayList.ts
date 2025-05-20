@@ -44,12 +44,9 @@ export class ByteArrayList {
 
   appendSlice(slice: ArrayLike<number>) {
     this.assertNotDisposed();
-    this.module.ArrayList_appendUnusedSlice(
+    const ptr = this.module.ArrayList_appendUnusedSlice(
       this.ptr,
       slice.length,
-    );
-    const ptr = this.module.ArrayList_getPointer(
-      this.ptr,
     );
     const buffer = new Uint8Array(
       this.module.memory.buffer,
