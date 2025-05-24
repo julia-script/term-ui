@@ -114,7 +114,7 @@ pub fn computeInlineContextLayout(context: *LayoutContext, inputs: ContainerCont
         };
     }
 
-    return try computeInner(context, .{
+    return computeInner(context, .{
         .known_dimensions = styled_based_known_dimensions,
 
         // unchanged
@@ -124,14 +124,137 @@ pub fn computeInlineContextLayout(context: *LayoutContext, inputs: ContainerCont
         .parent_size = inputs.parent_size,
         .available_space = inputs.available_space,
         .vertical_margins_are_collapsible = inputs.vertical_margins_are_collapsible,
-    }, l_node_id);
+    }, l_node_id) catch |err| switch (err) {
+        error.InvalidUtf8 => {
+            // Handle invalid UTF-8 by returning empty content
+            return .{ .size = .{ .x = 0, .y = 0 } };
+        },
+        else => |e| return e,
+    };
 }
 
-fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: LayoutNode.Id) mod.ComputeLayoutError!mod.LayoutResult {
-    _ = context; // autofix
-    _ = inputs; // autofix
-    _ = l_node_id; // autofix
+fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: LayoutNode.Id) (mod.ComputeLayoutError || error{InvalidUtf8})!mod.LayoutResult {
+    const allocator = context.layout_tree.allocator;
+    const l_node = context.layout_tree.getNodePtr(l_node_id);
+
+    // Initialize LinesBuilder with available space from layout constraints
+    const available_width = inputs.available_space.x;
+    var lines_builder = mod.LinesBuilder.init(allocator, available_width);
+    defer lines_builder.deinit();
+
+    // Process child nodes for text content and inline elements
+    const children = switch (l_node.data) {
+        .inline_container_node => |*container| &container.children,
+        // .block_container_node => |*container| &container.children,
+        else => return .{ .size = .{ .x = 0, .y = 0 } }, // No children to process
+    };
+
+    // Process each child node
+    for (children.items) |child_id| {
+        const child_node = context.layout_tree.getNodePtr(child_id);
+
+        switch (child_node.data) {
+            .text_node => |*text_node| {
+                // Extract white-space CSS property - use normal as default for now
+                const white_space = @import("../../../styles/white-space.zig").WhiteSpace.normal;
+
+                // Convert text content to slice
+                const text_content = text_node.contents.items;
+
+                // Process text through LinesBuilder with proper white-space mode
+                try lines_builder.addText(text_content, white_space);
+            },
+            .inline_node => {
+                // TODO: Handle inline elements (spans, etc.) - for now skip
+                continue;
+            },
+            else => {
+                // Skip other node types in inline context
+                continue;
+            },
+        }
+    }
+
+    // Generate line layout based on white-space mode
+    // Extract wrap mode from first text node's white-space property
+    var wrap_mode = @import("../../../styles/white-space.zig").TextWrapMode.wrap;
+    if (children.items.len > 0) {
+        const first_child = context.layout_tree.getNodePtr(children.items[0]);
+        if (first_child.data == .text_node) {
+            const white_space = @import("../../../styles/white-space.zig").WhiteSpace.normal;
+            wrap_mode = white_space.toLonghand().wrap_mode;
+        }
+    }
+
+    try lines_builder.buildLinesWithWrapMode(wrap_mode);
+
+    // Calculate content size from LinesBuilder's measured line dimensions
+    var content_width: f32 = 0;
+    var content_height: f32 = 0;
+
+    // Position text nodes based on LineBox/LineBoxFragment layout
+    var current_y: f32 = 0;
+
+    for (lines_builder.lines.items) |line| {
+        content_width = @max(content_width, line.size.x);
+
+        // Position fragments within this line
+        var current_x: f32 = 0;
+
+        for (line.fragments.items) |fragment| {
+            // Update the corresponding layout node's box with position and size
+            const fragment_node = context.layout_tree.getNodePtr(fragment.l_node_id);
+            fragment_node.box.location = .{ .x = current_x, .y = current_y };
+            fragment_node.box.size = fragment.size;
+            fragment_node.box.content_size = fragment.size;
+
+            current_x += fragment.size.x;
+        }
+
+        current_y += line.size.y;
+        content_height += line.size.y;
+    }
+
+    // If no lines were created, ensure minimum height
+    if (lines_builder.lines.items.len == 0) {
+        content_height = 16.0; // Default line height
+    }
+    
+    // Transfer ownership of line boxes to the InlineContainerNode
+    // This prevents deallocation when LinesBuilder is destroyed
+    if (l_node.data == .inline_container_node) {
+        const text_line_boxes = lines_builder.toOwnedLineBoxes();
+        
+        // Convert from text.LineBox format to LayoutTree.LineBox format
+        var layout_line_boxes = std.ArrayListUnmanaged(LayoutTree.LineBox){};
+        
+        for (text_line_boxes.items) |text_line| {
+            var layout_line = LayoutTree.LineBox{};
+            
+            // Convert fragments from text.LineBoxFragment to LayoutTree.LineBox.Fragment
+            for (text_line.fragments.items) |text_fragment| {
+                const layout_fragment = LayoutTree.LineBox.Fragment{
+                    .node = text_fragment.l_node_id,
+                    .start = text_fragment.start,
+                    .end = text_fragment.start + text_fragment.length,
+                };
+                try layout_line.fragments.append(allocator, layout_fragment);
+            }
+            
+            try layout_line_boxes.append(allocator, layout_line);
+        }
+        
+        // Clean up the text line boxes
+        for (text_line_boxes.items) |*text_line| {
+            text_line.fragments.deinit();
+        }
+        text_line_boxes.deinit();
+        
+        l_node.data.inline_container_node.line_boxes = layout_line_boxes;
+    }
+    
     return .{
-        .size = .{ .x = 5, .y = 10 },
+        .size = .{ .x = content_width, .y = content_height },
+        .content_size = .{ .x = content_width, .y = content_height },
     };
 }

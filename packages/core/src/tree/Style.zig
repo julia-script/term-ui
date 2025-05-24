@@ -91,7 +91,8 @@ flex_shrink: f32 = 1,
 background_color: ?styles.background.Background = null,
 foreground_color: ?styles.color.Color = null,
 text_align: styles.text_align.TextAlign = .inherit,
-text_wrap: styles.text_wrap.TextWrap = .inherit,
+white_space: styles.white_space.WhiteSpace = .inherit,
+tab_size: styles.white_space.TabSize = styles.white_space.TabSize.DEFAULT,
 
 // Text formatting styles
 font_weight: styles.font_weight.FontWeight = .inherit,
