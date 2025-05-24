@@ -1,26 +1,11 @@
-#!/usr/bin/env bun
-
 import {
   readFileSync,
   writeFileSync,
 } from "node:fs";
-import path, { resolve } from "node:path";
-import {
-  argv,
-  exit,
-  stderr,
-  stdin,
-  stdout,
-} from "node:process";
-import {
-  camelCase,
-  findIndex,
-  isEqual,
-  snakeCase,
-  uniqBy,
-  upperFirst,
-} from "lodash-es";
+import path from "node:path";
+import { camelCase, upperFirst } from "lodash-es";
 import dedent from "ts-dedent";
+
 const upperCamelCase = (str: string) =>
   upperFirst(camelCase(str));
 import { existsSync, mkdirSync } from "node:fs";
@@ -237,36 +222,6 @@ function splitbins(
 }
 
 /**
- * A class which represents a property argument.
- */
-class PropArg {
-  name: string;
-  path: string;
-
-  constructor(arg: string) {
-    if (arg.includes("=")) {
-      const parts = arg.split("=", 2);
-      this.name = parts[0]?.trim() || "";
-      this.path = parts[1]?.trim() || "";
-    } else {
-      this.name = "";
-      this.path = arg.trim();
-    }
-  }
-
-  /**
-   * Read the file content
-   */
-  readStream(): string {
-    if (this.path === "-") {
-      // Read from stdin - for Bun, we'd need to read synchronously from stdin
-      return readFileSync(0, "utf-8"); // file descriptor 0 is stdin
-    }
-    return readFileSync(this.path, "utf-8");
-  }
-}
-
-/**
  * Parse UCD property files and extract code point properties
  */
 function iterCodePointProperties(
@@ -328,7 +283,11 @@ function iterCodePointProperties(
             ) {
               result.push([
                 cp,
-                { fields: [parts.slice(1).join("_")] },
+                {
+                  fields: [
+                    parts.slice(1).join("_"),
+                  ],
+                },
               ]);
             }
           }
@@ -339,7 +298,12 @@ function iterCodePointProperties(
           16,
         );
         if (!Number.isNaN(cp)) {
-          result.push([cp, { fields: [parts.slice(1).join("_")] }]);
+          result.push([
+            cp,
+            {
+              fields: [parts.slice(1).join("_")],
+            },
+          ]);
         }
       }
     }
@@ -397,94 +361,13 @@ function compareStringArrays(
  * Main function
  */
 async function main() {
-  // Simple argument parsing
-  // if (argv.length < 3) {
-  //   console.error(
-  //     "Usage: build-db-lookups.ts [-o output_file] file1 [file2 ...]",
-  //   );
-  //   exit(1);
-  // }
-
-  // let outputFile = "-";
-  // const files: PropArg[] = [];
-
-  // // Parse arguments
-  // for (let i = 2; i < argv.length; i++) {
-  //   const arg = argv[i];
-  //   if (arg === "-o" || arg === "--output") {
-  //     if (i + 1 < argv.length) {
-  //       const nextArg = argv[i + 1];
-  //       if (nextArg !== undefined) {
-  //         outputFile = nextArg;
-  //         i++;
-  //       } else {
-  //         console.error(
-  //           "Error: Missing argument for -o/--output",
-  //         );
-  //         exit(1);
-  //       }
-  //     } else {
-  //       console.error(
-  //         "Error: Missing argument for -o/--output",
-  //       );
-  //       exit(1);
-  //     }
-  //   } else if (arg !== undefined) {
-  //     files.push(new PropArg(arg));
-  //   }
-  // }
-
-  // Define the expected column order to match Python output
-  // const expectedColumnOrder = [
-  // 	"Grapheme_Cluster_Break",
-  // 	"Word_Break",
-  // 	"Sentence_Break",
-  // 	"Line_Break",
-  // 	"Math",
-  // 	"Alphabetic",
-  // 	"Lowercase",
-  // 	"Uppercase",
-  // 	"Cased",
-  // 	"Case_Ignorable",
-  // 	"Changes_When_Lowercased",
-  // 	"Changes_When_Uppercased",
-  // 	"Changes_When_Titlecased",
-  // 	"Changes_When_Casefolded",
-  // 	"Changes_When_Casemapped",
-  // 	"ID_Start",
-  // 	"ID_Continue",
-  // 	"XID_Start",
-  // 	"XID_Continue",
-  // 	"Default_Ignorable_Code_Point",
-  // 	"Grapheme_Extend",
-  // 	"Grapheme_Base",
-  // 	"Grapheme_Link",
-  // 	"InCB",
-  // 	"Emoji",
-  // 	"Emoji_Presentation",
-  // 	"Emoji_Modifier",
-  // 	"Emoji_Modifier_Base",
-  // 	"Emoji_Component",
-  // 	"Extended_Pictographic",
-  // ];
-  console.log(files);
-
   // Process properties
   const names: string[] = [];
-  // For debugging purposes, use a smaller Unicode range temporarily
   const maxUnicode = 0x10ffff; // Maximum Unicode code point (full range)
   const db: Array<string[]> = [];
   for (let i = 0; i <= maxUnicode; i++) {
     db.push([]);
   }
-  console.log(db.length);
-  // return;
-
-  // Debug: print input files
-  // console.error("Processing input files:");
-  // for (const propArg of files) {
-  // 	console.error(`File: ${propArg.path}, Name: ${propArg.name}`);
-  // }
 
   const columnMap: Record<
     string,
@@ -511,11 +394,8 @@ async function main() {
     // Convert items to a dictionary for faster lookup
     const itemDict = new Map(items);
     if (file.type === "bool") {
-      // name = name.slice(5, -1);
       const map = new Map<string, boolean[]>();
-      // const groupedItems = groupBy(items, (item) => item[1].fields[0] ?? "");
       for (const [cp, record] of items) {
-        // const value = record.fields[0];
         for (const field of record.fields) {
           if (!map.has(field)) {
             map.set(
@@ -547,15 +427,6 @@ async function main() {
         };
       }
 
-      // columnMap[name] = names.length - 1;
-
-      // console.log(groupedItems.get("Emoji"));
-      // for (const [groupName, group] of groupedItems.entries()) {
-      //   names.push(groupName);
-      //   columnMap[groupName] = names.length - 1;
-
-      // }
-
       continue;
     }
     if (file.type === "enum") {
@@ -581,51 +452,6 @@ async function main() {
         columnMap[file.name].list[cp] = value;
       }
     }
-
-    // } else {
-    // 	// Unnamed property
-    // 	const groupedItems = groupBy(
-    // 		items,
-    // 		(item) => (item[1].fields[0] ?? "") as string,
-    // 	);
-
-    // 	// Debug: print grouped property names
-    // 	// console.error(`Grouped property names from ${propArg.path}:`);
-    // 	// console.error(Array.from(groupedItems.keys()).join(", "));
-
-    // 	for (const [groupName, group] of groupedItems.entries()) {
-    // 		// stderr.write(`${groupName}\n`);
-    // 		console.log(groupName);
-    // 		names.push(groupName);
-    // 		columnMap[groupName] = names.length - 1;
-
-    // 		// Convert group to a dictionary for faster lookup
-    // 		const itemDict = new Map(group);
-
-    // 		for (let cp = 0; cp <= maxUnicode; cp++) {
-    // 			const record = itemDict.get(cp);
-    // 			let value = "null";
-
-    // 			if (record) {
-    // 				if (record.fields.length === 1) {
-    // 					value = "Y";
-    // 				} else if (record.fields.length >= 2) {
-    // 					value = record.fields[1] || "";
-    // 				} else {
-    // 					throw new Error(`Invalid record: ${JSON.stringify(record)}`);
-    // 				}
-    // 			}
-
-    // 			if (cp === 65536) {
-    // 				console.log(db[cp].length, "unnamed", groupName, value);
-    // 			}
-    // 			const dbEntry = db[cp];
-    // 			if (dbEntry) {
-    // 				dbEntry.push(value);
-    // 			}
-    // 		}
-    // 	}
-    // }
   }
 
   const indexPool = new Map<string, number>();
@@ -676,7 +502,6 @@ async function main() {
     ${table.map((record) => `    .{ ${record.map((val) => (typeof val === "boolean" ? JSON.stringify(val) : `.${val}`)).join(", ")} },`).join("\n")}
   };
   `;
-  // ${enumColumns}
   let types = "";
   for (const [
     name,
@@ -707,12 +532,7 @@ async function main() {
   ${index2ZigCode}
 
   `;
-  // if (outputFile === "-") {
-  //   stdout.write(zigCode);
-  // } else {
-  // mkdirSync(path.join(__dirname, "src/linebreak/"), {
-  //   recursive: true,
-  // });
+
   writeFileSync(
     path.join(__dirname, "lookups.zig"),
     zigCode,
@@ -720,247 +540,7 @@ async function main() {
   console.error(
     `Output written to ${path.join(__dirname, "lookups.zig")}`,
   );
-  // }
-  return;
-  // // sparse_records = tuple(tuple(items) for items in db)
-  // const sparseRecords: string[][] = [];
-  // for (const items of db) {
-  // 	const innerArray: string[] = [];
-  // 	for (const item of items) {
-  // 		innerArray.push(item);
-  // 	}
-  // 	sparseRecords.push(innerArray);
-  // }
-  // // unique_records = tuple(sorted(set(sparse_records)))
-  // const uniqueRecordsSet = uniqBy(sparseRecords, (record) => record.join(","));
-  // console.log("found", sparseRecords[65536].join(","));
-  // const uniqueRecords = uniqueRecordsSet.sort(compareStringArrays);
-  // for (let i = 0; i < uniqueRecords.length; i++) {
-  // 	console.log(uniqueRecords[i].join(","));
-  // }
-
-  // const indices = [];
-  // for (const record of sparseRecords) {
-  // 	const index = findIndex(uniqueRecords, (uniqueRecord) =>
-  // 		isEqual(record, uniqueRecord),
-  // 	);
-  // 	indices.push(index);
-  // }
-  // const [index1, index2, shift] = splitbins(indices);
-
-  // let enumColumns = "";
-  // for (let i = 0; i < names.length; i++) {
-  // 	const fields = new Set<string>();
-  // 	const enumName = upperCamelCase(names[i]);
-  // 	for (const record of uniqueRecords) {
-  // 		fields.add(record[i]);
-  // 	}
-  // 	console.log(enumName, fields);
-  // 	const enumValues = Array.from(fields)
-  // 		.map((field) => `  ${field},`)
-  // 		.join("\n");
-  // 	fields.delete("null");
-  // 	enumColumns += dedent`
-  //     pub const ${enumName} = enum(u8) {
-  //     ${enumValues}
-  //     };
-  //   `;
-  // 	enumColumns += "\n";
-  // }
-  // const columnsTuple = dedent`
-  // pub const Columns = struct {${names.map((name) => `${upperCamelCase(name)}`).join(", ")}};
-  // `;
-  // // const columnsZigCode = dedent`
-  // // ${columnsTuple}
-  // // pub const columns = [_]Columns{
-  // //   ${names.map((name) => `    "${name}",`).join("\n")}
-  // // };
-  // // `;
-  // const valuesZigCode = dedent`
-  // pub const values = [_]Columns{
-  //   ${uniqueRecords.map((record) => `    .{ ${record.map((val) => (val === "null" ? "null" : `.${val}`)).join(", ")} },`).join("\n")}
-  // };
-  // `;
-  // const shiftZigCode = dedent`
-  // pub const shift: usize = ${shift};
-  // `;
-  // const index1ZigCode = dedent`
-  // pub const index1 = [_]u8{
-  // 	${index1.map((val) => `${val}`).join(", ")}
-  // };
-  // `;
-
-  // const index2ZigCode = dedent`
-  // pub const index2 = [_]u8{
-  //   ${index2.map((val) => `${val}`).join(", ")}
-  // };
-  // `;
-
-  // const zigCode = dedent`
-  // ${enumColumns}
-  // ${columnsTuple}
-  // ${valuesZigCode}
-  // ${shiftZigCode}
-  // ${index1ZigCode}
-  // ${index2ZigCode}
-
-  // `;
-  // if (outputFile === "-") {
-  // 	stdout.write(zigCode);
-  // } else {
-  // 	writeFileSync(outputFile, zigCode);
-  // 	console.error(`Output written to ${outputFile}`);
-  // }
-  // // console.log(columnsZigCode);
-  // // console.log(valuesZigCode);
-  // // console.log(shiftZigCode);
-  // // console.log(index1ZigCode);
-
-  // return;
-  // console.error("Column names in original order:");
-  // console.error(JSON.stringify(names));
-
-  // // Reorder columns to match expected order and pad missing ones
-  // const orderedNames: string[] = [];
-  // const columnMapping: number[] = [];
-
-  // for (const expectedCol of expectedColumnOrder) {
-  // 	const index = names.indexOf(expectedCol);
-  // 	if (index !== -1) {
-  // 		orderedNames.push(expectedCol);
-  // 		columnMapping.push(index);
-  // 	} else {
-  // 		// Column is not in our data - add empty column
-  // 		orderedNames.push(expectedCol);
-  // 		columnMapping.push(-1); // -1 indicates a missing column
-  // 	}
-  // }
-
-  // Add any remaining columns not in expected order
-  // for (const col of names) {
-  // 	if (!expectedColumnOrder.includes(col)) {
-  // 		orderedNames.push(col);
-  // 		columnMapping.push(names.indexOf(col));
-  // 	}
-  // }
-
-  // console.error("Reordered columns:");
-  // console.error(JSON.stringify(orderedNames));
-  // console.error("Column mapping:");
-  // console.error(JSON.stringify(columnMapping));
-
-  // // Reorder and pad sparse records
-  // 	const orderedSparseRecords: string[][] = [];
-  // 	console.log(orderedSparseRecords.length);
-
-  // 	// for (const record of db) {
-  // 	// 	if (record) {
-  // 	// 		const orderedRecord: string[] = [];
-
-  // 	// 		for (const colIndex of columnMapping) {
-  // 	// 			if (colIndex === -1) {
-  // 	// 				orderedRecord.push(""); // Missing column
-  // 	// 			} else {
-  // 	// 				orderedRecord.push(record[colIndex] || "");
-  // 	// 			}
-  // 	// 		}
-
-  // 	// 		orderedSparseRecords.push(orderedRecord);
-  // 	// 	}
-  // 	// }
-
-  // 	// Debug: Print a few sample sparse records
-  // 	// console.error("Sample sparse records after reordering (first 3):");
-  // 	// for (let i = 0; i < Math.min(3, orderedSparseRecords.length); i++) {
-  // 	// 	console.error(
-  // 	// 		`Code point ${i.toString(16)}: ${JSON.stringify(orderedSparseRecords[i])}`,
-  // 	// 	);
-  // 	// }
-
-  // 	// Find unique records and create indices
-  // 	// We'll create a more reliable approach that doesn't depend on string joining
-  // 	const uniqueRecordsMap = new Map<string, number>();
-  // 	const uniqueRecords: string[][] = [];
-
-  // 	for (const record of orderedSparseRecords) {
-  // 		// Create a JSON string representation for consistent hashing
-  // 		const key = record.join(",");
-
-  // 		if (!uniqueRecordsMap.has(key)) {
-  // 			uniqueRecordsMap.set(key, uniqueRecords.length);
-  // 			uniqueRecords.push(record);
-  // 		}
-  // 	}
-
-  // 	// Sort the unique records to match Python's behavior
-  // 	uniqueRecords.sort(compareStringArrays);
-
-  // 	// Update the map after sorting
-  // 	uniqueRecordsMap.clear();
-  // 	for (let i = 0; i < uniqueRecords.length; i++) {
-  // 		uniqueRecordsMap.set(uniqueRecords[i].join(","), i);
-  // 	}
-
-  // 	// Create indices array
-  // 	const indices: number[] = [];
-  // 	for (const record of orderedSparseRecords) {
-  // 		const key = record.join(",");
-  // 		const index = uniqueRecordsMap.get(key);
-  // 		indices.push(index !== undefined ? index : 0);
-  // 	}
-
-  // 	console.log(
-  // 		indices.length,
-  // 		indices.reduce((a, b) => a + b, 0),
-  // 	);
-  // 	// Split bins to optimize storage
-  // 	const [index1, index2, shift] = splitbins(indices);
-
-  // 	// Create Uint8Array for binary data
-  // 	const bytes1 = new Uint8Array(index1);
-  // 	console.log(bytes1.slice(-100), bytes1.length);
-  // 	const bytes2 = new Uint8Array(index2);
-
-  // 	console.log(uniqueRecords.length);
-  // 	// Generate Zig code
-  // 	const zigCode = `
-  // // DO NOT EDIT. This file is generated automatically.
-
-  // pub const columns = [_][]const u8{
-  // ${names.map((name) => `    "${name}",`).join("\n")}
-  // };
-
-  // pub const values = [_][${names.length}][]const u8{
-  // ${uniqueRecords
-  // 	.map(
-  // 		(record) =>
-  // 			`    [_][]const u8{ ${record.map((val) => `"${val}"`).join(", ")} },`,
-  // 	)
-  // 	.join("\n")}
-
-  // };
-  // pub const shift: usize = ${shift};
-  // pub const index1 = [_]u8{
-  // ${Array.from(bytes1)
-  // 	.map(
-  // 		(b, i) => `${i % 16 === 0 ? "    " : ""}${b},${i % 16 === 15 ? "\n" : " "}`,
-  // 	)
-  // 	.join("")}
-  // };
-
-  // `;
-  // 	// pub const index2 = [_]u8{
-  // 	//   ${Array.from(bytes2)
-  // 	//     .map((b, i) => `${i % 16 === 0 ? "    " : ""}${b},${i % 16 === 15 ? "\n" : " "}`)
-  // 	//     .join("")}
-  // 	//   };
-  // 	// Write output
-  // 	if (outputFile === "-") {
-  // 		stdout.write(zigCode);
-  // 	} else {
-  // 		writeFileSync(outputFile, zigCode);
-  // 		console.error(`Output written to ${outputFile}`);
-  // 	}
+  
 }
 
 await downloadFiles();

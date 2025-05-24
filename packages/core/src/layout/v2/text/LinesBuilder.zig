@@ -3,10 +3,10 @@ const LineBox = @import("./LineBox.zig");
 const LineBoxFragment = @import("./LineBoxFragment.zig");
 const std = @import("std");
 const ArrayList = std.ArrayList;
-const LineBreak = @import("../../../uni/LineBreak.zig");
+const LineBreakStream = @import("../../../uni/LineBreakStream.zig");
 
 lines: ArrayList(LineBox),
-segmenter: LineBreak,
+segmenter: LineBreakStream,
 available_width: mod.constants.AvailableSpace,
 
 const Self = @This();
