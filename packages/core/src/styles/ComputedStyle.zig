@@ -130,9 +130,9 @@ pub const ComputedStyleCache = struct {
             new_style.text_align = parent_style.text_align;
         }
 
-        // Apply text_wrap inheritance
-        if (style.text_wrap == .inherit) {
-            new_style.text_wrap = parent_style.text_wrap;
+        // Apply white_space inheritance
+        if (style.white_space == .inherit) {
+            new_style.white_space = parent_style.white_space;
         }
 
         // Apply foreground_color inheritance

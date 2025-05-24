@@ -14,7 +14,7 @@ pub fn computeLayout(self: *Tree, allocator: std.mem.Allocator, available_space:
     root_style.font_weight = .normal;
     root_style.font_style = .normal;
     root_style.text_align = .left;
-    root_style.text_wrap = .wrap;
+    root_style.white_space = .normal;
 
     try self.computed_style_cache.computeStyle(self, 0, root_style);
     try computeRootLayout(arena.allocator(), self, available_space);

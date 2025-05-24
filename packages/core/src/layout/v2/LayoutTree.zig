@@ -120,6 +120,10 @@ pub const InlineContainerNode = struct {
     continuationOf: ?LayoutNode.Id = null,
     pub fn deinit(self: *InlineContainerNode, allocator: std.mem.Allocator) void {
         self.children.deinit(allocator);
+        // Properly deallocate each LineBox's fragments before deallocating the array
+        for (self.line_boxes.items) |*line_box| {
+            line_box.deinit(allocator);
+        }
         self.line_boxes.deinit(allocator);
     }
 };
