@@ -120,6 +120,10 @@ pub const InlineContainerNode = struct {
     continuationOf: ?LayoutNode.Id = null,
     pub fn deinit(self: *InlineContainerNode, allocator: std.mem.Allocator) void {
         self.children.deinit(allocator);
+        // Properly deallocate each LineBox's fragments before deallocating the array
+        for (self.line_boxes.items) |*line_box| {
+            line_box.deinit(allocator);
+        }
         self.line_boxes.deinit(allocator);
     }
 };
@@ -437,10 +441,56 @@ fn printNodeInternal(self: *Self, node_id: LayoutNode.Id, writer: std.io.AnyWrit
     }
     const new_prefix = new_prefix_buf[0..new_prefix_len];
 
+    var total_items: usize = 0;
+    if (node.data == .inline_container_node) {
+        total_items += node.data.inline_container_node.line_boxes.items.len;
+    }
     const children = self.getChildren(node_id);
-    for (children, 0..) |child, idx| {
-        const last_child = idx == children.len - 1;
-        try self.printNodeInternal(child, writer, new_prefix, false, last_child);
+    total_items += children.len;
+
+    var item_idx: usize = 0;
+
+    if (node.data == .inline_container_node) {
+        const line_boxes = node.data.inline_container_node.line_boxes.items;
+        for (line_boxes, 0..) |line_box, i| {
+            const last_item = item_idx == total_items - 1;
+            try self.printLineBox(&line_box, i, writer, new_prefix, last_item and children.len == 0);
+            item_idx += 1;
+        }
+    }
+
+    for (children) |child| {
+        const last_item = item_idx == total_items - 1;
+        try self.printNodeInternal(child, writer, new_prefix, false, last_item);
+        item_idx += 1;
+    }
+}
+
+fn printLineBox(_: *Self, line_box: *const LineBox, index: usize, writer: std.io.AnyWriter, prefix: []const u8, is_last: bool) !void {
+    try writer.writeAll(prefix);
+    if (is_last)
+        try writer.writeAll("└── ")
+    else
+        try writer.writeAll("├── ");
+
+    try writer.print("[line_box #{d} fragments={d}]", .{ index, line_box.fragments.items.len });
+    try writer.writeByte('\n');
+
+    var new_prefix_buf: [256]u8 = undefined;
+    std.mem.copyForwards(u8, new_prefix_buf[0..prefix.len], prefix);
+    const segment = if (is_last) "    " else "│   ";
+    std.mem.copyForwards(u8, new_prefix_buf[prefix.len .. prefix.len + segment.len], segment);
+    const new_prefix = new_prefix_buf[0 .. prefix.len + segment.len];
+
+    for (line_box.fragments.items, 0..) |fragment, frag_idx| {
+        const last_frag = frag_idx == line_box.fragments.items.len - 1;
+        try writer.writeAll(new_prefix);
+        if (last_frag)
+            try writer.writeAll("└── ")
+        else
+            try writer.writeAll("├── ");
+        try writer.print("[fragment node={{#{d}}} range={d}-{d}]", .{ fragment.node, fragment.start, fragment.end });
+        try writer.writeByte('\n');
     }
 }
 

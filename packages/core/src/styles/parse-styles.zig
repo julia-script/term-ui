@@ -254,12 +254,18 @@ pub fn parseStyleProperty(tree: *Tree, node_id: Node.NodeId, _key: []const u8, _
             return;
         };
         tree.getNode(node_id).styles.text_align = parsed.value;
-    } else if (std.mem.eql(u8, key, "text-wrap")) {
-        const parsed = parsers.text_wrap.parse(value, 0) catch {
-            logger.warn("Invalid text-wrap value: '{s}'\n", .{value});
+    } else if (std.mem.eql(u8, key, "white-space")) {
+        const parsed = parsers.white_space.parse(value, 0) catch {
+            logger.warn("Invalid white-space value: '{s}'\n", .{value});
             return;
         };
-        tree.getNode(node_id).styles.text_wrap = parsed.value;
+        tree.getNode(node_id).styles.white_space = parsed.value;
+    } else if (std.mem.eql(u8, key, "tab-size")) {
+        const parsed = parsers.white_space.parseTabSize(value, 0) catch {
+            logger.warn("Invalid tab-size value: '{s}'\n", .{value});
+            return;
+        };
+        tree.getNode(node_id).styles.tab_size = parsed.value;
     } else if (std.mem.eql(u8, key, "font-weight")) {
         const parsed = parsers.font_weight.parse(value, 0) catch {
             logger.warn("Invalid font-weight value: '{s}'\n", .{value});

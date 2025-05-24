@@ -38,7 +38,9 @@ pub const Background = styles.background.Background;
 
 // Text formatting
 pub const TextAlign = styles.text_align.TextAlign;
-pub const TextWrap = styles.text_wrap.TextWrap;
+pub const WhiteSpace = styles.white_space.WhiteSpace;
+pub const WhiteSpaceCollapse = styles.white_space.WhiteSpaceCollapse;
+pub const TextWrapMode = styles.white_space.TextWrapMode;
 pub const TextDecorationLine = styles.text_decoration.TextDecorationLine;
 pub const TextDecoration = styles.text_decoration.TextDecoration;
 
