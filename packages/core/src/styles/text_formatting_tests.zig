@@ -154,7 +154,7 @@ test "basic_style_inheritance" {
 
     // Check parent computed style
     {
-        const parent_computed = try style_cache.getComputedStyle(&tree, parent_id);
+        const parent_computed = style_cache.getComputedStyle(&tree, parent_id);
         try testing.expectEqual(parent_computed.font_weight, .bold);
         try testing.expectEqual(parent_computed.font_style, .italic);
         try testing.expectEqual(parent_computed.text_decoration.line, .underline);
@@ -162,7 +162,7 @@ test "basic_style_inheritance" {
 
     // Check child computed style (should inherit some, override others)
     {
-        const child_computed = try style_cache.getComputedStyle(&tree, child_id);
+        const child_computed = style_cache.getComputedStyle(&tree, child_id);
         try testing.expectEqual(child_computed.font_weight, .bold); // Inherited
         try testing.expectEqual(child_computed.font_style, .italic); // Inherited
         try testing.expectEqual(child_computed.text_decoration.line, .line_through); // Overridden
@@ -170,7 +170,7 @@ test "basic_style_inheritance" {
 
     // Check grandchild computed style (should inherit all)
     {
-        const grandchild_computed = try style_cache.getComputedStyle(&tree, grandchild_id);
+        const grandchild_computed = style_cache.getComputedStyle(&tree, grandchild_id);
         try testing.expectEqual(grandchild_computed.font_weight, .bold); // Inherited from parent
         try testing.expectEqual(grandchild_computed.font_style, .italic); // Inherited from parent
         try testing.expectEqual(grandchild_computed.text_decoration.line, .line_through); // Inherited from child
