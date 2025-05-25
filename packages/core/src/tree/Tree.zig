@@ -12,6 +12,7 @@ const Rect = @import("../layout/rect.zig").Rect;
 pub const AvailableSpace = @import("../layout/compute/compute_constants.zig").AvailableSpace;
 const s = @import("../styles/styles.zig");
 const ComputedStyleCache = s.computed_style.ComputedStyleCache;
+const StyleError = s.computed_style.StyleError;
 const StyleManager = s.style_manager.StyleManager;
 const InputManager = @import("../cmd/input/manager.zig").AnyInputManager;
 const Event = @import("../cmd/input/manager.zig").Event;

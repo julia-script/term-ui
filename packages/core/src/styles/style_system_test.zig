@@ -38,10 +38,10 @@ test "basic_style_inheritance" {
 
     // Test computed styles
     {
-        const root_computed = try style_cache.getComputedStyle(&tree, root_id);
+        const root_computed = style_cache.getComputedStyle(&tree, root_id);
         try testing.expectEqual(root_computed.text_align, .center);
 
-        const child_computed = try style_cache.getComputedStyle(&tree, child_id);
+        const child_computed = style_cache.getComputedStyle(&tree, child_id);
         try testing.expectEqual(child_computed.text_align, .right);
         try testing.expect(child_computed.foreground_color != null);
         if (child_computed.foreground_color) |color| {
@@ -50,7 +50,7 @@ test "basic_style_inheritance" {
             try testing.expectEqual(color.b, 0);
         }
 
-        const grandchild_computed = try style_cache.getComputedStyle(&tree, grandchild_id);
+        const grandchild_computed = style_cache.getComputedStyle(&tree, grandchild_id);
         try testing.expectEqual(grandchild_computed.text_align, .right);
         try testing.expect(grandchild_computed.foreground_color != null);
     }
@@ -60,7 +60,7 @@ test "basic_style_inheritance" {
     style_cache.invalidateTree(&tree, root_id);
 
     {
-        const root_computed = try style_cache.getComputedStyle(&tree, root_id);
+        const root_computed = style_cache.getComputedStyle(&tree, root_id);
         try testing.expect(root_computed.foreground_color != null);
         if (root_computed.foreground_color) |color| {
             try testing.expectEqual(color.r, 0);
@@ -68,7 +68,7 @@ test "basic_style_inheritance" {
             try testing.expectEqual(color.b, 0);
         }
 
-        const child_computed = try style_cache.getComputedStyle(&tree, child_id);
+        const child_computed = style_cache.getComputedStyle(&tree, child_id);
         try testing.expect(child_computed.foreground_color != null);
         if (child_computed.foreground_color) |color| {
             try testing.expectEqual(color.r, 0);

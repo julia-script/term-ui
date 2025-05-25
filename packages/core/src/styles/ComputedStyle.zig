@@ -19,6 +19,16 @@ pub const ComputedStyleCache = struct {
     styles: std.AutoHashMap(NodeId, Style),
     inheritance: CascadeTypes.PropertyInheritance,
 
+    const ROOT_STYLE: Style = blk: {
+        var s: Style = .{};
+        s.text_decoration = .{ .line = .none };
+        s.font_weight = .normal;
+        s.font_style = .normal;
+        s.text_align = .left;
+        s.white_space = .normal;
+        break :blk s;
+    };
+
     pub fn init(allocator: std.mem.Allocator) !ComputedStyleCache {
         return ComputedStyleCache{
             .allocator = allocator,
@@ -62,13 +72,17 @@ pub const ComputedStyleCache = struct {
     }
     /// Get a node's computed style, calculating it if not cached
     pub fn getComputedStyle(self: *ComputedStyleCache, tree: *Tree, node_id: NodeId) Style {
-        _ = tree; // autofix
-        // Return cached style if available
         if (self.styles.get(node_id)) |style| {
             return style;
         }
-        std.debug.panic("computeStyle\n", .{});
-        // return try self.computeStyle(tree, node_id);
+
+        const parent_style = if (tree.getParent(node_id)) |pid|
+            self.getComputedStyle(tree, pid)
+        else
+            ROOT_STYLE;
+
+        self.computeStyle(tree, node_id, parent_style) catch unreachable;
+        return self.styles.get(node_id).?;
 
         //     // Create new style for this node
         //     var style = try self.allocator.create(Style);
@@ -115,6 +129,11 @@ pub const ComputedStyleCache = struct {
         // Apply white_space inheritance
         if (style.white_space == .inherit) {
             new_style.white_space = parent_style.white_space;
+        }
+
+        // Apply tab_size inheritance
+        if (style.tab_size == .inherit) {
+            new_style.tab_size = parent_style.tab_size;
         }
 
         // Apply foreground_color inheritance

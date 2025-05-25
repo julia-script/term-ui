@@ -160,7 +160,7 @@ test "text formatting inheritance" {
 
     // Set styles on parent
     {
-        var parent_style = tree.getComputedStyle(parent_id);
+        var parent_style = (try tree.getComputedStyle(parent_id));
         parent_style.font_weight = .bold;
         parent_style.font_style = .italic;
         parent_style.text_decoration = text_decoration.TextDecoration.underline();
@@ -169,14 +169,14 @@ test "text formatting inheritance" {
 
     // Set text_align on child (explicit, not inherit)
     {
-        var child_style = tree.getComputedStyle(child_id);
+        var child_style = (try tree.getComputedStyle(child_id));
         child_style.font_weight = .inherit; // Should inherit bold
         child_style.text_decoration.line = .line_through; // Override parent
     }
 
     // Set all properties to inherit on grandchild
     {
-        var grandchild_style = tree.getComputedStyle(grandchild_id);
+        var grandchild_style = (try tree.getComputedStyle(grandchild_id));
         grandchild_style.font_weight = .inherit;
         grandchild_style.font_style = .inherit;
         grandchild_style.text_decoration.line = .inherit;
@@ -188,7 +188,7 @@ test "text formatting inheritance" {
 
     // Check parent computed style
     {
-        const parent_computed = try style_cache.getComputedStyle(&tree, parent_id);
+        const parent_computed = style_cache.getComputedStyle(&tree, parent_id);
         try testing.expectEqual(parent_computed.font_weight, .bold);
         try testing.expectEqual(parent_computed.font_style, .italic);
         try testing.expectEqual(parent_computed.text_decoration.line, .underline);
@@ -196,7 +196,7 @@ test "text formatting inheritance" {
 
     // Check child computed style (should inherit some, override others)
     {
-        const child_computed = try style_cache.getComputedStyle(&tree, child_id);
+        const child_computed = style_cache.getComputedStyle(&tree, child_id);
         try testing.expectEqual(child_computed.font_weight, .bold); // Inherited
         try testing.expectEqual(child_computed.font_style, .italic); // Inherited
         try testing.expectEqual(child_computed.text_decoration.line, .line_through); // Overridden
@@ -204,7 +204,7 @@ test "text formatting inheritance" {
 
     // Check grandchild computed style (should inherit all)
     {
-        const grandchild_computed = try style_cache.getComputedStyle(&tree, grandchild_id);
+        const grandchild_computed = style_cache.getComputedStyle(&tree, grandchild_id);
         try testing.expectEqual(grandchild_computed.font_weight, .bold); // Inherited from parent
         try testing.expectEqual(grandchild_computed.font_style, .italic); // Inherited from parent
         try testing.expectEqual(grandchild_computed.text_decoration.line, .line_through); // Inherited from child
@@ -214,14 +214,14 @@ test "text formatting inheritance" {
     // Test invalidation
     {
         // Change parent style
-        var parent_style = tree.getComputedStyle(parent_id);
+        var parent_style = (try tree.getComputedStyle(parent_id));
         parent_style.font_weight = .normal;
 
         // Invalidate cache
         style_cache.invalidateTree(&tree, parent_id);
 
         // Check that changes propagated
-        const grandchild_computed = try style_cache.getComputedStyle(&tree, grandchild_id);
+        const grandchild_computed = style_cache.getComputedStyle(&tree, grandchild_id);
         try testing.expectEqual(grandchild_computed.font_weight, .normal); // Should get updated value
     }
 }
@@ -309,16 +309,16 @@ test "renderer with text formatting" {
 
     // Apply styling
     {
-        var bold_style = tree.getComputedStyle(bold_id);
+        var bold_style = (try tree.getComputedStyle(bold_id));
         bold_style.font_weight = .bold;
 
-        var italic_style = tree.getComputedStyle(italic_id);
+        var italic_style = (try tree.getComputedStyle(italic_id));
         italic_style.font_style = .italic;
 
-        var underline_style = tree.getComputedStyle(underline_id);
+        var underline_style = (try tree.getComputedStyle(underline_id));
         underline_style.text_decoration = text_decoration.TextDecoration.underline();
 
-        var colored_style = tree.getComputedStyle(colored_id);
+        var colored_style = (try tree.getComputedStyle(colored_id));
         colored_style.text_decoration = text_decoration.TextDecoration{
             .line = .wavy,
             .color = color.Color{ .r = 1, .g = 0, .b = 0, .a = 1 }, // Red
@@ -343,16 +343,16 @@ test "renderer with text formatting" {
     defer style_cache.deinit();
 
     // Check that computed styles are correct
-    const bold_computed = try style_cache.getComputedStyle(&tree, bold_id);
+    const bold_computed = style_cache.getComputedStyle(&tree, bold_id);
     try testing.expectEqual(bold_computed.font_weight, .bold);
 
-    const italic_computed = try style_cache.getComputedStyle(&tree, italic_id);
+    const italic_computed = style_cache.getComputedStyle(&tree, italic_id);
     try testing.expectEqual(italic_computed.font_style, .italic);
 
-    const underline_computed = try style_cache.getComputedStyle(&tree, underline_id);
+    const underline_computed = style_cache.getComputedStyle(&tree, underline_id);
     try testing.expectEqual(underline_computed.text_decoration.line, .underline);
 
-    const colored_computed = try style_cache.getComputedStyle(&tree, colored_id);
+    const colored_computed = style_cache.getComputedStyle(&tree, colored_id);
     try testing.expectEqual(colored_computed.text_decoration.line, .wavy);
     try testing.expect(colored_computed.text_decoration.color != null);
 
@@ -559,7 +559,7 @@ test "text formatting style binding" {
     const node_id = try tree.createNode();
 
     // Get the style
-    var style = tree.getComputedStyle(node_id);
+    var style = (try tree.getComputedStyle(node_id));
 
     // Set font-weight through parser
     style.font_weight = (try font_style.parseFontWeight(allocator, "bold", 0)).value;

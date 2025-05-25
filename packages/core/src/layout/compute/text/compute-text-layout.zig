@@ -360,7 +360,7 @@ pub fn computeTextLayout(allocator: std.mem.Allocator, node_id: Node.NodeId, tre
 
 fn collectText(allocator: std.mem.Allocator, parts_array: *Array(TextPart), node_id: Node.NodeId, root_id: Node.NodeId, tree: *Tree, inputs: LayoutInput) !void {
     tree.setTextRootId(node_id, root_id);
-    const display = tree.getComputedStyle(node_id).display;
+    const display = (tree.getComputedStyle(node_id)).display;
 
     var part = TextPart{
         .node_id = node_id,
