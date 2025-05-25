@@ -34,9 +34,63 @@ pub fn info(self: *Self, l_node_id: mod.LayoutNode.Id, comptime format: []const 
 pub fn setBox(self: *Self, l_node_id: mod.LayoutNode.Id, box: mod.Box, line_boxes: ?LineBox.LineBoxList) void {
     self.layout_tree.getNodePtr(l_node_id).box = box;
     if (line_boxes) |lb| {
-        self.layout_tree.getNodePtr(l_node_id).data.inline_container_node.line_boxes.deinit();
-        self.layout_tree.getNodePtr(l_node_id).data.inline_container_node.line_boxes = lb;
+        const container = &self.layout_tree.getNodePtr(l_node_id).data.inline_container_node;
+        container.line_boxes.deinit();
+        container.line_boxes = lb;
+        self.updateFragmentBounds(l_node_id, container);
     }
+}
+
+fn updateFragmentBounds(
+    self: *Self,
+    root_id: mod.LayoutNode.Id,
+    container: *LayoutTree.InlineContainerNode,
+) void {
+    var visited = std.AutoHashMapUnmanaged(mod.LayoutNode.Id, void){};
+    defer visited.deinit(self.allocator);
+
+    for (container.line_boxes.items()) |*line| {
+        for (line.fragments.items) |fragment| {
+            var current_id = fragment.l_node_id;
+            const frag_loc = mod.CSSPoint{
+                .x = line.location.x + fragment.position.x,
+                .y = line.location.y + (line.size.y - fragment.size.y),
+            };
+            const frag_size = fragment.size;
+
+            while (true) {
+                if (current_id == root_id) break;
+                const node = self.layout_tree.getNodePtr(current_id);
+                if (!visited.contains(current_id)) {
+                    visited.put(self.allocator, current_id, {}) catch @panic("oom");
+                    node.box.location = frag_loc;
+                    node.box.size = frag_size;
+                    node.box.content_size = frag_size;
+                } else {
+                    unionBox(&node.box, frag_loc, frag_size);
+                }
+                if (node.parent) |p| {
+                    current_id = p;
+                } else break;
+            }
+        }
+    }
+}
+
+fn unionBox(box: *mod.Box, loc: mod.CSSPoint, size: mod.CSSPoint) void {
+    const right = loc.x + size.x;
+    const bottom = loc.y + size.y;
+    const box_right = box.location.x + box.size.x;
+    const box_bottom = box.location.y + box.size.y;
+
+    const new_left = @min(box.location.x, loc.x);
+    const new_top = @min(box.location.y, loc.y);
+    const new_right = @max(box_right, right);
+    const new_bottom = @max(box_bottom, bottom);
+
+    box.location = .{ .x = new_left, .y = new_top };
+    box.size = .{ .x = new_right - new_left, .y = new_bottom - new_top };
+    box.content_size = box.size;
 }
 pub const StyleProperty = enum {
     margin,
