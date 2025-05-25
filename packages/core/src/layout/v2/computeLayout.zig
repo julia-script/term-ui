@@ -13,11 +13,11 @@ pub fn computeLayout(context: *LayoutContext, available_space: mod.PointOf(mod.c
     );
     context.setBox(l_root_id, .{
         .size = root_layout.size,
-
-        // .content_size = root_layout.content_size,
-        // .first_baselines = root_layout.first_baselines,
-        // .top_margin = root_layout.top_margin,
-        // .bottom_margin = root_layout.bottom_margin,
-        // .margins_can_collapse_through = root_layout.margins_can_collapse_through,
+        .content_size = root_layout.content_size,
+        .location = .{ .x = 0, .y = 0 }, // Root is positioned at origin
+        .margin = root_layout.resolved_margin,
+        .padding = root_layout.resolved_padding,
+        .border = root_layout.resolved_border,
+        .scrollbar_size = root_layout.scrollbar_size,
     }, root_layout.line_boxes);
 }

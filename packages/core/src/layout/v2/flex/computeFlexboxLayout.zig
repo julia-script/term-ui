@@ -122,6 +122,13 @@ pub fn computeFlexboxLayout(context: *LayoutContext, inputs: ContainerContext, l
                 .x = styled_based_known_dimensions.x.?,
                 .y = styled_based_known_dimensions.y.?,
             },
+            .resolved_margin = margin,
+            .resolved_padding = padding,
+            .resolved_border = border,
+            .scrollbar_size = .{
+                .x = if (css_overflow.y == .scroll) css_scrollbar_width else 0,
+                .y = if (css_overflow.x == .scroll) css_scrollbar_width else 0,
+            },
         };
     }
 
@@ -133,7 +140,7 @@ pub fn computeFlexboxLayout(context: *LayoutContext, inputs: ContainerContext, l
         .parent_size = inputs.parent_size,
         .available_space = inputs.available_space,
         .vertical_margins_are_collapsible = inputs.vertical_margins_are_collapsible,
-    }, l_node_id, css_flex_direction, css_flex_wrap, css_align_items, css_align_content, css_justify_content, gap, padding, border, maybe_min_size, maybe_max_size, css_overflow, css_scrollbar_width);
+    }, l_node_id, css_flex_direction, css_flex_wrap, css_align_items, css_align_content, css_justify_content, gap, margin, padding, border, maybe_min_size, maybe_max_size, css_overflow, css_scrollbar_width);
 }
 
 /// Inner flexbox computation function that implements the full flexbox algorithm
@@ -147,6 +154,7 @@ fn computeInner(
     css_align_content: css_types.AlignContent,
     css_justify_content: css_types.JustifyContent,
     gap: mod.CSSPoint,
+    margin: mod.CSSRect,
     padding: mod.CSSRect,
     border: mod.CSSRect,
     min_size: mod.CSSMaybePoint,
@@ -183,11 +191,11 @@ fn computeInner(
         context.setBox(child_id, .{
             .size = child_layout.size,
             .location = .{ .x = offset_x, .y = padding.top + border.top },
-            .margin = mod.CSSRect{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
-            .padding = mod.CSSRect{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
-            .border = mod.CSSRect{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
+            .margin = child_layout.resolved_margin,
+            .padding = child_layout.resolved_padding,
+            .border = child_layout.resolved_border,
             .content_size = child_layout.content_size,
-            .scrollbar_size = mod.CSSPoint{ .x = 0, .y = 0 },
+            .scrollbar_size = child_layout.scrollbar_size,
         }, child_layout.line_boxes);
 
         offset_x += child_layout.size.x;
@@ -201,9 +209,19 @@ fn computeInner(
         .y = inputs.known_dimensions.y orelse (content_size.y + padding.sumVertical() + border.sumVertical()),
     };
 
+    // Compute scrollbar size for container
+    const container_scrollbar_size = mod.CSSPoint{
+        .x = if (css_overflow.y == .scroll) css_scrollbar_width else 0,
+        .y = if (css_overflow.x == .scroll) css_scrollbar_width else 0,
+    };
+
     if (inputs.run_mode == .compute_size) {
         return .{
             .size = container_size,
+            .resolved_margin = margin,
+            .resolved_padding = padding,
+            .resolved_border = border,
+            .scrollbar_size = container_scrollbar_size,
         };
     }
 
@@ -214,6 +232,10 @@ fn computeInner(
         .top_margin = mod.CollapsibleMarginSet.ZERO,
         .bottom_margin = mod.CollapsibleMarginSet.ZERO,
         .margins_can_collapse_through = false,
+        .resolved_margin = margin,
+        .resolved_padding = padding,
+        .resolved_border = border,
+        .scrollbar_size = container_scrollbar_size,
     };
 }
 

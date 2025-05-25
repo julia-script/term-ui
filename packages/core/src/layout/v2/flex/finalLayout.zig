@@ -58,21 +58,15 @@ pub fn calculateFlexItem(
             item.offset_main + constants.content_box_inset.top,
     };
     
-    // Determine scrollbar size
-    const scrollbar_size = mod.CSSPoint{
-        .x = if (item.overflow.y == .scroll) item.scrollbar_width else 0,
-        .y = if (item.overflow.x == .scroll) item.scrollbar_width else 0,
-    };
-    
     // Set the final layout
     context.setBox(item.node_id, .{
         .size = final_layout.size,
         .content_size = final_layout.content_size,
-        .scrollbar_size = scrollbar_size,
+        .scrollbar_size = final_layout.scrollbar_size,
         .location = location,
-        .padding = item.padding,
-        .border = item.border,
-        .margin = item.margin,
+        .padding = final_layout.resolved_padding,
+        .border = final_layout.resolved_border,
+        .margin = final_layout.resolved_margin,
     });
     
     // Calculate content size contribution
@@ -141,11 +135,11 @@ pub fn performAbsoluteLayoutOnAbsoluteChildren(
         context.setBox(child_id, .{
             .size = child_layout.size,
             .content_size = child_layout.content_size,
-            .scrollbar_size = mod.CSSPoint{ .x = 0, .y = 0 },
+            .scrollbar_size = child_layout.scrollbar_size,
             .location = location,
-            .padding = mod.CSSRect{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
-            .border = mod.CSSRect{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
-            .margin = mod.CSSRect{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
+            .padding = child_layout.resolved_padding,
+            .border = child_layout.resolved_border,
+            .margin = child_layout.resolved_margin,
         });
         
         const contribution = computeContentSizeContribution(

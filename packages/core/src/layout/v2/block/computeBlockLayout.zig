@@ -40,8 +40,8 @@ pub fn computeBlockLayout(context: *LayoutContext, inputs: ContainerContext, l_n
     _ = css_position; // autofix
     const css_display = context.getStyleValue(css_types.Display, l_node_id, .display);
     const css_overflow = context.getStyleValue(css_types.OverflowPoint, l_node_id, .overflow);
-    _ = css_overflow; // autofix
     const css_aspect_ratio = context.getStyleValue(?f32, l_node_id, .aspect_ratio);
+    const css_scrollbar_width = context.getStyleValue(f32, l_node_id, .scrollbar_width);
 
     // Resolve margins
     const margin = mod.CSSRect{
@@ -108,10 +108,25 @@ pub fn computeBlockLayout(context: *LayoutContext, inputs: ContainerContext, l_n
         .y = mod.math.maybeMax(inputs.known_dimensions.y orelse min_max_definite_size.y orelse clamped_style_size.y orelse available_space_based_size.y, padding_border_size.y),
     };
     if (inputs.run_mode == .compute_size and styled_based_known_dimensions.x != null and styled_based_known_dimensions.y != null) {
+        // For compute_size mode, we still need to provide basic box model data
+        const compute_size_margin = mod.CSSRect{
+            .top = mod.math.maybeResolve(css_margins.top, parent_size.x) orelse 0,
+            .right = mod.math.maybeResolve(css_margins.right, parent_size.x) orelse 0,
+            .bottom = mod.math.maybeResolve(css_margins.bottom, parent_size.x) orelse 0,
+            .left = mod.math.maybeResolve(css_margins.left, parent_size.x) orelse 0,
+        };
+
         return .{
             .size = .{
                 .x = styled_based_known_dimensions.x.?,
                 .y = styled_based_known_dimensions.y.?,
+            },
+            .resolved_margin = compute_size_margin,
+            .resolved_padding = padding,
+            .resolved_border = border,
+            .scrollbar_size = .{
+                .x = if (css_overflow.y == .scroll) css_scrollbar_width else 0,
+                .y = if (css_overflow.x == .scroll) css_scrollbar_width else 0,
             },
         };
     }
@@ -280,10 +295,25 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
 
     // Short-circuit if computing size and both dimensions known
     if (inputs.run_mode == .compute_size) if (inputs.known_dimensions.y) |container_outer_height| {
+        // Resolve basic margins for compute_size mode
+        const compute_size_margin = mod.CSSRect{
+            .top = mod.math.maybeResolve(css_margins.top, inputs.parent_size.x) orelse 0,
+            .right = mod.math.maybeResolve(css_margins.right, inputs.parent_size.x) orelse 0,
+            .bottom = mod.math.maybeResolve(css_margins.bottom, inputs.parent_size.x) orelse 0,
+            .left = mod.math.maybeResolve(css_margins.left, inputs.parent_size.x) orelse 0,
+        };
+
         return .{
             .size = mod.CSSPoint{
                 .x = container_outer_width,
                 .y = container_outer_height,
+            },
+            .resolved_margin = compute_size_margin,
+            .resolved_padding = padding,
+            .resolved_border = border,
+            .scrollbar_size = .{
+                .x = if (css_overflow.y == .scroll) css_scrollbar_width else 0,
+                .y = if (css_overflow.x == .scroll) css_scrollbar_width else 0,
             },
         };
     };
@@ -331,8 +361,23 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
     };
 
     if (inputs.run_mode == .compute_size) {
+        // Resolve basic margins for compute_size mode
+        const compute_size_margin = mod.CSSRect{
+            .top = mod.math.maybeResolve(css_margins.top, inputs.parent_size.x) orelse 0,
+            .right = mod.math.maybeResolve(css_margins.right, inputs.parent_size.x) orelse 0,
+            .bottom = mod.math.maybeResolve(css_margins.bottom, inputs.parent_size.x) orelse 0,
+            .left = mod.math.maybeResolve(css_margins.left, inputs.parent_size.x) orelse 0,
+        };
+
         return .{
             .size = final_outer_size,
+            .resolved_margin = compute_size_margin,
+            .resolved_padding = resolved_padding,
+            .resolved_border = resolved_border,
+            .scrollbar_size = .{
+                .x = if (css_overflow.y == .scroll) css_scrollbar_width else 0,
+                .y = if (css_overflow.x == .scroll) css_scrollbar_width else 0,
+            },
         };
     }
 
@@ -397,6 +442,20 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
         .y = @max(inflow_content_size.y, absolute_content_size.y),
     };
 
+    // Resolve margins for the container itself
+    const container_resolved_margin = mod.CSSRect{
+        .top = mod.math.maybeResolve(css_margins.top, inputs.parent_size.x) orelse 0,
+        .right = mod.math.maybeResolve(css_margins.right, inputs.parent_size.x) orelse 0,
+        .bottom = mod.math.maybeResolve(css_margins.bottom, inputs.parent_size.x) orelse 0,
+        .left = mod.math.maybeResolve(css_margins.left, inputs.parent_size.x) orelse 0,
+    };
+
+    // Compute scrollbar size
+    const container_scrollbar_size = mod.CSSPoint{
+        .x = if (css_overflow.y == .scroll) css_scrollbar_width else 0,
+        .y = if (css_overflow.x == .scroll) css_scrollbar_width else 0,
+    };
+
     return .{
         .size = final_outer_size,
         .content_size = content_size,
@@ -404,14 +463,20 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
         .top_margin = if (own_margins_collapse_with_children.start)
             first_child_top_margin_set
         else
-            mod.CollapsibleMarginSet.fromMargin(mod.math.maybeResolve(css_margins.top, inputs.parent_size.x) orelse 0),
+            mod.CollapsibleMarginSet.fromMargin(container_resolved_margin.top),
 
         .bottom_margin = if (own_margins_collapse_with_children.end)
             last_child_bottom_margin_set
         else
-            mod.CollapsibleMarginSet.fromMargin(mod.math.maybeResolve(css_margins.bottom, inputs.parent_size.x) orelse 0),
+            mod.CollapsibleMarginSet.fromMargin(container_resolved_margin.bottom),
 
         .margins_can_collapse_through = can_be_collapsed_through,
+
+        // Box model fields
+        .resolved_margin = container_resolved_margin,
+        .resolved_padding = resolved_padding,
+        .resolved_border = resolved_border,
+        .scrollbar_size = container_scrollbar_size,
     };
 }
 
@@ -697,11 +762,6 @@ fn performFinalLayoutOnInFlowChildren(
             .y = committed_offset.y + inset_offset.y + y_margin_offset,
         };
 
-        const scrollbar_size = mod.CSSPoint{
-            .x = if (item.overflow.y == .scroll) item.scrollbar_width else 0,
-            .y = if (item.overflow.x == .scroll) item.scrollbar_width else 0,
-        };
-
         const content_size = mod.CSSPoint{
             .x = container_inner_width,
             .y = item_layout.content_size.y,
@@ -709,10 +769,10 @@ fn performFinalLayoutOnInFlowChildren(
 
         context.setBox(item.node_id, .{
             .size = item_layout.size,
-            .scrollbar_size = scrollbar_size,
+            .scrollbar_size = item_layout.scrollbar_size,
             .location = location,
-            .padding = item.padding,
-            .border = item.border,
+            .padding = item_layout.resolved_padding,
+            .border = item_layout.resolved_border,
             .content_size = content_size,
             .margin = resolved_margin,
         }, item_layout.line_boxes);
@@ -985,18 +1045,13 @@ pub fn performAbsoluteLayoutOnAbsoluteChildren(
             },
         };
 
-        const scrollbar_size = mod.CSSPoint{
-            .x = if (item.overflow.y == .scroll) item.scrollbar_width else 0,
-            .y = if (item.overflow.x == .scroll) item.scrollbar_width else 0,
-        };
-
         context.setBox(child_id, .{
             .size = final_size,
             .content_size = layout_output.content_size,
-            .scrollbar_size = scrollbar_size,
+            .scrollbar_size = layout_output.scrollbar_size,
             .location = location,
-            .padding = padding,
-            .border = border,
+            .padding = layout_output.resolved_padding,
+            .border = layout_output.resolved_border,
             .margin = resolved_margin,
         }, layout_output.line_boxes);
 

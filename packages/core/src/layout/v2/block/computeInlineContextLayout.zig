@@ -70,7 +70,6 @@ pub fn computeInlineContextLayout(context: *LayoutContext, inputs: ContainerCont
     _ = css_position; // autofix
     const css_display = context.getStyleValue(css_types.Display, l_node_id, .display);
     const css_overflow = context.getStyleValue(css_types.OverflowPoint, l_node_id, .overflow);
-    _ = css_overflow; // autofix
     const css_aspect_ratio = context.getStyleValue(?f32, l_node_id, .aspect_ratio);
 
     // Resolve margins
@@ -143,6 +142,13 @@ pub fn computeInlineContextLayout(context: *LayoutContext, inputs: ContainerCont
                 .x = styled_based_known_dimensions.x.?,
                 .y = styled_based_known_dimensions.y.?,
             },
+            .resolved_margin = margin,
+            .resolved_padding = padding,
+            .resolved_border = border,
+            .scrollbar_size = .{
+                .x = if (css_overflow.y == .scroll) context.getStyleValue(f32, l_node_id, .scrollbar_width) else 0,
+                .y = if (css_overflow.x == .scroll) context.getStyleValue(f32, l_node_id, .scrollbar_width) else 0,
+            },
         };
     }
 
@@ -159,7 +165,12 @@ pub fn computeInlineContextLayout(context: *LayoutContext, inputs: ContainerCont
     }, l_node_id) catch |err| switch (err) {
         error.InvalidUtf8 => {
             // Handle invalid UTF-8 by returning empty content
-            return .{ .size = .{ .x = 0, .y = 0 } };
+            return .{ 
+                .size = .{ .x = 0, .y = 0 },
+                .resolved_margin = margin,
+                .resolved_padding = padding,
+                .resolved_border = border,
+            };
         },
         else => |e| return e,
     };
@@ -218,66 +229,45 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
         content_height += line.size.y;
     }
 
-    // // If no lines were created, ensure minimum height
-    // if (lines_builder.lines.items.len == 0) {
-    //     content_height = 16.0; // Default line height
-    // }
+    // Get style values for box model
+    const css_margins = context.getStyleValue(css_types.LengthPercentageAutoRect, l_node_id, .margin);
+    const css_padding = context.getStyleValue(css_types.LengthPercentageRect, l_node_id, .padding);
+    const css_border = context.getStyleValue(css_types.LengthPercentageRect, l_node_id, .border_width);
+    const css_overflow = context.getStyleValue(css_types.OverflowPoint, l_node_id, .overflow);
+    const css_scrollbar_width = context.getStyleValue(f32, l_node_id, .scrollbar_width);
 
-    // Transfer ownership of line boxes to the InlineContainerNode
-    // This prevents deallocation when LinesBuilder is destroyed
-    // if (l_node.data == .inline_container_node) {
-    //     const text_line_boxes = lines_builder.toOwnedLineBoxes();
-
-    //     // Convert from text.LineBox format to LayoutTree.LineBox format
-    //     var layout_line_boxes = std.ArrayListUnmanaged(mod.LineBox){};
-
-    //     for (text_line_boxes.items) |text_line| {
-    //         var layout_line = mod.LineBox{};
-
-    //         // First, convert fragments WITHOUT position calculation
-    //         for (text_line.fragments.items) |text_fragment| {
-    //             const layout_fragment = LayoutTree.LineBox.Fragment{
-    //                 .node = text_fragment.l_node_id,
-    //                 .start = text_fragment.start,
-    //                 .end = text_fragment.start + text_fragment.length,
-    //                 .text = try allocator.dupe(u8, text_fragment.text),
-    //                 .allocator = allocator,
-    //                 .position = mod.CSSPoint{ .x = 0, .y = 0 }, // Temporary position
-    //             };
-    //             try layout_line.fragments.append(allocator, layout_fragment);
-    //         }
-
-    //         // Calculate final line height from the text line size
-    //         const line_height = text_line.size.y;
-
-    //         // Finally, position fragments correctly with proper line height
-    //         // Use the alignment-adjusted positions from text_fragment.position
-    //         for (layout_line.fragments.items, 0..) |*layout_fragment, i| {
-    //             const text_fragment = text_line.fragments.items[i];
-
-    //             // Use the x position from text alignment, y position for bottom-alignment
-    //             layout_fragment.position = mod.CSSPoint{
-    //                 .x = text_fragment.position.x, // Use alignment-adjusted x position
-    //                 .y = line_height - text_fragment.size.y, // Bottom align with correct line height
-    //             };
-    //         }
-
-    //         try layout_line_boxes.append(allocator, layout_line);
-    //     }
-
-    //     // Clean up the text line boxes (including fragment text memory)
-    //     for (text_line_boxes.items) |*text_line| {
-    //         text_line.deinit();
-    //     }
-    //     text_line_boxes.deinit();
-
-    //     // l_node.data.inline_container_node.line_boxes = layout_line_boxes;
-    // }
+    // Resolve box model values
+    const resolved_margin = mod.CSSRect{
+        .top = mod.math.maybeResolve(css_margins.top, inputs.parent_size.x) orelse 0,
+        .right = mod.math.maybeResolve(css_margins.right, inputs.parent_size.x) orelse 0,
+        .bottom = mod.math.maybeResolve(css_margins.bottom, inputs.parent_size.x) orelse 0,
+        .left = mod.math.maybeResolve(css_margins.left, inputs.parent_size.x) orelse 0,
+    };
+    const resolved_padding = mod.CSSRect{
+        .top = mod.math.maybeResolve(css_padding.top, inputs.parent_size.x) orelse 0,
+        .right = mod.math.maybeResolve(css_padding.right, inputs.parent_size.x) orelse 0,
+        .bottom = mod.math.maybeResolve(css_padding.bottom, inputs.parent_size.x) orelse 0,
+        .left = mod.math.maybeResolve(css_padding.left, inputs.parent_size.x) orelse 0,
+    };
+    const resolved_border = mod.CSSRect{
+        .top = mod.math.maybeResolve(css_border.top, inputs.parent_size.x) orelse 0,
+        .right = mod.math.maybeResolve(css_border.right, inputs.parent_size.x) orelse 0,
+        .bottom = mod.math.maybeResolve(css_border.bottom, inputs.parent_size.x) orelse 0,
+        .left = mod.math.maybeResolve(css_border.left, inputs.parent_size.x) orelse 0,
+    };
+    const scrollbar_size = mod.CSSPoint{
+        .x = if (css_overflow.y == .scroll) css_scrollbar_width else 0,
+        .y = if (css_overflow.x == .scroll) css_scrollbar_width else 0,
+    };
 
     return .{
         .size = .{ .x = content_width, .y = content_height },
         .content_size = .{ .x = content_width, .y = content_height },
         .line_boxes = try lines_builder.toOwnedLineBoxes(context.allocator),
+        .resolved_margin = resolved_margin,
+        .resolved_padding = resolved_padding,
+        .resolved_border = resolved_border,
+        .scrollbar_size = scrollbar_size,
     };
 }
 
