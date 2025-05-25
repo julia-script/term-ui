@@ -18,9 +18,9 @@ fn processNodeRecursively(context: *LayoutContext, lines_builder: *mod.LinesBuil
 
             // Check if this text contains newlines - if so, preserve them
             const white_space = if (std.mem.indexOf(u8, text_content, "\n") != null)
-                @import("../../../styles/white-space.zig").WhiteSpace.pre
+                css_types.WhiteSpace.pre
             else
-                @import("../../../styles/white-space.zig").WhiteSpace.normal;
+                css_types.WhiteSpace.normal;
 
             // Add this text node's content to the lines builder
             try lines_builder.addTextWithNode(text_content, white_space, node_id);
@@ -178,26 +178,29 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
 
     // Initialize LinesBuilder with available space from layout constraints
     const available_width = inputs.available_space.x;
-    std.debug.print("available_width: {}\n", .{available_width});
     var lines_builder = mod.LinesBuilder.init(allocator, available_width);
     defer lines_builder.deinit();
 
     // Recursively process all child nodes to collect text content
     try processNodeRecursively(context, &lines_builder, l_node_id);
 
-    // Debug: print what's in the buffer
-    if (std.mem.indexOf(u8, lines_builder.segmenter.buffer.items, "\n") != null) {
-        std.debug.print("Buffer contains newlines: '{s}'\n", .{lines_builder.segmenter.buffer.items});
-    } else {
-        std.debug.print("Buffer has no newlines: '{s}'\n", .{lines_builder.segmenter.buffer.items});
-    }
-
-    // Generate line layout based on white-space mode
-    // Use normal wrap mode as default - in a real implementation,
-    // this could be inherited from the container or determined from CSS
-    const wrap_mode = @import("../../../styles/white-space.zig").TextWrapMode.wrap;
+    const whitespace = context.getStyleValue(css_types.WhiteSpace, l_node_id, .white_space);
+    const wrap_mode = whitespace.toLonghand().wrap_mode;
 
     try lines_builder.buildLinesWithWrapMode(wrap_mode);
+
+    // Apply text alignment if container has definite width
+    const text_align = context.getStyleValue(css_types.TextAlign, l_node_id, .text_align);
+    if (text_align != .inherit) {
+        switch (available_width) {
+            .definite => |width| {
+                lines_builder.applyTextAlignment(text_align, width);
+            },
+            .min_content, .max_content => {
+                // No alignment for content-based sizing
+            },
+        }
+    }
 
     // Calculate content size from LinesBuilder's measured line dimensions
     var content_width: f32 = 0;
@@ -210,17 +213,13 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
         // Track the maximum width across all lines
         content_width = @max(content_width, line.size.x);
 
-        // Position fragments within this line
-        var current_x: f32 = 0;
-
+        // Position fragments within this line using alignment-adjusted positions
         for (line.fragments.items) |fragment| {
             // Update the corresponding layout node's box with position and size
             const fragment_node = context.layout_tree.getNodePtr(fragment.l_node_id);
-            fragment_node.box.location = .{ .x = current_x, .y = current_y };
+            fragment_node.box.location = .{ .x = fragment.position.x, .y = current_y };
             fragment_node.box.size = fragment.size;
             fragment_node.box.content_size = fragment.size;
-
-            current_x += fragment.size.x;
         }
 
         // Accumulate total height from all lines
@@ -261,18 +260,15 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
             const line_height = text_line.size.y;
 
             // Finally, position fragments correctly with proper line height
-            var x_offset: f32 = 0;
+            // Use the alignment-adjusted positions from text_fragment.position
             for (layout_line.fragments.items, 0..) |*layout_fragment, i| {
                 const text_fragment = text_line.fragments.items[i];
-                
-                // Calculate position within line box (bottom-aligned)
+
+                // Use the x position from text alignment, y position for bottom-alignment
                 layout_fragment.position = mod.CSSPoint{
-                    .x = x_offset,
+                    .x = text_fragment.position.x, // Use alignment-adjusted x position
                     .y = line_height - text_fragment.size.y, // Bottom align with correct line height
                 };
-                
-                // Update x offset for next fragment
-                x_offset += text_fragment.size.x;
             }
 
             try layout_line_boxes.append(allocator, layout_line);
@@ -450,4 +446,96 @@ test "computeInlineContextLayout real forced breaks" {
         0,
     );
     try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
+}
+
+test "computeInlineContextLayout text alignment" {
+    const allocator = std.testing.allocator;
+
+    // Test left alignment (default)
+    {
+        const doc_xml = "<div style=\"width:50; text-align:left\"><p>Short text</p></div>";
+        var tree = try mod.docFromXml(allocator, doc_xml, .{});
+        defer tree.deinit();
+
+        var lt = try mod.LayoutTree.fromTree(allocator, &tree);
+        defer lt.deinit();
+        var context = LayoutContext{
+            .layout_tree = &lt,
+            .doc_tree = &tree,
+            .allocator = allocator,
+        };
+        std.debug.print("\n=== Testing left text alignment ===\n", .{});
+        try mod.computeLayout(
+            &context,
+            .{ .x = .{ .definite = 50 }, .y = .max_content },
+            0,
+        );
+        try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
+    }
+
+    // Test center alignment
+    {
+        const doc_xml = "<div style=\"width:50; text-align:center\"><p>Short text</p></div>";
+        var tree = try mod.docFromXml(allocator, doc_xml, .{});
+        defer tree.deinit();
+
+        var lt = try mod.LayoutTree.fromTree(allocator, &tree);
+        defer lt.deinit();
+        var context = LayoutContext{
+            .layout_tree = &lt,
+            .doc_tree = &tree,
+            .allocator = allocator,
+        };
+        std.debug.print("\n=== Testing center text alignment ===\n", .{});
+        try mod.computeLayout(
+            &context,
+            .{ .x = .{ .definite = 50 }, .y = .max_content },
+            0,
+        );
+        try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
+    }
+
+    // Test right alignment
+    {
+        const doc_xml = "<div style=\"width:50; text-align:right\"><p>Short text</p></div>";
+        var tree = try mod.docFromXml(allocator, doc_xml, .{});
+        defer tree.deinit();
+
+        var lt = try mod.LayoutTree.fromTree(allocator, &tree);
+        defer lt.deinit();
+        var context = LayoutContext{
+            .layout_tree = &lt,
+            .doc_tree = &tree,
+            .allocator = allocator,
+        };
+        std.debug.print("\n=== Testing right text alignment ===\n", .{});
+        try mod.computeLayout(
+            &context,
+            .{ .x = .{ .definite = 50 }, .y = .max_content },
+            0,
+        );
+        try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
+    }
+
+    // Test alignment with multiple lines
+    {
+        const doc_xml = "<div style=\"width:20; text-align:center\"><p>This is longer text that will wrap</p></div>";
+        var tree = try mod.docFromXml(allocator, doc_xml, .{});
+        defer tree.deinit();
+
+        var lt = try mod.LayoutTree.fromTree(allocator, &tree);
+        defer lt.deinit();
+        var context = LayoutContext{
+            .layout_tree = &lt,
+            .doc_tree = &tree,
+            .allocator = allocator,
+        };
+        std.debug.print("\n=== Testing center alignment with wrapping ===\n", .{});
+        try mod.computeLayout(
+            &context,
+            .{ .x = .{ .definite = 20 }, .y = .max_content },
+            0,
+        );
+        try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
+    }
 }

@@ -5,8 +5,8 @@ const std = @import("std");
 const ArrayList = std.ArrayList;
 const LineBreakStream = @import("../../../uni/LineBreakStream.zig");
 const WhiteSpaceProcessor = @import("./white-space-processor.zig").WhiteSpaceProcessor;
-const WhiteSpaceCollapse = @import("../../../styles/white-space.zig").WhiteSpaceCollapse;
 const WhiteSpace = @import("../../../styles/white-space.zig").WhiteSpace;
+const css_types = @import("../../../css/types.zig");
 const TextWrapMode = @import("../../../styles/white-space.zig").TextWrapMode;
 const TabSize = @import("../../../styles/white-space.zig").TabSize;
 
@@ -197,7 +197,7 @@ fn updateLineSize(self: *Self, line: *LineBox) void {
 }
 
 /// Add text content with specific collapse mode
-pub fn addTextWithCollapse(self: *Self, text: []const u8, collapse_mode: WhiteSpaceCollapse) !void {
+pub fn addTextWithCollapse(self: *Self, text: []const u8, collapse_mode: css_types.WhiteSpaceCollapse) !void {
     const processed_text = try self.white_space_processor.processText(text, collapse_mode);
     defer self.allocator.free(processed_text);
 
@@ -306,6 +306,47 @@ pub fn measureTextWidth(self: *Self, text: []const u8) f32 {
     const measured_width = utf8WidthExcludingAnsiColors(text);
 
     return @as(f32, @floatFromInt(measured_width));
+}
+
+/// Apply text alignment to all lines based on the specified alignment mode
+/// This adjusts fragment positions within each line to achieve left, right, or center alignment
+pub fn applyTextAlignment(self: *Self, text_align: css_types.TextAlign, container_width: f32) void {
+    // For simplicity, map start/end to left/right (RTL not implemented yet)
+    const physical_align = switch (text_align) {
+        .start => css_types.TextAlign.left,
+        .end => @import("../../../styles/text-align.zig").TextAlign.right,
+        else => text_align,
+    };
+
+    for (self.lines.items) |*line| {
+        if (line.fragments.items.len == 0) continue;
+
+        // Calculate the total width of content in this line
+        var line_content_width: f32 = 0;
+        for (line.fragments.items) |fragment| {
+            line_content_width += fragment.size.x;
+        }
+
+        // Calculate the alignment offset based on alignment mode
+        const alignment_offset = switch (physical_align) {
+            .left, .start => 0.0, // No offset needed for left alignment
+            .right, .end => container_width - line_content_width,
+            .center => (container_width - line_content_width) / 2.0,
+            .inherit => 0.0, // Fallback to left
+        };
+
+        // Apply the alignment offset to all fragments in this line
+        var current_x: f32 = alignment_offset;
+        for (line.fragments.items) |*fragment| {
+            // Update fragment position with alignment offset
+            fragment.position.x = current_x;
+            current_x += fragment.size.x;
+        }
+
+        // Update line size if needed (line width might extend beyond container for right/center)
+        // But we keep the original content width for proper rendering
+        self.updateLineSize(line);
+    }
 }
 
 /// Build lines with wrap mode consideration
@@ -488,194 +529,195 @@ fn reorganizeFragmentsNowrap(self: *Self) !void {
 }
 
 /// Create new lines from a list of fragments, respecting available width
-fn createLinesFromFragments(self: *Self, fragments: []LineBoxFragment, available_width: f32) !void {
-    var current_line_width: f32 = 0;
-    var current_line: ?*LineBox = null;
+// fn createLinesFromFragments(self: *Self, fragments: []LineBoxFragment, available_width: f32) !void {
+//     var current_line_width: f32 = 0;
+//     var current_line: ?*LineBox = null;
 
-    for (fragments) |fragment| {
-        // Check if fragment fits on current line
-        if (current_line != null and current_line_width + fragment.size.x <= available_width) {
-            // Fragment fits, add to current line
-            try current_line.?.fragments.append(fragment);
-            current_line_width += fragment.size.x;
-        } else {
-            // Fragment doesn't fit or no current line, need to handle wrapping
-            if (fragment.size.x <= available_width) {
-                // Fragment fits on a line by itself, create new line
-                try self.addNewLine(available_width);
-                current_line = &self.lines.items[self.lines.items.len - 1];
-                try current_line.?.fragments.append(fragment);
-                current_line_width = fragment.size.x;
-            } else {
-                // Fragment is too wide, need to split it
-                try self.splitFragmentAcrossLines(fragment, available_width, &current_line, &current_line_width);
-            }
-        }
+//     for (fragments) |fragment| {
+//         // Check if fragment fits on current line
+//         if (current_line != null and current_line_width + fragment.size.x <= available_width) {
+//             // Fragment fits, add to current line
+//             try current_line.?.fragments.append(fragment);
+//             current_line_width += fragment.size.x;
+//         } else {
+//             // Fragment doesn't fit or no current line, need to handle wrapping
+//             if (fragment.size.x <= available_width) {
+//                 // Fragment fits on a line by itself, create new line
+//                 try self.addNewLine(available_width);
+//                 current_line = &self.lines.items[self.lines.items.len - 1];
+//                 try current_line.?.fragments.append(fragment);
+//                 current_line_width = fragment.size.x;
+//             } else {
+//                 // Fragment is too wide, need to split it
+//                 try self.splitFragmentAcrossLines(fragment, available_width, &current_line, &current_line_width);
+//             }
+//         }
 
-        // Update line size after adding fragment(s)
-        if (current_line != null) {
-            self.updateLineSize(current_line.?);
-        }
-    }
-}
+//         // Update line size after adding fragment(s)
+//         if (current_line != null) {
+//             self.updateLineSize(current_line.?);
+//         }
+//     }
+// }
 
-/// Split a fragment across multiple lines when it's too wide to fit
-fn splitFragmentAcrossLines(self: *Self, fragment: LineBoxFragment, available_width: f32, current_line: *?*LineBox, current_line_width: *f32) !void {
-    // Use proper line breaking algorithm with soft wrap opportunities
+// /// Split a fragment across multiple lines when it's too wide to fit
+// fn splitFragmentAcrossLines(self: *Self, fragment: LineBoxFragment, available_width: f32, current_line: *?*LineBox, current_line_width: *f32) !void {
+//     // Use proper line breaking algorithm with soft wrap opportunities
 
-    const text = fragment.text;
-    var remaining_text = text;
-    var fragment_start_offset = fragment.start;
+//     const text = fragment.text;
+//     var remaining_text = text;
+//     var fragment_start_offset = fragment.start;
 
-    // Create a temporary LineBreakStream for this fragment's text
-    var temp_segmenter = LineBreakStream.init(self.allocator);
-    defer temp_segmenter.deinit();
-    try temp_segmenter.append(text);
-    temp_segmenter.markStreamDone();
+//     // Create a temporary LineBreakStream for this fragment's text
+//     var temp_segmenter = LineBreakStream.init(self.allocator);
+//     defer temp_segmenter.deinit();
+//     try temp_segmenter.append(text);
+//     temp_segmenter.markStreamDone();
 
-    // Collect all break opportunities in this fragment
-    var break_opportunities = std.ArrayList(usize).init(self.allocator);
-    defer break_opportunities.deinit();
+//     // Collect all break opportunities in this fragment
+//     var break_opportunities = std.ArrayList(usize).init(self.allocator);
+//     defer break_opportunities.deinit();
 
-    while (temp_segmenter.next()) |break_point| {
-        try break_opportunities.append(break_point.i);
-    }
+//     while (temp_segmenter.next()) |break_point| {
+//         try break_opportunities.append(break_point.i);
+//     }
 
-    var text_start: usize = 0;
-    var break_index: usize = 0;
+//     var text_start: usize = 0;
+//     var break_index: usize = 0;
 
-    while (text_start < text.len) {
-        // Find the longest text segment that fits on the current line
-        var best_break_point: usize = text.len; // Default to end of text
-        var chars_that_fit: usize = text.len - text_start;
+//     while (text_start < text.len) {
+//         // Find the longest text segment that fits on the current line
+//         var best_break_point: usize = text.len; // Default to end of text
+//         var chars_that_fit: usize = text.len - text_start;
 
-        // Check each break opportunity to find the best fit
-        while (break_index < break_opportunities.items.len and break_opportunities.items[break_index] <= text_start) {
-            break_index += 1; // Skip breaks that are before our current position
-        }
+//         // Check each break opportunity to find the best fit
+//         while (break_index < break_opportunities.items.len and break_opportunities.items[break_index] <= text_start) {
+//             break_index += 1; // Skip breaks that are before our current position
+//         }
 
-        // Try break opportunities from latest to earliest to find longest segment that fits
-        var temp_break_index = break_index;
-        while (temp_break_index < break_opportunities.items.len) {
-            const break_pos = break_opportunities.items[temp_break_index];
-            if (break_pos <= text_start) {
-                temp_break_index += 1;
-                continue;
-            }
+//         // Try break opportunities from latest to earliest to find longest segment that fits
+//         var temp_break_index = break_index;
+//         while (temp_break_index < break_opportunities.items.len) {
+//             const break_pos = break_opportunities.items[temp_break_index];
+//             if (break_pos <= text_start) {
+//                 temp_break_index += 1;
+//                 continue;
+//             }
 
-            const segment_text = text[text_start..break_pos];
-            const segment_width = self.measureTextWidth(segment_text);
+//             const segment_text = text[text_start..break_pos];
+//             const segment_width = self.measureTextWidth(segment_text);
 
-            if (current_line_width.* + segment_width <= available_width) {
-                best_break_point = break_pos;
-                chars_that_fit = break_pos - text_start;
-                break; // Found a good break point
-            }
-            temp_break_index += 1;
-        }
+//             if (current_line_width.* + segment_width <= available_width) {
+//                 best_break_point = break_pos;
+//                 chars_that_fit = break_pos - text_start;
+//                 break; // Found a good break point
+//             }
+//             temp_break_index += 1;
+//         }
 
-        // If no break opportunity fits, fall back to character-based fitting
-        if (best_break_point == text.len and chars_that_fit > 0) {
-            chars_that_fit = 0;
-            const width_so_far = current_line_width.*;
+//         //TODO: is this correct?
+//         // If no break opportunity fits, fall back to character-based fitting
+//         if (best_break_point == text.len and chars_that_fit > 0) {
+//             chars_that_fit = 0;
+//             const width_so_far = current_line_width.*;
 
-            for (text_start..text.len) |i| {
-                const char_slice = text[text_start .. i + 1];
-                const char_width = self.measureTextWidth(char_slice);
+//             for (text_start..text.len) |i| {
+//                 const char_slice = text[text_start .. i + 1];
+//                 const char_width = self.measureTextWidth(char_slice);
 
-                if (width_so_far + char_width <= available_width) {
-                    chars_that_fit = i + 1 - text_start;
-                } else {
-                    break;
-                }
-            }
-        }
+//                 if (width_so_far + char_width <= available_width) {
+//                     chars_that_fit = i + 1 - text_start;
+//                 } else {
+//                     break;
+//                 }
+//             }
+//         }
 
-        // If nothing fits and we have a current line, start a new line
-        if (chars_that_fit == 0 and current_line.* != null) {
-            try self.addNewLine(available_width);
-            current_line.* = &self.lines.items[self.lines.items.len - 1];
-            current_line_width.* = 0;
-            continue;
-        }
+//         // If nothing fits and we have a current line, start a new line
+//         if (chars_that_fit == 0 and current_line.* != null) {
+//             try self.addNewLine(available_width);
+//             current_line.* = &self.lines.items[self.lines.items.len - 1];
+//             current_line_width.* = 0;
+//             continue;
+//         }
 
-        // If still nothing fits (character too wide), take at least one character
-        if (chars_that_fit == 0) {
-            chars_that_fit = 1;
-        }
+//         // If still nothing fits (character too wide), take at least one character
+//         if (chars_that_fit == 0) {
+//             chars_that_fit = 1;
+//         }
 
-        // Create fragment for the portion that fits
-        const partial_text = text[text_start .. text_start + chars_that_fit];
-        const owned_partial_text = try self.allocator.dupe(u8, partial_text);
+//         // Create fragment for the portion that fits
+//         const partial_text = text[text_start .. text_start + chars_that_fit];
+//         const owned_partial_text = try self.allocator.dupe(u8, partial_text);
 
-        const partial_fragment = LineBoxFragment{
-            .l_node_id = fragment.l_node_id,
-            .start = fragment_start_offset,
-            .length = @intCast(chars_that_fit),
-            .size = mod.CSSPoint{ .x = self.measureTextWidth(partial_text), .y = fragment.size.y },
-            .is_atomic = fragment.is_atomic,
-            .white_space_info = fragment.white_space_info,
-            .text = owned_partial_text,
-            .allocator = self.allocator,
-        };
+//         const partial_fragment = LineBoxFragment{
+//             .l_node_id = fragment.l_node_id,
+//             .start = fragment_start_offset,
+//             .length = @intCast(chars_that_fit),
+//             .size = mod.CSSPoint{ .x = self.measureTextWidth(partial_text), .y = fragment.size.y },
+//             .is_atomic = fragment.is_atomic,
+//             .white_space_info = fragment.white_space_info,
+//             .text = owned_partial_text,
+//             .allocator = self.allocator,
+//         };
 
-        // Ensure we have a current line
-        if (current_line.* == null) {
-            try self.addNewLine(available_width);
-            current_line.* = &self.lines.items[self.lines.items.len - 1];
-            current_line_width.* = 0;
-        }
+//         // Ensure we have a current line
+//         if (current_line.* == null) {
+//             try self.addNewLine(available_width);
+//             current_line.* = &self.lines.items[self.lines.items.len - 1];
+//             current_line_width.* = 0;
+//         }
 
-        // Add partial fragment to current line
-        try current_line.*.?.fragments.append(partial_fragment);
-        current_line_width.* += partial_fragment.size.x;
+//         // Add partial fragment to current line
+//         try current_line.*.?.fragments.append(partial_fragment);
+//         current_line_width.* += partial_fragment.size.x;
 
-        // Move to next portion
-        remaining_text = remaining_text[chars_that_fit..];
-        text_start += chars_that_fit;
-        fragment_start_offset += @intCast(chars_that_fit);
+//         // Move to next portion
+//         remaining_text = remaining_text[chars_that_fit..];
+//         text_start += chars_that_fit;
+//         fragment_start_offset += @intCast(chars_that_fit);
 
-        // If there's more text, we'll need a new line
-        if (remaining_text.len > 0) {
-            try self.addNewLine(available_width);
-            current_line.* = &self.lines.items[self.lines.items.len - 1];
-            current_line_width.* = 0;
-        }
-    }
+//         // If there's more text, we'll need a new line
+//         if (remaining_text.len > 0) {
+//             try self.addNewLine(available_width);
+//             current_line.* = &self.lines.items[self.lines.items.len - 1];
+//             current_line_width.* = 0;
+//         }
+//     }
 
-    // Free the original fragment's text since we've created new fragments
-    fragment.allocator.free(fragment.text);
-}
+//     // Free the original fragment's text since we've created new fragments
+//     fragment.allocator.free(fragment.text);
+// }
 
 /// Build lines for nowrap mode: only break at forced line breaks
-fn buildLinesNowrap(self: *Self) !void {
-    const text = self.segmenter.buffer.items;
-    var line_start: usize = 0;
-    var line_count: usize = 0;
+// fn buildLinesNowrap(self: *Self) !void {
+//     const text = self.segmenter.buffer.items;
+//     var line_start: usize = 0;
+//     var line_count: usize = 0;
 
-    // Split text only at forced line breaks (LF)
-    for (text, 0..) |byte, i| {
-        if (byte == 0x0A) { // LF (forced line break)
-            // Create line from line_start to current position (excluding LF)
-            const line_text = text[line_start..i];
-            if (line_text.len > 0) { // Only create non-empty lines
-                try self.createLineFromText(line_text);
-                line_count += 1;
-            }
-            // Start new line after the break
-            line_start = i + 1;
-        }
-    }
+//     // Split text only at forced line breaks (LF)
+//     for (text, 0..) |byte, i| {
+//         if (byte == 0x0A) { // LF (forced line break)
+//             // Create line from line_start to current position (excluding LF)
+//             const line_text = text[line_start..i];
+//             if (line_text.len > 0) { // Only create non-empty lines
+//                 try self.createLineFromText(line_text);
+//                 line_count += 1;
+//             }
+//             // Start new line after the break
+//             line_start = i + 1;
+//         }
+//     }
 
-    // Handle remaining text after last line break
-    if (line_start < text.len) {
-        const remaining_text = text[line_start..];
-        if (remaining_text.len > 0) { // Only create non-empty lines
-            try self.createLineFromText(remaining_text);
-            line_count += 1;
-        }
-    }
-}
+//     // Handle remaining text after last line break
+//     if (line_start < text.len) {
+//         const remaining_text = text[line_start..];
+//         if (remaining_text.len > 0) { // Only create non-empty lines
+//             try self.createLineFromText(remaining_text);
+//             line_count += 1;
+//         }
+//     }
+// }
 
 /// Build lines for normal wrap mode: break at soft wrap opportunities when needed
 fn buildLinesWrap(self: *Self) !void {

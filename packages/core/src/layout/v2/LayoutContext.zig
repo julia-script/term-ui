@@ -55,6 +55,8 @@ pub const StyleProperty = enum {
     justify_content,
     align_content,
     gap,
+    text_align,
+    white_space,
 };
 const styles = @import("../../styles/styles.zig");
 const Styles = @import("../../tree/Style.zig");
@@ -178,6 +180,12 @@ pub fn getStyleValue(self: *Self, T: type, l_node_id: mod.LayoutNode.Id, comptim
                 .x = .{ .length = 0 },
                 .y = .{ .length = 0 },
             };
+        },
+        .text_align => {
+            return if (maybe_node_styles) |node_styles| node_styles.text_align else .inherit;
+        },
+        .white_space => {
+            return if (maybe_node_styles) |node_styles| node_styles.white_space else .normal;
         },
     }
 }

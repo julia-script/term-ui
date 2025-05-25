@@ -15,6 +15,8 @@ white_space_info: WhiteSpaceInfo,
 text: []u8,
 /// Allocator used for text memory management
 allocator: std.mem.Allocator,
+/// Position of this fragment within its line (set by text alignment)
+position: mod.CSSPoint = .{ .x = 0, .y = 0 },
 
 const WhiteSpaceInfo = struct {
     has_preserved_spaces: bool,
