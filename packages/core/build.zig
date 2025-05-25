@@ -65,6 +65,7 @@ pub fn build(b: *std.Build) !void {
     }
 
     const test_filter = b.option([]const u8, "test-filter", "Skip tests that do not match filter");
+    const update_snapshots = b.option(bool, "update-snapshots", "Regenerate snapshot files");
 
     const exe_unit_tests = b.addTest(.{
         .root_source_file = b.path("src/wasm.zig"),
@@ -82,6 +83,9 @@ pub fn build(b: *std.Build) !void {
     const install_step = b.addInstallArtifact(exe_unit_tests, .{});
 
     const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
+    if (update_snapshots orelse false) {
+        run_exe_unit_tests.setEnvironmentVariable("UPDATE_SNAPSHOTS", "true");
+    }
 
     // Expose steps for running and debugging tests
     const test_step = b.step("test", "Run unit tests");
