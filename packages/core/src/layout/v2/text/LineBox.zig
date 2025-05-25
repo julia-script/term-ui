@@ -8,3 +8,11 @@ const ArrayList = std.ArrayList;
 size: mod.CSSPoint,
 fragments: ArrayList(LineBoxFragment),
 available_width: f32,
+
+/// Free all fragment text memory and the fragments list
+pub fn deinit(self: *@This()) void {
+    for (self.fragments.items) |*fragment| {
+        fragment.deinit();
+    }
+    self.fragments.deinit();
+}

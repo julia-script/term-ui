@@ -134,8 +134,17 @@ pub const LineBox = struct {
         node: LayoutNode.Id,
         start: usize,
         end: usize,
+        text: []u8,
+        allocator: std.mem.Allocator,
+
+        pub fn deinit(self: *@This()) void {
+            self.allocator.free(self.text);
+        }
     };
     pub fn deinit(self: *LineBox, allocator: std.mem.Allocator) void {
+        for (self.fragments.items) |*fragment| {
+            fragment.deinit();
+        }
         self.fragments.deinit(allocator);
     }
 };
@@ -489,7 +498,7 @@ fn printLineBox(_: *Self, line_box: *const LineBox, index: usize, writer: std.io
             try writer.writeAll("└── ")
         else
             try writer.writeAll("├── ");
-        try writer.print("[fragment node={{#{d}}} range={d}-{d}]", .{ fragment.node, fragment.start, fragment.end });
+        try writer.print("[fragment node={{#{d}}} range={d}-{d} text=\"{s}\"]", .{ fragment.node, fragment.start, fragment.end, fragment.text });
         try writer.writeByte('\n');
     }
 }

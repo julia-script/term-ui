@@ -199,7 +199,7 @@ pub fn Point(comptime T: type) type {
             _ = fmt;
             _ = options;
             switch (@typeInfo(ConcreteT)) {
-                .int, .float, .comptime_int, .comptime_float => try writer.print("(x: {?d:.2}, y: {?d:.2})", .{ self.x, self.y }),
+                .int, .float, .comptime_int, .comptime_float => try writer.print("({?d:.2}, {?d:.2})", .{ self.x, self.y }),
                 else => try writer.print("(x: {any}, y: {any})", .{ self.x, self.y }),
             }
         }

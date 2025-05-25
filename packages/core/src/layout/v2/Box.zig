@@ -14,5 +14,5 @@ const Self = @This();
 pub fn format(self: Self, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
     _ = fmt;
     _ = options;
-    try writer.print("[w: {d} h: {d}]", .{ self.size.x, self.size.y });
+    try writer.print("[loc: {any} size: {any} content: {any}]", .{ self.location, self.size, self.content_size });
 }
