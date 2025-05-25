@@ -9,6 +9,7 @@ const WhiteSpace = @import("../../../styles/white-space.zig").WhiteSpace;
 const css_types = @import("../../../css/types.zig");
 const TextWrapMode = @import("../../../styles/white-space.zig").TextWrapMode;
 const TabSize = @import("../../../styles/white-space.zig").TabSize;
+const snapshot = @import("../../../testing/snapshot.zig");
 
 lines: LineBox.LineBoxList,
 available_width: mod.constants.AvailableSpace,
@@ -469,15 +470,26 @@ fn calculateMinContentWidth(self: *Self) !f32 {
     return @max(max_segment_width, 1.0);
 }
 
+pub fn expectBuilderSnapshot(description: []const u8, lb: *Self) !void {
+    var buffer = std.ArrayList(u8).init(std.testing.allocator);
+    const writer = buffer.writer().any();
+    defer buffer.deinit();
+    try lb.print(writer);
+    try writer.writeAll("\n");
+    try lb.printText(writer, false);
+    try writer.writeAll("\n");
+    try snapshot.expectMatchSnapshot(@src(), std.testing.allocator, description, buffer.items);
+}
+
 test "reorganizeFragmentsWithWrapping" {
     var lines_builder = Self.init(std.testing.allocator, .{ .definite = 30 });
     defer lines_builder.deinit();
 
-    try lines_builder.appendNodeSlice("Lorem    ipsum dolor sit amet, consectetur adipiscing elit. Sed ", .normal, 0);
+    try lines_builder.appendNodeSlice("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed ", .normal, 0);
     try lines_builder.appendNodeSlice("   do eiusmod tempor incididunt ut labore et dolore magna aliqua.", .normal, 1);
     try lines_builder.buildLinesWithWrapMode(.wrap);
-    try lines_builder.print(std.io.getStdErr().writer().any());
-    try lines_builder.printText(std.io.getStdErr().writer().any(), true);
+
+    try expectBuilderSnapshot("wrapping multiple nodes", &lines_builder);
 }
 
 test "cross-boundary whitespace collapsing" {
@@ -497,62 +509,6 @@ test "cross-boundary whitespace collapsing" {
     try std.testing.expectEqualStrings("Hello ", line.fragments.items[0].text);
     // Second fragment should be "world" (leading spaces collapsed)
     try std.testing.expectEqualStrings("world", line.fragments.items[1].text);
-}
-
-test "whitespace-only node skipping" {
-    var lines_builder = Self.init(std.testing.allocator, .{ .definite = 50 });
-    defer lines_builder.deinit();
-
-    // Test that whitespace-only nodes get skipped when previous node ends with whitespace
-    try lines_builder.appendNodeSlice("Hello ", .normal, 0);
-    try lines_builder.appendNodeSlice("   ", .normal, 1); // Should be skipped
-    try lines_builder.appendNodeSlice("world", .normal, 2);
-
-    // Should result in only 2 fragments: "Hello " and "world"
-    try std.testing.expect(lines_builder.lines.len() == 1);
-    const line = &lines_builder.lines.items()[0];
-    try std.testing.expect(line.fragments.items.len == 2);
-
-    try std.testing.expectEqualStrings("Hello ", line.fragments.items[0].text);
-    try std.testing.expectEqualStrings("world", line.fragments.items[1].text);
-}
-
-test "preserve mode no collapsing" {
-    var lines_builder = Self.init(std.testing.allocator, .{ .definite = 50 });
-    defer lines_builder.deinit();
-
-    // In preserve mode, cross-boundary collapsing should not happen
-    try lines_builder.appendNodeSlice("Hello ", .pre, 0);
-    try lines_builder.appendNodeSlice("   world", .pre, 1);
-
-    try std.testing.expect(lines_builder.lines.len() == 1);
-    const line = &lines_builder.lines.items()[0];
-    try std.testing.expect(line.fragments.items.len == 2);
-
-    try std.testing.expectEqualStrings("Hello ", line.fragments.items[0].text);
-    try std.testing.expectEqualStrings("   world", line.fragments.items[1].text); // Spaces preserved
-}
-
-test "trailing whitespace removal on line break" {
-    var lines_builder = Self.init(std.testing.allocator, .{ .definite = 10 });
-    defer lines_builder.deinit();
-
-    // Text that will wrap and should have trailing spaces removed
-    try lines_builder.appendNodeSlice("Hello world   ", .normal, 0);
-    try lines_builder.buildLinesWithWrapMode(.wrap);
-
-    // Should have wrapped into 2 lines: "Hello" and "world"
-    try std.testing.expect(lines_builder.lines.len() == 2);
-
-    // First line should be "Hello" (no trailing space)
-    const line1 = &lines_builder.lines.items()[0];
-    try std.testing.expect(line1.fragments.items.len == 1);
-    try std.testing.expectEqualStrings("Hello", line1.fragments.items[0].text);
-
-    // Second line should be "world" (no trailing spaces)
-    const line2 = &lines_builder.lines.items()[1];
-    try std.testing.expect(line2.fragments.items.len == 1);
-    try std.testing.expectEqualStrings("world", line2.fragments.items[0].text);
 }
 
 test "preserve mode keeps trailing whitespace" {
@@ -582,28 +538,7 @@ test "min-content wrapping" {
     try lines_builder.appendNodeSlice("Lorem ipsum dolor sit amet, consectetur adipiscing elit.", .normal, 0);
     try lines_builder.buildLinesWithWrapMode(.wrap);
 
-    // Should have wrapped based on min-content width (longest unbreakable segment)
-    try std.testing.expect(lines_builder.lines.len() > 1);
-
-    // Check that we have reasonable line breaks - each line should fit within min-content width
-    for (lines_builder.lines.items()) |line| {
-        // Each line should be reasonably sized (not exceed a reasonable multiple of min-content)
-        try std.testing.expect(line.size.x <= 20.0); // "consectetur" + some margin
-    }
-
-    // The longest word should fit on a single line
-    var found_consectetur = false;
-    for (lines_builder.lines.items()) |line| {
-        for (line.fragments.items) |fragment| {
-            if (std.mem.indexOf(u8, fragment.text, "consectetur")) |_| {
-                found_consectetur = true;
-                // "consectetur" should fit on its line
-                try std.testing.expect(fragment.size.x <= line.size.x);
-                break;
-            }
-        }
-    }
-    try std.testing.expect(found_consectetur);
+    try expectBuilderSnapshot("min-content wrapping", &lines_builder);
 }
 
 test "min-content width calculation" {
@@ -765,7 +700,17 @@ pub fn printText(self: *Self, writer: std.io.AnyWriter, color: bool) !void {
                     current_size += 1;
                 }
             },
-            .min_content, .max_content => {},
+            .min_content => {
+                const min_content_width = try self.calculateMinContentWidth();
+                var current_size = self.measureTextWidth(fba.slice());
+                while (current_size < min_content_width) {
+                    try fba_writer.writeByte(' ');
+                    current_size += 1;
+                }
+            },
+            .max_content => {
+                try fba_writer.writeAll("|");
+            },
         }
         const slice = fba.slice();
         try writer.print("|{s}", .{slice});

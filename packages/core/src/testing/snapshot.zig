@@ -1,18 +1,19 @@
 const std = @import("std");
 
 pub inline fn expectMatchSnapshot(
+    comptime loc: std.builtin.SourceLocation,
     allocator: std.mem.Allocator,
     description: []const u8,
     actual: []const u8,
 ) !void {
-    return expectMatchSnapshotImpl(allocator, description, actual, @src());
+    try expectMatchSnapshotImpl(loc, allocator, description, actual);
 }
 
 fn expectMatchSnapshotImpl(
+    comptime loc: std.builtin.SourceLocation,
     allocator: std.mem.Allocator,
     description: []const u8,
     actual: []const u8,
-    comptime loc: std.builtin.SourceLocation,
 ) !void {
     const sanitized = try sanitizeDescription(allocator, description);
     defer allocator.free(sanitized);
@@ -53,9 +54,8 @@ fn expectMatchSnapshotImpl(
     }
 
     const stat = try file.stat();
-    const buf = try allocator.alloc(u8, stat.size);
+    const buf = try file.readToEndAlloc(allocator, stat.size);
     defer allocator.free(buf);
-    _ = try file.readAll(buf);
 
     if (!std.mem.eql(u8, buf, actual)) {
         std.debug.print("Snapshot mismatch for {s}\n", .{snapshot_path});
