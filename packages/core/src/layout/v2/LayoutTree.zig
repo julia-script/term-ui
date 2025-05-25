@@ -136,6 +136,7 @@ pub const LineBox = struct {
         end: usize,
         text: []u8,
         allocator: std.mem.Allocator,
+        position: mod.CSSPoint,
 
         pub fn deinit(self: *@This()) void {
             self.allocator.free(self.text);
@@ -498,7 +499,7 @@ fn printLineBox(_: *Self, line_box: *const LineBox, index: usize, writer: std.io
             try writer.writeAll("└── ")
         else
             try writer.writeAll("├── ");
-        try writer.print("[fragment node={{#{d}}} range={d}-{d} text=\"{s}\"]", .{ fragment.node, fragment.start, fragment.end, fragment.text });
+        try writer.print("[fragment node={{#{d}}} range={d}-{d} pos=({:.2}, {:.2}) text=\"{s}\"]", .{ fragment.node, fragment.start, fragment.end, fragment.position.x, fragment.position.y, fragment.text });
         try writer.writeByte('\n');
     }
 }
@@ -539,8 +540,8 @@ test "LayoutTree" {
         \\  zzz
         \\</span>
     ,
-        \\[inline_container_node #0 ref={doc#0} children={2} lines={0} box={[w: 0 h: 0]}]
-        \\├── [inline_node #1 ref={doc#1} children={2} box={[w: 0 h: 0]}]
+        \\[inline_container_node #0 ref={doc#0} children={2} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        \\├── [inline_node #1 ref={doc#1} children={2} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
         \\│   ├── [text_node #2] "abc"
         \\│   └── [text_node #3] "def"
         \\└── [text_node #4] "zzz"
@@ -578,18 +579,18 @@ test "deep formatting context break" {
         \\</i>
         \\
     ,
-        \\[block_container_node #0 ref={doc#0} children={3} box={[w: 0 h: 0]}]
-        \\├── [inline_container_node #2 ref={anon} children={2} lines={0} box={[w: 0 h: 0]}]
+        \\[block_container_node #0 ref={doc#0} children={3} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        \\├── [inline_container_node #2 ref={anon} children={2} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
         \\│   ├── [text_node #1] "Italic only"
-        \\│   └── [inline_node #3 continuation={#12} ref={doc#2} children={1} box={[w: 0 h: 0]}]
+        \\│   └── [inline_node #3 continuation={#12} ref={doc#2} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
         \\│       └── [text_node #4] "italic and bold"
-        \\├── [block_container_node #5 ref={anon} children={2} box={[w: 0 h: 0]}]
-        \\│   ├── [inline_container_node #6 ref={doc#4} children={1} lines={0} box={[w: 0 h: 0]}]
+        \\├── [block_container_node #5 ref={anon} children={2} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        \\│   ├── [inline_container_node #6 ref={doc#4} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
         \\│   │   └── [text_node #7] "Wow, a block!"
-        \\│   └── [inline_container_node #8 ref={doc#6} children={1} lines={0} box={[w: 0 h: 0]}]
+        \\│   └── [inline_container_node #8 ref={doc#6} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
         \\│       └── [text_node #9] "Wow, another block!"
-        \\└── [inline_container_node #11 ref={anon} children={2} lines={0} box={[w: 0 h: 0]}]
-        \\    ├── [inline_node #12 continuationOf={#3} ref={doc#2} children={1} box={[w: 0 h: 0]}]
+        \\└── [inline_container_node #11 ref={anon} children={2} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        \\    ├── [inline_node #12 continuationOf={#3} ref={doc#2} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
         \\    │   └── [text_node #10] "More italic and bold text"
         \\    └── [text_node #13] "More italic text"
         \\
@@ -610,20 +611,20 @@ test "deep formatting context break" {
         \\</i>
         \\
     ,
-        \\[block_container_node #0 ref={doc#0} children={3} box={[w: 0 h: 0]}]
-        \\├── [inline_container_node #2 ref={anon} children={2} lines={0} box={[w: 0 h: 0]}]
+        \\[block_container_node #0 ref={doc#0} children={3} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        \\├── [inline_container_node #2 ref={anon} children={2} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
         \\│   ├── [text_node #1] "Italic only"
-        \\│   └── [inline_node #3 continuation={#13} ref={doc#2} children={2} box={[w: 0 h: 0]}]
+        \\│   └── [inline_node #3 continuation={#13} ref={doc#2} children={2} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
         \\│       ├── [text_node #4] "italic and bold"
-        \\│       └── [inline_node #8 continuation={#14} ref={doc#6} children={0} box={[w: 0 h: 0]}]
-        \\├── [block_container_node #5 ref={anon} children={2} box={[w: 0 h: 0]}]
-        \\│   ├── [inline_container_node #6 ref={doc#4} children={1} lines={0} box={[w: 0 h: 0]}]
+        \\│       └── [inline_node #8 continuation={#14} ref={doc#6} children={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        \\├── [block_container_node #5 ref={anon} children={2} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        \\│   ├── [inline_container_node #6 ref={doc#4} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
         \\│   │   └── [text_node #7] "Wow, a block!"
-        \\│   └── [inline_container_node #9 ref={doc#7} children={1} lines={0} box={[w: 0 h: 0]}]
+        \\│   └── [inline_container_node #9 ref={doc#7} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
         \\│       └── [text_node #10] "Wow, another block!"
-        \\└── [inline_container_node #12 ref={anon} children={2} lines={0} box={[w: 0 h: 0]}]
-        \\    ├── [inline_node #13 continuationOf={#3} ref={doc#2} children={1} box={[w: 0 h: 0]}]
-        \\    │   └── [inline_node #14 continuationOf={#8} ref={doc#6} children={1} box={[w: 0 h: 0]}]
+        \\└── [inline_container_node #12 ref={anon} children={2} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        \\    ├── [inline_node #13 continuationOf={#3} ref={doc#2} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        \\    │   └── [inline_node #14 continuationOf={#8} ref={doc#6} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
         \\    │       └── [text_node #11] "More italic and bold text"
         \\    └── [text_node #15] "More italic text"
         \\

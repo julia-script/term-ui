@@ -244,7 +244,7 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
         for (text_line_boxes.items) |text_line| {
             var layout_line = LayoutTree.LineBox{};
 
-            // Convert fragments from text.LineBoxFragment to LayoutTree.LineBox.Fragment
+            // First, convert fragments WITHOUT position calculation
             for (text_line.fragments.items) |text_fragment| {
                 const layout_fragment = LayoutTree.LineBox.Fragment{
                     .node = text_fragment.l_node_id,
@@ -252,8 +252,27 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
                     .end = text_fragment.start + text_fragment.length,
                     .text = try allocator.dupe(u8, text_fragment.text),
                     .allocator = allocator,
+                    .position = mod.CSSPoint{ .x = 0, .y = 0 }, // Temporary position
                 };
                 try layout_line.fragments.append(allocator, layout_fragment);
+            }
+
+            // Calculate final line height from the text line size
+            const line_height = text_line.size.y;
+
+            // Finally, position fragments correctly with proper line height
+            var x_offset: f32 = 0;
+            for (layout_line.fragments.items, 0..) |*layout_fragment, i| {
+                const text_fragment = text_line.fragments.items[i];
+                
+                // Calculate position within line box (bottom-aligned)
+                layout_fragment.position = mod.CSSPoint{
+                    .x = x_offset,
+                    .y = line_height - text_fragment.size.y, // Bottom align with correct line height
+                };
+                
+                // Update x offset for next fragment
+                x_offset += text_fragment.size.x;
             }
 
             try layout_line_boxes.append(allocator, layout_line);
