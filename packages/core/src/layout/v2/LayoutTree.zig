@@ -4,6 +4,7 @@ const DocTree = @import("../../tree/Tree.zig");
 const Array = std.ArrayListUnmanaged;
 const HashMap = std.AutoHashMapUnmanaged;
 const mod = @import("mod.zig");
+const Cache = @import("Cache.zig");
 
 const docFromXml = @import("./doc-from-xml.zig").docFromXml;
 
@@ -56,12 +57,17 @@ pub fn getNodePtr(self: *Self, id: LayoutNode.Id) *LayoutNode {
     return self.nodes.getPtr(id) orelse std.debug.panic("LayoutTree: Node {d} not found", .{id});
 }
 
+pub inline fn getCache(self: *Self, id: LayoutNode.Id) *Cache {
+    return &self.getNodePtr(id).cache;
+}
+
 pub const LayoutNode = struct {
     id: Id,
     ref: DocRef,
     parent: ?Id = null,
     data: Data,
     box: mod.Box = .{},
+    cache: Cache = .{},
     pub const Id = u32;
     pub const Data = union(enum) {
         text_node: TextNode,
