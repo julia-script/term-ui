@@ -8,40 +8,33 @@ const CSSMaybePoint = mod.CSSMaybePoint;
 const css_types = @import("../../../css/types.zig");
 
 /// Recursively process a node and its children to add text content to LinesBuilder
-fn processNodeRecursively(context: *LayoutContext, lines_builder: *mod.LinesBuilder, node_id: LayoutNode.Id) !void {
+fn processNodeRecursively(context: *LayoutContext, lines_builder: *mod.LinesBuilder, node_id: LayoutNode.Id, white_space: css_types.WhiteSpace) !void {
     const node = context.layout_tree.getNodePtr(node_id);
 
     switch (node.data) {
+        .inline_container_node => |*container| {
+            // root
+            for (container.children.items) |child_id| {
+                try processNodeRecursively(context, lines_builder, child_id, white_space);
+            }
+        },
         .text_node => |*text_node| {
             // Convert text content to slice
             const text_content = text_node.contents.items;
 
-            // Check if this text contains newlines - if so, preserve them
-            const white_space = if (std.mem.indexOf(u8, text_content, "\n") != null)
-                css_types.WhiteSpace.pre
-            else
-                css_types.WhiteSpace.normal;
-
             // Add this text node's content to the lines builder
-            try lines_builder.addTextWithNode(text_content, white_space, node_id);
+            try lines_builder.appendNodeSlice(text_content, white_space, node_id);
         },
-        .inline_container_node => |*container| {
-            // Recursively process all children
-            for (container.children.items) |child_id| {
-                try processNodeRecursively(context, lines_builder, child_id);
-            }
-        },
-        .block_container_node => |*container| {
-            // Recursively process all children
-            for (container.children.items) |child_id| {
-                try processNodeRecursively(context, lines_builder, child_id);
-            }
-        },
+
         .inline_node => |*inline_node| {
+            if (inline_node.is_atomic) return;
             // Recursively process all children
             for (inline_node.children.items) |child_id| {
-                try processNodeRecursively(context, lines_builder, child_id);
+                try processNodeRecursively(context, lines_builder, child_id, white_space);
             }
+        },
+        .block_container_node => {
+            unreachable;
         },
     }
 }
@@ -174,17 +167,16 @@ pub fn computeInlineContextLayout(context: *LayoutContext, inputs: ContainerCont
 
 fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: LayoutNode.Id) (mod.ComputeLayoutError || error{InvalidUtf8})!mod.LayoutResult {
     const allocator = context.layout_tree.allocator;
-    const l_node = context.layout_tree.getNodePtr(l_node_id);
 
     // Initialize LinesBuilder with available space from layout constraints
     const available_width = inputs.available_space.x;
     var lines_builder = mod.LinesBuilder.init(allocator, available_width);
     defer lines_builder.deinit();
 
-    // Recursively process all child nodes to collect text content
-    try processNodeRecursively(context, &lines_builder, l_node_id);
-
     const whitespace = context.getStyleValue(css_types.WhiteSpace, l_node_id, .white_space);
+    // Recursively process all child nodes to collect text content
+    try processNodeRecursively(context, &lines_builder, l_node_id, whitespace);
+
     const wrap_mode = whitespace.toLonghand().wrap_mode;
 
     try lines_builder.buildLinesWithWrapMode(wrap_mode);
@@ -207,85 +199,85 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
     var content_height: f32 = 0;
 
     // Position text nodes based on LineBox/LineBoxFragment layout
-    var current_y: f32 = 0;
 
-    for (lines_builder.lines.items) |line| {
+    for (lines_builder.lines.items()) |*line| {
         // Track the maximum width across all lines
         content_width = @max(content_width, line.size.x);
+        line.location.y = content_height;
 
         // Position fragments within this line using alignment-adjusted positions
         for (line.fragments.items) |fragment| {
             // Update the corresponding layout node's box with position and size
             const fragment_node = context.layout_tree.getNodePtr(fragment.l_node_id);
-            fragment_node.box.location = .{ .x = fragment.position.x, .y = current_y };
+            fragment_node.box.location = .{ .x = fragment.position.x, .y = line.size.y - fragment.size.y };
             fragment_node.box.size = fragment.size;
             fragment_node.box.content_size = fragment.size;
         }
 
         // Accumulate total height from all lines
         content_height += line.size.y;
-        current_y += line.size.y;
     }
 
-    // If no lines were created, ensure minimum height
-    if (lines_builder.lines.items.len == 0) {
-        content_height = 16.0; // Default line height
-    }
+    // // If no lines were created, ensure minimum height
+    // if (lines_builder.lines.items.len == 0) {
+    //     content_height = 16.0; // Default line height
+    // }
 
     // Transfer ownership of line boxes to the InlineContainerNode
     // This prevents deallocation when LinesBuilder is destroyed
-    if (l_node.data == .inline_container_node) {
-        const text_line_boxes = lines_builder.toOwnedLineBoxes();
+    // if (l_node.data == .inline_container_node) {
+    //     const text_line_boxes = lines_builder.toOwnedLineBoxes();
 
-        // Convert from text.LineBox format to LayoutTree.LineBox format
-        var layout_line_boxes = std.ArrayListUnmanaged(LayoutTree.LineBox){};
+    //     // Convert from text.LineBox format to LayoutTree.LineBox format
+    //     var layout_line_boxes = std.ArrayListUnmanaged(mod.LineBox){};
 
-        for (text_line_boxes.items) |text_line| {
-            var layout_line = LayoutTree.LineBox{};
+    //     for (text_line_boxes.items) |text_line| {
+    //         var layout_line = mod.LineBox{};
 
-            // First, convert fragments WITHOUT position calculation
-            for (text_line.fragments.items) |text_fragment| {
-                const layout_fragment = LayoutTree.LineBox.Fragment{
-                    .node = text_fragment.l_node_id,
-                    .start = text_fragment.start,
-                    .end = text_fragment.start + text_fragment.length,
-                    .text = try allocator.dupe(u8, text_fragment.text),
-                    .allocator = allocator,
-                    .position = mod.CSSPoint{ .x = 0, .y = 0 }, // Temporary position
-                };
-                try layout_line.fragments.append(allocator, layout_fragment);
-            }
+    //         // First, convert fragments WITHOUT position calculation
+    //         for (text_line.fragments.items) |text_fragment| {
+    //             const layout_fragment = LayoutTree.LineBox.Fragment{
+    //                 .node = text_fragment.l_node_id,
+    //                 .start = text_fragment.start,
+    //                 .end = text_fragment.start + text_fragment.length,
+    //                 .text = try allocator.dupe(u8, text_fragment.text),
+    //                 .allocator = allocator,
+    //                 .position = mod.CSSPoint{ .x = 0, .y = 0 }, // Temporary position
+    //             };
+    //             try layout_line.fragments.append(allocator, layout_fragment);
+    //         }
 
-            // Calculate final line height from the text line size
-            const line_height = text_line.size.y;
+    //         // Calculate final line height from the text line size
+    //         const line_height = text_line.size.y;
 
-            // Finally, position fragments correctly with proper line height
-            // Use the alignment-adjusted positions from text_fragment.position
-            for (layout_line.fragments.items, 0..) |*layout_fragment, i| {
-                const text_fragment = text_line.fragments.items[i];
+    //         // Finally, position fragments correctly with proper line height
+    //         // Use the alignment-adjusted positions from text_fragment.position
+    //         for (layout_line.fragments.items, 0..) |*layout_fragment, i| {
+    //             const text_fragment = text_line.fragments.items[i];
 
-                // Use the x position from text alignment, y position for bottom-alignment
-                layout_fragment.position = mod.CSSPoint{
-                    .x = text_fragment.position.x, // Use alignment-adjusted x position
-                    .y = line_height - text_fragment.size.y, // Bottom align with correct line height
-                };
-            }
+    //             // Use the x position from text alignment, y position for bottom-alignment
+    //             layout_fragment.position = mod.CSSPoint{
+    //                 .x = text_fragment.position.x, // Use alignment-adjusted x position
+    //                 .y = line_height - text_fragment.size.y, // Bottom align with correct line height
+    //             };
+    //         }
 
-            try layout_line_boxes.append(allocator, layout_line);
-        }
+    //         try layout_line_boxes.append(allocator, layout_line);
+    //     }
 
-        // Clean up the text line boxes (including fragment text memory)
-        for (text_line_boxes.items) |*text_line| {
-            text_line.deinit();
-        }
-        text_line_boxes.deinit();
+    //     // Clean up the text line boxes (including fragment text memory)
+    //     for (text_line_boxes.items) |*text_line| {
+    //         text_line.deinit();
+    //     }
+    //     text_line_boxes.deinit();
 
-        l_node.data.inline_container_node.line_boxes = layout_line_boxes;
-    }
+    //     // l_node.data.inline_container_node.line_boxes = layout_line_boxes;
+    // }
 
     return .{
         .size = .{ .x = content_width, .y = content_height },
         .content_size = .{ .x = content_width, .y = content_height },
+        .line_boxes = try lines_builder.toOwnedLineBoxes(context.allocator),
     };
 }
 

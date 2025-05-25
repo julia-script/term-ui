@@ -369,7 +369,7 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
                 .border = mod.CSSRect{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
                 .content_size = mod.CSSPoint{ .x = 0, .y = 0 },
                 .scrollbar_size = mod.CSSPoint{ .x = 0, .y = 0 },
-            });
+            }, null);
             _ = try mod.performChildLayout(
                 context,
                 child_id,
@@ -715,7 +715,7 @@ fn performFinalLayoutOnInFlowChildren(
             .border = item.border,
             .content_size = content_size,
             .margin = resolved_margin,
-        });
+        }, item_layout.line_boxes);
 
         inflow_content_size = mod.CSSPoint{
             .x = @max(inflow_content_size.x, mod.computeContentSizeContribution(
@@ -998,7 +998,7 @@ pub fn performAbsoluteLayoutOnAbsoluteChildren(
             .padding = padding,
             .border = border,
             .margin = resolved_margin,
-        });
+        }, layout_output.line_boxes);
 
         const contribution = mod.computeContentSizeContribution(
             location,

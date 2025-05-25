@@ -188,7 +188,7 @@ fn computeInner(
             .border = mod.CSSRect{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
             .content_size = child_layout.content_size,
             .scrollbar_size = mod.CSSPoint{ .x = 0, .y = 0 },
-        });
+        }, child_layout.line_boxes);
 
         offset_x += child_layout.size.x;
         max_height = @max(max_height, child_layout.size.y);

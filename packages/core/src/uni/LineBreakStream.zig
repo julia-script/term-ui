@@ -648,3 +648,13 @@ test "utf8 validation in append" {
     const invalid_utf8 = [_]u8{ 0xFF, 0xFE, 0xFD };
     try testing.expectError(error.InvalidUtf8, stream.append(&invalid_utf8));
 }
+
+test "line break stream" {
+    var stream = init(test_allocator);
+    defer stream.deinit();
+
+    try stream.append("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.");
+    while (stream.next()) |break_point| {
+        std.debug.print("break_point: {any}\n", .{break_point});
+    }
+}

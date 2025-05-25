@@ -2,6 +2,8 @@ const DocTree = @import("../../tree/Tree.zig");
 const mod = @import("./mod.zig");
 const LayoutTree = mod.LayoutTree;
 const css_types = @import("../../css/types.zig");
+const LineBox = @import("./text/LineBox.zig");
+const ArrayList = std.ArrayList;
 const docFromXml = mod.docFromXml;
 
 const std = @import("std");
@@ -29,8 +31,12 @@ pub fn info(self: *Self, l_node_id: mod.LayoutNode.Id, comptime format: []const 
     writer.writeAll("\n") catch @panic("failed to write");
 }
 
-pub fn setBox(self: *Self, l_node_id: mod.LayoutNode.Id, box: mod.Box) void {
+pub fn setBox(self: *Self, l_node_id: mod.LayoutNode.Id, box: mod.Box, line_boxes: ?LineBox.LineBoxList) void {
     self.layout_tree.getNodePtr(l_node_id).box = box;
+    if (line_boxes) |lb| {
+        self.layout_tree.getNodePtr(l_node_id).data.inline_container_node.line_boxes.deinit();
+        self.layout_tree.getNodePtr(l_node_id).data.inline_container_node.line_boxes = lb;
+    }
 }
 pub const StyleProperty = enum {
     margin,

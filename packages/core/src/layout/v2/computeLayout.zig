@@ -18,5 +18,5 @@ pub fn computeLayout(context: *LayoutContext, available_space: mod.PointOf(mod.c
         // .top_margin = root_layout.top_margin,
         // .bottom_margin = root_layout.bottom_margin,
         // .margins_can_collapse_through = root_layout.margins_can_collapse_through,
-    });
+    }, root_layout.line_boxes);
 }

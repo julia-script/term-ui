@@ -38,6 +38,7 @@ pub const Line = @import("../line.zig").Line;
 pub const LinesBuilder = @import("./text/LinesBuilder.zig");
 pub const LineBox = @import("./text/LineBox.zig");
 pub const LineBoxFragment = @import("./text/LineBoxFragment.zig");
+pub const LineBoxList = LineBox.LineBoxList;
 
 test {
     std.testing.refAllDecls(@This());

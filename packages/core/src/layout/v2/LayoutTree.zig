@@ -115,40 +115,37 @@ pub const BlockContainerNode = struct {
 /// this node also holds the LineBoxes
 pub const InlineContainerNode = struct {
     children: Array(LayoutNode.Id) = .{},
-    line_boxes: Array(LineBox) = .{},
+    line_boxes: mod.LineBoxList,
     continuation: ?LayoutNode.Id = null,
     continuationOf: ?LayoutNode.Id = null,
     pub fn deinit(self: *InlineContainerNode, allocator: std.mem.Allocator) void {
         self.children.deinit(allocator);
-        // Properly deallocate each LineBox's fragments before deallocating the array
-        for (self.line_boxes.items) |*line_box| {
-            line_box.deinit(allocator);
-        }
-        self.line_boxes.deinit(allocator);
+
+        self.line_boxes.deinit();
     }
 };
 
-pub const LineBox = struct {
-    fragments: Array(Fragment) = .{},
-    pub const Fragment = struct {
-        node: LayoutNode.Id,
-        start: usize,
-        end: usize,
-        text: []u8,
-        allocator: std.mem.Allocator,
-        position: mod.CSSPoint,
+// pub const LineBox = struct {
+//     fragments: Array(Fragment) = .{},
+//     pub const Fragment = struct {
+//         node: LayoutNode.Id,
+//         start: usize,
+//         end: usize,
+//         text: []u8,
+//         allocator: std.mem.Allocator,
+//         position: mod.CSSPoint,
 
-        pub fn deinit(self: *@This()) void {
-            self.allocator.free(self.text);
-        }
-    };
-    pub fn deinit(self: *LineBox, allocator: std.mem.Allocator) void {
-        for (self.fragments.items) |*fragment| {
-            fragment.deinit();
-        }
-        self.fragments.deinit(allocator);
-    }
-};
+//         pub fn deinit(self: *@This()) void {
+//             self.allocator.free(self.text);
+//         }
+//     };
+//     pub fn deinit(self: *LineBox, allocator: std.mem.Allocator) void {
+//         for (self.fragments.items) |*fragment| {
+//             fragment.deinit();
+//         }
+//         self.fragments.deinit(allocator);
+//     }
+// };
 
 pub fn fromTree(allocator: std.mem.Allocator, tree: *DocTree) !Self {
     var self = Self.init(allocator);
@@ -223,7 +220,11 @@ const MixedContextBuilder = struct {
         return id;
     }
     pub fn createInlineContainer(self: *MixedContextBuilder, parent_id: LayoutNode.Id) !LayoutNode.Id {
-        const id = try self.layout_tree.createNode(.{ .inline_container_node = .{} }, .anonymous);
+        const id = try self.layout_tree.createNode(.{ .inline_container_node = .{
+            .line_boxes = .{
+                .allocator = self.allocator,
+            },
+        } }, .anonymous);
         try self.layout_tree.appendNode(parent_id, id);
         self.current_container_id = id;
         return id;
@@ -241,7 +242,11 @@ const MixedContextBuilder = struct {
             var node = self.layout_tree.getNodePtr(id);
             switch (node.data) {
                 .inline_container_node => {
-                    const clone_inline_container_node_id = try self.layout_tree.createNode(.{ .inline_container_node = .{} }, .anonymous);
+                    const clone_inline_container_node_id = try self.layout_tree.createNode(.{ .inline_container_node = .{
+                        .line_boxes = .{
+                            .allocator = self.allocator,
+                        },
+                    } }, .anonymous);
                     node = self.layout_tree.getNodePtr(id);
                     node.data.inline_container_node.continuation = clone_inline_container_node_id;
                     const clone_node = self.layout_tree.getNodePtr(clone_inline_container_node_id);
@@ -351,7 +356,11 @@ pub fn buildInsideBlock(self: *Self, tree: *DocTree, node_id: DocNodeId) !Layout
         }
     }
     if (only_inline_children) {
-        const inline_container_id = try self.createNode(.{ .inline_container_node = .{} }, .{ .doc_node = node_id });
+        const inline_container_id = try self.createNode(.{ .inline_container_node = .{
+            .line_boxes = .{
+                .allocator = self.allocator,
+            },
+        } }, .{ .doc_node = node_id });
         for (children) |child| {
             if (isDisplayNone(tree, child)) continue;
             const child_layout_node_id = try self.build(tree, child);
@@ -433,7 +442,7 @@ fn printNodeInternal(self: *Self, node_id: LayoutNode.Id, writer: std.io.AnyWrit
             if (container.continuation) |continuation| {
                 try writer.print(" continuation={{#{d}}}", .{continuation});
             }
-            try writer.print(" children={{{d}}} lines={{{d}}} box={{{any}}}]", .{ container.children.items.len, container.line_boxes.items.len, node.box });
+            try writer.print(" children={{{d}}} lines={{{d}}} box={{{any}}}]", .{ container.children.items.len, container.line_boxes.len(), node.box });
         },
     }
 
@@ -453,7 +462,7 @@ fn printNodeInternal(self: *Self, node_id: LayoutNode.Id, writer: std.io.AnyWrit
 
     var total_items: usize = 0;
     if (node.data == .inline_container_node) {
-        total_items += node.data.inline_container_node.line_boxes.items.len;
+        total_items += node.data.inline_container_node.line_boxes.len();
     }
     const children = self.getChildren(node_id);
     total_items += children.len;
@@ -461,7 +470,7 @@ fn printNodeInternal(self: *Self, node_id: LayoutNode.Id, writer: std.io.AnyWrit
     var item_idx: usize = 0;
 
     if (node.data == .inline_container_node) {
-        const line_boxes = node.data.inline_container_node.line_boxes.items;
+        const line_boxes = node.data.inline_container_node.line_boxes.items();
         for (line_boxes, 0..) |line_box, i| {
             const last_item = item_idx == total_items - 1;
             try self.printLineBox(&line_box, i, writer, new_prefix, last_item and children.len == 0);
@@ -476,7 +485,7 @@ fn printNodeInternal(self: *Self, node_id: LayoutNode.Id, writer: std.io.AnyWrit
     }
 }
 
-fn printLineBox(_: *Self, line_box: *const LineBox, index: usize, writer: std.io.AnyWriter, prefix: []const u8, is_last: bool) !void {
+fn printLineBox(_: *Self, line_box: *const mod.LineBox, index: usize, writer: std.io.AnyWriter, prefix: []const u8, is_last: bool) !void {
     try writer.writeAll(prefix);
     if (is_last)
         try writer.writeAll("└── ")
@@ -499,7 +508,7 @@ fn printLineBox(_: *Self, line_box: *const LineBox, index: usize, writer: std.io
             try writer.writeAll("└── ")
         else
             try writer.writeAll("├── ");
-        try writer.print("[fragment node={{#{d}}} range={d}-{d} pos=({:.2}, {:.2}) text=\"{s}\"]", .{ fragment.node, fragment.start, fragment.end, fragment.position.x, fragment.position.y, fragment.text });
+        try writer.print("[fragment node={{#{d}}} range={d}-{d} pos=({:.2}, {:.2}) text=\"{s}\"]", .{ fragment.l_node_id, fragment.start, fragment.start + fragment.length, fragment.position.x, fragment.position.y, fragment.text });
         try writer.writeByte('\n');
     }
 }

@@ -30,38 +30,9 @@
 </head>
 
 <body>
-  
-  <div style="width: 500px; background-color: cyan;">
-    <div>
-    <div id="a" style="background-color: blue; width: 300px;">Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-      Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</div>
-    </div>
-    <div id="root">
-      <div id="a" style="background-color: blue; width: 300px;">Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-        Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</div>
-      <div id="a" style="background-color: blue; width: 300px;">Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-        Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</div>
-      <div id="b" style="background-color: blue; width: 300px;">Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-        Sed do eiusmod tempor incididunt ut <span style="color: red;">labore et dolore</span>magna aliqua.</span></div>
-    </div>
 
-    <div id="c" style="background-color: blue; width: 300px; height: 100px;">
-      <div>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore
-        magna aliqua.</div>
-    </div>
-  </div>
-  <div style="width: 300px;height: 400px; background-color: pink;float:right;top:0;margin-top: -600px;"> 
+  <div style="width: 30ch; background-color: lightblue"><span>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed </span><span> do eiusmod tempor incididunt ut labore et dolore magna aliqua.</span></div>
 
-  </div>
-  <script>
-    document.addEventListener("mousemove", (e) => {
-      const caret = document.caretPositionFromPoint(e.clientX, e.clientY);
-      console.log(caret);
-      console.log(document.elementFromPoint(e.clientX, e.clientY));
-      console.log(`${caret.offset} ${caret.offsetNode.parentElement.id}`);
-
-    });
-  </script>
 </body>
 
 </html>
