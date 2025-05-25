@@ -14,6 +14,8 @@ lines: LineBox.LineBoxList,
 available_width: mod.constants.AvailableSpace,
 white_space_processor: WhiteSpaceProcessor,
 allocator: std.mem.Allocator,
+/// Tracks if the previous node ended with collapsible whitespace for cross-boundary collapsing
+previous_node_ends_with_collapsible_whitespace: bool,
 
 const Self = @This();
 
@@ -32,12 +34,15 @@ pub fn init(allocator: std.mem.Allocator, available_width: mod.constants.Availab
         .lines = LineBox.LineBoxList{
             .allocator = allocator,
         },
+        .previous_node_ends_with_collapsible_whitespace = false,
     };
 }
 
 pub fn deinit(self: *Self) void {
     // Deinitialize all lines (which will deinitialize their fragments and text)
     self.lines.deinit();
+    // Reset whitespace state
+    self.previous_node_ends_with_collapsible_whitespace = false;
 }
 
 /// Transfer ownership of line boxes to caller, preventing deallocation when LinesBuilder is destroyed
@@ -48,6 +53,8 @@ pub fn toOwnedLineBoxes(self: *Self, allocator: std.mem.Allocator) !LineBox.Line
     self.lines = .{
         .allocator = self.allocator,
     };
+    // Reset whitespace state when transferring ownership
+    self.previous_node_ends_with_collapsible_whitespace = false;
     return copy;
 }
 
@@ -69,8 +76,22 @@ fn ensureLine(self: *Self, available_width: f32) !void {
 
 /// Add text content with white-space processing and node ID tracking
 pub fn appendNodeSlice(self: *Self, text: []const u8, white_space_mode: WhiteSpace, node_id: u32) !void {
-    // Process text according to white-space rules (Phase I)
-    const processed_text = try self.white_space_processor.processTextWithWhiteSpace(text, white_space_mode);
+    // Determine if we should collapse initial whitespace for cross-boundary collapsing
+    const should_collapse_initial = self.previous_node_ends_with_collapsible_whitespace and 
+                                   white_space_mode.toLonghand().collapse != .preserve;
+
+    // Check if this is a whitespace-only node that should be skipped entirely
+    if (should_collapse_initial and isWhitespaceOnly(text, white_space_mode)) {
+        // create an empty fragment directly
+        try self.createFragment("", white_space_mode, node_id, 0);
+        return;
+    }
+
+    // Process text according to white-space rules (Phase I) with initial collapse support
+    const processed_text = try self.white_space_processor.processTextWithWhiteSpace(text, white_space_mode, should_collapse_initial);
+
+    // Update state for the next node - check if this processed text ends with collapsible whitespace
+    self.previous_node_ends_with_collapsible_whitespace = endsWithCollapsibleWhitespace(processed_text, white_space_mode);
 
     // Create fragments immediately based on forced line breaks (max_content layout)
     try self.createFragmentsFromProcessedText(processed_text, white_space_mode, node_id);
@@ -190,7 +211,7 @@ pub fn addBreakSpacesText(self: *Self, text: []const u8) !void {
 /// This demonstrates the complete text preprocessing before LineBreakStream
 pub fn addTextWithFullPreprocessing(self: *Self, text: []const u8, white_space_mode: WhiteSpace, tab_size: TabSize) !void {
     // Phase I: White-space processing (collapsing/transformation)
-    const phase1_text = try self.white_space_processor.processTextWithWhiteSpace(text, white_space_mode);
+    const phase1_text = try self.white_space_processor.processTextWithWhiteSpace(text, white_space_mode, false);
     defer self.allocator.free(phase1_text);
 
     // Store metadata about processing for potential Phase II usage
@@ -268,7 +289,7 @@ pub fn applyTextAlignment(self: *Self, text_align: css_types.TextAlign, containe
     // For simplicity, map start/end to left/right (RTL not implemented yet)
     const physical_align = switch (text_align) {
         .start => css_types.TextAlign.left,
-        .end => @import("../../../styles/text-align.zig").TextAlign.right,
+        .end => css_types.TextAlign.right,
         else => text_align,
     };
 
@@ -336,6 +357,9 @@ fn reorganizeFragmentsWithWrapping(self: *Self, available_width: f32) !void {
             try self.breakAndWrapLine(line, available_width);
         }
     }
+    
+    // Trim trailing whitespace from the last fragment of the final line
+    try self.trimLastFragmentTrailingWhitespace();
 }
 fn breakAndWrapLine(self: *Self, line: *LineBox, available_width: f32) !void {
     var current_line_width: f32 = 0;
@@ -354,6 +378,8 @@ fn breakAndWrapLine(self: *Self, line: *LineBox, available_width: f32) !void {
 
             // Use trimmed width for overflow check - trailing whitespace can overflow
             if (current_line_width + measurements.trimmed_width > available_width and current_line_width > 0) {
+                // Trim trailing whitespace from the last fragment of the current line before wrapping
+                try self.trimLastFragmentTrailingWhitespace();
                 try self.addNewLine(available_width);
                 current_line_width = 0;
             }
@@ -381,6 +407,8 @@ fn breakAndWrapLine(self: *Self, line: *LineBox, available_width: f32) !void {
             const measurements = self.trimAndMeasureText(remaining_text);
 
             if (current_line_width + measurements.trimmed_width > available_width and current_line_width > 0) {
+                // Trim trailing whitespace from the last fragment of the current line before wrapping
+                try self.trimLastFragmentTrailingWhitespace();
                 try self.addNewLine(available_width);
                 current_line_width = 0;
             }
@@ -410,6 +438,183 @@ test "reorganizeFragmentsWithWrapping" {
     try lines_builder.buildLinesWithWrapMode(.wrap);
     try lines_builder.print(std.io.getStdErr().writer().any());
     try lines_builder.printText(std.io.getStdErr().writer().any(), true);
+}
+
+test "cross-boundary whitespace collapsing" {
+    var lines_builder = Self.init(std.testing.allocator, .{ .definite = 50 });
+    defer lines_builder.deinit();
+
+    // Test basic cross-boundary collapsing
+    try lines_builder.appendNodeSlice("Hello ", .normal, 0);
+    try lines_builder.appendNodeSlice("   world", .normal, 1);
+    
+    // Should result in "Hello world" (single space)
+    try std.testing.expect(lines_builder.lines.len() == 1);
+    const line = &lines_builder.lines.items()[0];
+    try std.testing.expect(line.fragments.items.len == 2);
+    
+    // First fragment should be "Hello "
+    try std.testing.expectEqualStrings("Hello ", line.fragments.items[0].text);
+    // Second fragment should be "world" (leading spaces collapsed)
+    try std.testing.expectEqualStrings("world", line.fragments.items[1].text);
+}
+
+test "whitespace-only node skipping" {
+    var lines_builder = Self.init(std.testing.allocator, .{ .definite = 50 });
+    defer lines_builder.deinit();
+
+    // Test that whitespace-only nodes get skipped when previous node ends with whitespace
+    try lines_builder.appendNodeSlice("Hello ", .normal, 0);
+    try lines_builder.appendNodeSlice("   ", .normal, 1); // Should be skipped
+    try lines_builder.appendNodeSlice("world", .normal, 2);
+    
+    // Should result in only 2 fragments: "Hello " and "world"
+    try std.testing.expect(lines_builder.lines.len() == 1);
+    const line = &lines_builder.lines.items()[0];
+    try std.testing.expect(line.fragments.items.len == 2);
+    
+    try std.testing.expectEqualStrings("Hello ", line.fragments.items[0].text);
+    try std.testing.expectEqualStrings("world", line.fragments.items[1].text);
+}
+
+test "preserve mode no collapsing" {
+    var lines_builder = Self.init(std.testing.allocator, .{ .definite = 50 });
+    defer lines_builder.deinit();
+
+    // In preserve mode, cross-boundary collapsing should not happen
+    try lines_builder.appendNodeSlice("Hello ", .pre, 0);
+    try lines_builder.appendNodeSlice("   world", .pre, 1);
+    
+    try std.testing.expect(lines_builder.lines.len() == 1);
+    const line = &lines_builder.lines.items()[0];
+    try std.testing.expect(line.fragments.items.len == 2);
+    
+    try std.testing.expectEqualStrings("Hello ", line.fragments.items[0].text);
+    try std.testing.expectEqualStrings("   world", line.fragments.items[1].text); // Spaces preserved
+}
+
+test "trailing whitespace removal on line break" {
+    var lines_builder = Self.init(std.testing.allocator, .{ .definite = 10 });
+    defer lines_builder.deinit();
+
+    // Text that will wrap and should have trailing spaces removed
+    try lines_builder.appendNodeSlice("Hello world   ", .normal, 0);
+    try lines_builder.buildLinesWithWrapMode(.wrap);
+    
+    // Should have wrapped into 2 lines: "Hello" and "world"
+    try std.testing.expect(lines_builder.lines.len() == 2);
+    
+    // First line should be "Hello" (no trailing space)
+    const line1 = &lines_builder.lines.items()[0];
+    try std.testing.expect(line1.fragments.items.len == 1);
+    try std.testing.expectEqualStrings("Hello", line1.fragments.items[0].text);
+    
+    // Second line should be "world" (no trailing spaces)
+    const line2 = &lines_builder.lines.items()[1];
+    try std.testing.expect(line2.fragments.items.len == 1);
+    try std.testing.expectEqualStrings("world", line2.fragments.items[0].text);
+}
+
+test "preserve mode keeps trailing whitespace" {
+    var lines_builder = Self.init(std.testing.allocator, .{ .definite = 10 });
+    defer lines_builder.deinit();
+
+    // In preserve mode, trailing whitespace should not be removed even when forced to wrap
+    try lines_builder.appendNodeSlice("Hello world   ", .@"pre-wrap", 0); // Use pre-wrap which allows wrapping
+    try lines_builder.buildLinesWithWrapMode(.wrap);
+    
+    // Should have multiple lines
+    try std.testing.expect(lines_builder.lines.len() >= 1);
+    
+    // Find the last line and check that it preserves trailing spaces
+    const last_line = &lines_builder.lines.items()[lines_builder.lines.len() - 1];
+    const last_fragment = &last_line.fragments.items[last_line.fragments.items.len - 1];
+    
+    // Should keep trailing spaces in preserve mode (pre-wrap preserves spaces)
+    try std.testing.expect(std.mem.endsWith(u8, last_fragment.text, "   "));
+}
+
+/// Check if text contains only collapsible whitespace characters
+fn isWhitespaceOnly(text: []const u8, white_space_mode: WhiteSpace) bool {
+    if (text.len == 0) return true;
+    
+    const longhand = white_space_mode.toLonghand();
+    const white_space_processor = @import("./white-space-processor.zig");
+    
+    var iter = std.unicode.Utf8Iterator{ .bytes = text, .i = 0 };
+    while (iter.nextCodepoint()) |codepoint| {
+        if (!white_space_processor.isDocumentWhiteSpace(codepoint)) {
+            return false; // Found non-whitespace character
+        }
+        
+        // Check if this whitespace would be collapsible
+        if (!white_space_processor.isCollapsible(codepoint, longhand.collapse)) {
+            return false; // Found non-collapsible whitespace (like preserved spaces)
+        }
+    }
+    return true;
+}
+
+/// Check if text ends with collapsible whitespace in the given mode
+fn endsWithCollapsibleWhitespace(text: []const u8, white_space_mode: WhiteSpace) bool {
+    if (text.len == 0) return false;
+    
+    const longhand = white_space_mode.toLonghand();
+    const white_space_processor = @import("./white-space-processor.zig");
+    
+    // Get the last character
+    var iter = std.unicode.Utf8Iterator{ .bytes = text, .i = 0 };
+    var last_codepoint: ?u21 = null;
+    while (iter.nextCodepoint()) |codepoint| {
+        last_codepoint = codepoint;
+    }
+    
+    if (last_codepoint) |codepoint| {
+        return white_space_processor.isDocumentWhiteSpace(codepoint) and 
+               white_space_processor.isCollapsible(codepoint, longhand.collapse);
+    }
+    return false;
+}
+
+/// Remove trailing collapsible whitespace from the last fragment of the current line
+/// Per W3C spec Phase II: "A sequence of collapsible spaces at the end of a line is removed"
+fn trimLastFragmentTrailingWhitespace(self: *Self) !void {
+    if (self.lines.len() == 0) return;
+    
+    var current_line = &self.lines.items()[self.lines.len() - 1];
+    if (current_line.fragments.items.len == 0) return;
+    
+    var last_fragment = &current_line.fragments.items[current_line.fragments.items.len - 1];
+    const white_space_mode = last_fragment.white_space_info.original_white_space_mode;
+    const longhand = white_space_mode.toLonghand();
+    
+    // Only trim if collapsing is allowed
+    if (longhand.collapse == .preserve) {
+        return; // Don't trim in preserve mode
+    }
+    
+    // Simple approach: trim trailing ASCII spaces (most common case)
+    // This handles the common case efficiently without complex Unicode iteration
+    var trimmed_end = last_fragment.text.len;
+    while (trimmed_end > 0 and last_fragment.text[trimmed_end - 1] == 0x20) {
+        trimmed_end -= 1;
+    }
+    
+    // If we need to trim, create new text and update fragment
+    if (trimmed_end < last_fragment.text.len) {
+        const old_text = last_fragment.text;
+        const new_text = try self.allocator.dupe(u8, old_text[0..trimmed_end]);
+        
+        // Free old text and update fragment
+        self.allocator.free(old_text);
+        last_fragment.text = new_text;
+        last_fragment.length = @intCast(new_text.len);
+        
+        // Recalculate fragment width and update line width
+        const old_width = last_fragment.size.x;
+        last_fragment.size.x = self.measureTextWidth(new_text);
+        current_line.size.x = current_line.size.x - old_width + last_fragment.size.x;
+    }
 }
 
 /// Check if a character provides a soft wrap opportunity

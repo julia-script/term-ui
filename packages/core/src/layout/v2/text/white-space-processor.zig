@@ -640,10 +640,28 @@ pub const WhiteSpaceProcessor = struct {
         return try self.processPhaseI(normalized, collapse_mode);
     }
 
+    /// Process text with initial whitespace collapsing support for cross-boundary scenarios
+    /// If should_collapse_initial is true, removes leading collapsible whitespace
+    pub fn processTextWithInitialCollapse(self: *WhiteSpaceProcessor, text: []const u8, collapse_mode: WhiteSpaceCollapse, should_collapse_initial: bool) ![]u8 {
+        // First normalize carriage returns
+        const normalized = try normalizeCarriageReturns(text, self.allocator);
+        defer self.allocator.free(normalized);
+
+        // Remove initial collapsible whitespace if requested
+        const initial_processed = if (should_collapse_initial) 
+            try self.removeInitialCollapsibleWhitespace(normalized, collapse_mode)
+        else 
+            try self.allocator.dupe(u8, normalized);
+        defer self.allocator.free(initial_processed);
+
+        // Then apply Phase I processing
+        return try self.processPhaseI(initial_processed, collapse_mode);
+    }
+
     /// Convenience method to process text with a WhiteSpace shorthand value
-    pub fn processTextWithWhiteSpace(self: *WhiteSpaceProcessor, text: []const u8, white_space: WhiteSpace) ![]u8 {
+    pub fn processTextWithWhiteSpace(self: *WhiteSpaceProcessor, text: []const u8, white_space: WhiteSpace, should_collapse_initial: bool) ![]u8 {
         const longhand = white_space.toLonghand();
-        return try self.processText(text, longhand.collapse);
+        return try self.processTextWithInitialCollapse(text, longhand.collapse, should_collapse_initial);
     }
 
     /// Process text for preserve-spaces mode (SVG xml:space="preserve")
@@ -666,6 +684,32 @@ pub const WhiteSpaceProcessor = struct {
 
         // Then add soft wrap opportunities after spaces/tabs
         return try addSoftWrapOpportunities(normalized, self.allocator);
+    }
+
+    /// Remove leading collapsible whitespace for cross-boundary collapsing
+    /// This implements the W3C rule about collapsible spaces "outside the boundary of the inline"
+    fn removeInitialCollapsibleWhitespace(self: *WhiteSpaceProcessor, text: []const u8, collapse_mode: WhiteSpaceCollapse) ![]u8 {
+        if (collapse_mode == .preserve) {
+            // Nothing is collapsible in preserve mode
+            return try self.allocator.dupe(u8, text);
+        }
+
+        var start_index: usize = 0;
+        var iter = std.unicode.Utf8Iterator{ .bytes = text, .i = 0 };
+        
+        // Skip initial collapsible whitespace
+        while (iter.nextCodepoint()) |codepoint| {
+            if (isCollapsible(codepoint, collapse_mode)) {
+                // This character is collapsible, skip it
+                start_index = iter.i;
+            } else {
+                // Found non-collapsible character, stop
+                break;
+            }
+        }
+
+        // Return text without the initial collapsible whitespace
+        return try self.allocator.dupe(u8, text[start_index..]);
     }
 
     // === Phase II Processing Functions ===
@@ -1394,7 +1438,7 @@ test "WhiteSpaceProcessor full text processing" {
     // Test with white-space shorthand
     {
         const input = "hello  \t\nworld";
-        const result = try processor.processTextWithWhiteSpace(input, .normal);
+        const result = try processor.processTextWithWhiteSpace(input, .normal, false);
         defer testing.allocator.free(result);
 
         try testing.expectEqualStrings("hello world", result);
@@ -1402,7 +1446,7 @@ test "WhiteSpaceProcessor full text processing" {
 
     {
         const input = "hello  \t\nworld";
-        const result = try processor.processTextWithWhiteSpace(input, .pre);
+        const result = try processor.processTextWithWhiteSpace(input, .pre, false);
         defer testing.allocator.free(result);
 
         try testing.expectEqualStrings("hello  \t\nworld", result);
@@ -1410,7 +1454,7 @@ test "WhiteSpaceProcessor full text processing" {
 
     {
         const input = "hello  \t\nworld";
-        const result = try processor.processTextWithWhiteSpace(input, .nowrap);
+        const result = try processor.processTextWithWhiteSpace(input, .nowrap, false);
         defer testing.allocator.free(result);
 
         try testing.expectEqualStrings("hello world", result);

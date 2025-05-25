@@ -99,24 +99,6 @@ pub const ComputedStyleCache = struct {
         inline for (std.meta.fields(Style)) |field| {
             @field(dest, field.name) = @field(source, field.name);
         }
-
-        // Copy all properties from source to destination
-        // Text properties
-        // dest.text_align = source.text_align;
-        // dest.text_wrap = source.text_wrap;
-        // dest.foreground_color = source.foreground_color;
-        // dest.line_height = source.line_height;
-
-        // // Text formatting properties
-        // dest.font_weight = source.font_weight;
-        // dest.font_style = source.font_style;
-        // dest.text_decoration = source.text_decoration;
-
-        // // Background properties
-        // dest.background_color = source.background_color;
-
-        // Other properties can be copied similarly
-        // For now, just copying the most commonly used properties
     }
 
     /// Apply inherited properties based on inheritance rules
