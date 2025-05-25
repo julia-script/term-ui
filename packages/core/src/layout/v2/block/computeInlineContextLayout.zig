@@ -7,6 +7,70 @@ const ContainerContext = mod.ContainerContext;
 const CSSMaybePoint = mod.CSSMaybePoint;
 const css_types = @import("../../../css/types.zig");
 
+/// Recursively process a node and its children to add text content to LinesBuilder
+fn processNodeRecursively(context: *LayoutContext, lines_builder: *mod.LinesBuilder, node_id: LayoutNode.Id) !void {
+    const node = context.layout_tree.getNodePtr(node_id);
+    
+    switch (node.data) {
+        .text_node => |*text_node| {
+            // Convert text content to slice
+            const text_content = text_node.contents.items;
+            
+            // Check if this text contains newlines - if so, preserve them
+            const white_space = if (std.mem.indexOf(u8, text_content, "\n") != null) 
+                @import("../../../styles/white-space.zig").WhiteSpace.pre 
+            else 
+                @import("../../../styles/white-space.zig").WhiteSpace.normal;
+            
+            // Add this text node's content to the lines builder
+            try lines_builder.addTextWithNode(text_content, white_space, node_id);
+        },
+        .inline_container_node => |*container| {
+            // Check if we have multiple text children - if so, we need to preserve line breaks between them
+            var has_multiple_text_nodes = false;
+            var text_count: u32 = 0;
+            for (container.children.items) |child_id| {
+                const child = context.layout_tree.getNodePtr(child_id);
+                if (child.data == .text_node) {
+                    text_count += 1;
+                    if (text_count > 1) {
+                        has_multiple_text_nodes = true;
+                        break;
+                    }
+                }
+            }
+            
+            // Recursively process all children, adding newlines between text nodes if needed
+            var prev_was_text = false;
+            for (container.children.items) |child_id| {
+                const child = context.layout_tree.getNodePtr(child_id);
+                if (child.data == .text_node) {
+                    // If the previous node was also text and we have multiple text nodes, add a newline
+                    if (prev_was_text and has_multiple_text_nodes) {
+                        try lines_builder.addTextWithNode("\n", @import("../../../styles/white-space.zig").WhiteSpace.pre, child_id);
+                    }
+                    prev_was_text = true;
+                } else {
+                    prev_was_text = false;
+                }
+                try processNodeRecursively(context, lines_builder, child_id);
+            }
+        },
+        .block_container_node => |*container| {
+            // Recursively process all children  
+            for (container.children.items) |child_id| {
+                try processNodeRecursively(context, lines_builder, child_id);
+            }
+        },
+        .inline_node => |*inline_node| {
+            // Recursively process all children
+            for (inline_node.children.items) |child_id| {
+                try processNodeRecursively(context, lines_builder, child_id);
+            }
+        },
+    }
+}
+
 pub fn computeInlineContextLayout(context: *LayoutContext, inputs: ContainerContext, l_node_id: LayoutNode.Id) mod.ComputeLayoutError!mod.LayoutResult {
     context.info(l_node_id, "computeInlineContextLayout", .{});
     const l_node = context.layout_tree.getNodePtr(l_node_id);
@@ -139,52 +203,24 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
 
     // Initialize LinesBuilder with available space from layout constraints
     const available_width = inputs.available_space.x;
+    std.debug.print("available_width: {}\n", .{available_width});
     var lines_builder = mod.LinesBuilder.init(allocator, available_width);
     defer lines_builder.deinit();
 
-    // Process child nodes for text content and inline elements
-    const children = switch (l_node.data) {
-        .inline_container_node => |*container| &container.children,
-        // .block_container_node => |*container| &container.children,
-        else => return .{ .size = .{ .x = 0, .y = 0 } }, // No children to process
-    };
-
-    // Process each child node
-    for (children.items) |child_id| {
-        const child_node = context.layout_tree.getNodePtr(child_id);
-
-        switch (child_node.data) {
-            .text_node => |*text_node| {
-                // Extract white-space CSS property - use normal as default for now
-                const white_space = @import("../../../styles/white-space.zig").WhiteSpace.normal;
-
-                // Convert text content to slice
-                const text_content = text_node.contents.items;
-
-                // Process text through LinesBuilder with proper white-space mode
-                try lines_builder.addText(text_content, white_space);
-            },
-            .inline_node => {
-                // TODO: Handle inline elements (spans, etc.) - for now skip
-                continue;
-            },
-            else => {
-                // Skip other node types in inline context
-                continue;
-            },
-        }
+    // Recursively process all child nodes to collect text content
+    try processNodeRecursively(context, &lines_builder, l_node_id);
+    
+    // Debug: print what's in the buffer
+    if (std.mem.indexOf(u8, lines_builder.segmenter.buffer.items, "\n") != null) {
+        std.debug.print("Buffer contains newlines: '{s}'\n", .{lines_builder.segmenter.buffer.items});
+    } else {
+        std.debug.print("Buffer has no newlines: '{s}'\n", .{lines_builder.segmenter.buffer.items});
     }
 
     // Generate line layout based on white-space mode
-    // Extract wrap mode from first text node's white-space property
-    var wrap_mode = @import("../../../styles/white-space.zig").TextWrapMode.wrap;
-    if (children.items.len > 0) {
-        const first_child = context.layout_tree.getNodePtr(children.items[0]);
-        if (first_child.data == .text_node) {
-            const white_space = @import("../../../styles/white-space.zig").WhiteSpace.normal;
-            wrap_mode = white_space.toLonghand().wrap_mode;
-        }
-    }
+    // Use normal wrap mode as default - in a real implementation, 
+    // this could be inherited from the container or determined from CSS
+    const wrap_mode = @import("../../../styles/white-space.zig").TextWrapMode.wrap;
 
     try lines_builder.buildLinesWithWrapMode(wrap_mode);
 
@@ -196,6 +232,7 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
     var current_y: f32 = 0;
 
     for (lines_builder.lines.items) |line| {
+        // Track the maximum width across all lines
         content_width = @max(content_width, line.size.x);
 
         // Position fragments within this line
@@ -211,26 +248,27 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
             current_x += fragment.size.x;
         }
 
-        current_y += line.size.y;
+        // Accumulate total height from all lines
         content_height += line.size.y;
+        current_y += line.size.y;
     }
 
     // If no lines were created, ensure minimum height
     if (lines_builder.lines.items.len == 0) {
         content_height = 16.0; // Default line height
     }
-    
+
     // Transfer ownership of line boxes to the InlineContainerNode
     // This prevents deallocation when LinesBuilder is destroyed
     if (l_node.data == .inline_container_node) {
         const text_line_boxes = lines_builder.toOwnedLineBoxes();
-        
+
         // Convert from text.LineBox format to LayoutTree.LineBox format
         var layout_line_boxes = std.ArrayListUnmanaged(LayoutTree.LineBox){};
-        
+
         for (text_line_boxes.items) |text_line| {
             var layout_line = LayoutTree.LineBox{};
-            
+
             // Convert fragments from text.LineBoxFragment to LayoutTree.LineBox.Fragment
             for (text_line.fragments.items) |text_fragment| {
                 const layout_fragment = LayoutTree.LineBox.Fragment{
@@ -240,21 +278,77 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
                 };
                 try layout_line.fragments.append(allocator, layout_fragment);
             }
-            
+
             try layout_line_boxes.append(allocator, layout_line);
         }
-        
+
         // Clean up the text line boxes
         for (text_line_boxes.items) |*text_line| {
             text_line.fragments.deinit();
         }
         text_line_boxes.deinit();
-        
+
         l_node.data.inline_container_node.line_boxes = layout_line_boxes;
     }
-    
+
     return .{
         .size = .{ .x = content_width, .y = content_height },
         .content_size = .{ .x = content_width, .y = content_height },
     };
+}
+
+test "computeInlineContextLayout" {
+    const allocator = std.testing.allocator;
+    const doc_xml =
+        \\<div style="display: flex; width: 30px;">
+        \\  <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+        \\  <p>Hello, world!</p>
+        \\</div> 
+        \\
+    ;
+    var tree = try mod.docFromXml(allocator, doc_xml, .{});
+    defer tree.deinit();
+
+    var lt = try mod.LayoutTree.fromTree(allocator, &tree);
+    defer lt.deinit();
+    var context = LayoutContext{
+        .layout_tree = &lt,
+        .doc_tree = &tree,
+        .allocator = allocator,
+    };
+    try mod.computeLayout(
+        &context,
+        .{ .x = .{ .definite = 100 }, .y = .max_content },
+        0,
+    );
+    try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
+}
+
+test "computeInlineContextLayout with forced breaks" {
+    const allocator = std.testing.allocator;
+    const doc_xml =
+        \\<div style="display: flex;">
+        \\  <p>Line 1
+        \\Line 2
+        \\Line 3</p>
+        \\</div> 
+        \\
+    ;
+    var tree = try mod.docFromXml(allocator, doc_xml, .{});
+    defer tree.deinit();
+
+    var lt = try mod.LayoutTree.fromTree(allocator, &tree);
+    defer lt.deinit();
+    var context = LayoutContext{
+        .layout_tree = &lt,
+        .doc_tree = &tree,
+        .allocator = allocator,
+    };
+    std.debug.print("\n=== Testing with forced breaks and min_content ===\n", .{});
+    try mod.computeLayout(
+        &context,
+        .{ .x = .min_content, .y = .max_content },
+        0,
+    );
+    try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
 }

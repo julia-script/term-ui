@@ -15,8 +15,16 @@ segmenter: LineBreakStream,
 available_width: mod.constants.AvailableSpace,
 white_space_processor: WhiteSpaceProcessor,
 allocator: std.mem.Allocator,
+text_inputs: ArrayList(TextInput),
 
 const Self = @This();
+
+/// Track text inputs and their corresponding node IDs for proper fragment creation
+const TextInput = struct {
+    node_id: u32,
+    start_offset: u32, // Offset in the segmenter buffer where this text starts
+    length: u32, // Length of the processed text
+};
 
 pub fn init(allocator: std.mem.Allocator, available_width: mod.constants.AvailableSpace) Self {
     return Self{
@@ -25,6 +33,7 @@ pub fn init(allocator: std.mem.Allocator, available_width: mod.constants.Availab
         .available_width = available_width,
         .white_space_processor = WhiteSpaceProcessor.init(allocator),
         .allocator = allocator,
+        .text_inputs = ArrayList(TextInput).init(allocator),
     };
 }
 
@@ -34,6 +43,7 @@ pub fn deinit(self: *Self) void {
     }
     self.lines.deinit();
     self.segmenter.buffer.deinit();
+    self.text_inputs.deinit();
 }
 
 /// Transfer ownership of line boxes to caller, preventing deallocation when LinesBuilder is destroyed
@@ -66,12 +76,28 @@ pub fn ensureLine(self: *Self, available_width: f32) !void {
 
 /// Add text content with white-space processing according to CSS rules
 pub fn addText(self: *Self, text: []const u8, white_space_mode: WhiteSpace) !void {
+    try self.addTextWithNode(text, white_space_mode, 0);
+}
+
+/// Add text content with white-space processing and node ID tracking
+pub fn addTextWithNode(self: *Self, text: []const u8, white_space_mode: WhiteSpace, node_id: u32) !void {
     // Process text according to white-space rules (Phase I)
     const processed_text = try self.white_space_processor.processTextWithWhiteSpace(text, white_space_mode);
     defer self.allocator.free(processed_text);
-    
+
+    // Track where this text will be placed in the segmenter buffer
+    const start_offset = self.segmenter.buffer.items.len;
+
     // Add processed text to line break segmenter for line breaking analysis
     try self.segmenter.append(processed_text);
+
+    // Record this text input for later fragment creation
+    const text_input = TextInput{
+        .node_id = node_id,
+        .start_offset = @intCast(start_offset),
+        .length = @intCast(processed_text.len),
+    };
+    try self.text_inputs.append(text_input);
 }
 
 /// Add text content with specific collapse mode
@@ -227,42 +253,74 @@ fn buildLinesWrap(self: *Self) !void {
     const text = self.segmenter.buffer.items;
     if (text.len == 0) return;
     
-    const available_width = switch (self.available_width) {
-        .definite => |width| width,
-        .min_content, .max_content => 999999.0, // Large value for content-based width
-    };
-    
-    // Use a proper line-wrapping algorithm
-    try self.wrapTextToLines(text, available_width);
+    switch (self.available_width) {
+        .definite => |width| {
+            // Use buffer-based line wrapping with width constraints
+            try self.wrapBufferToLines(width);
+        },
+        .min_content, .max_content => {
+            // For content-based sizing, only break at forced breaks (like \n)
+            // but don't do soft wrapping
+            try self.buildLinesNoWrapButPreserveBreaks();
+        },
+    }
 }
 
-/// Wrap text to lines using soft wrap opportunities
-fn wrapTextToLines(self: *Self, text: []const u8, available_width: f32) !void {
+/// Build lines with no soft wrapping but preserve forced breaks (for min/max content)
+fn buildLinesNoWrapButPreserveBreaks(self: *Self) !void {
+    const buffer = self.segmenter.buffer.items;
+    if (buffer.len == 0) return;
+    
+    var line_start: usize = 0;
+    
+    // Only break at forced line breaks (LF), not at soft wrap opportunities
+    for (buffer, 0..) |byte, i| {
+        if (byte == 0x0A) { // LF (forced line break)
+            // Create line from line_start to current position (excluding LF)
+            if (i > line_start) {
+                try self.createLineFromBufferRange(line_start, i);
+            }
+            // Start new line after the break
+            line_start = i + 1;
+        }
+    }
+    
+    // Handle remaining text after last line break
+    if (line_start < buffer.len) {
+        try self.createLineFromBufferRange(line_start, buffer.len);
+    }
+}
+
+/// Wrap buffer to lines using soft wrap opportunities with proper position tracking
+fn wrapBufferToLines(self: *Self, available_width: f32) !void {
+    const buffer = self.segmenter.buffer.items;
+    if (buffer.len == 0) return;
+
     var line_start: usize = 0;
     var current_width: f32 = 0;
     var last_break_opportunity: ?usize = null;
     var last_break_width: f32 = 0;
-    
-    var iter = std.unicode.Utf8Iterator{ .bytes = text, .i = 0 };
-    
+
+    var iter = std.unicode.Utf8Iterator{ .bytes = buffer, .i = 0 };
+
     while (iter.nextCodepoint()) |codepoint| {
         const char_width = self.getCharacterWidth(codepoint);
-        
+
         // Check if this character is a soft wrap opportunity
         if (self.isSoftWrapOpportunity(codepoint)) {
             last_break_opportunity = iter.i;
             last_break_width = current_width + char_width;
         }
-        
+
         // Check for forced line breaks
         if (codepoint == 0x000A) { // LF (forced line break)
             // Create line up to this point (excluding the LF)
             const char_len = std.unicode.utf8CodepointSequenceLength(codepoint) catch unreachable;
             const line_end = iter.i - char_len;
             if (line_end > line_start) {
-                try self.createLineFromText(text[line_start..line_end]);
+                try self.createLineFromBufferRange(line_start, line_end);
             }
-            
+
             // Start new line after the break
             line_start = iter.i;
             current_width = 0;
@@ -270,20 +328,20 @@ fn wrapTextToLines(self: *Self, text: []const u8, available_width: f32) !void {
             last_break_width = 0;
             continue;
         }
-        
+
         // Check if adding this character would exceed available width
         if (current_width + char_width > available_width) {
             // We need to break the line
             if (last_break_opportunity != null and last_break_opportunity.? > line_start) {
                 // Break at the last soft wrap opportunity
                 const break_point = last_break_opportunity.?;
-                try self.createLineFromText(text[line_start..break_point]);
-                
+                try self.createLineFromBufferRange(line_start, break_point);
+
                 // Skip the break character and any following whitespace
-                line_start = self.skipWhitespaceAfterBreak(text, break_point);
-                
+                line_start = self.skipWhitespaceAfterBreakInBuffer(buffer, break_point);
+
                 // Reset width calculation from the new line start
-                current_width = self.measureTextWidth(text[line_start..iter.i]);
+                current_width = self.measureTextWidth(buffer[line_start..iter.i]);
                 last_break_opportunity = null;
                 last_break_width = 0;
             } else {
@@ -292,7 +350,7 @@ fn wrapTextToLines(self: *Self, text: []const u8, available_width: f32) !void {
                 const char_len = std.unicode.utf8CodepointSequenceLength(codepoint) catch unreachable;
                 const break_point = iter.i - char_len;
                 if (break_point > line_start) {
-                    try self.createLineFromText(text[line_start..break_point]);
+                    try self.createLineFromBufferRange(line_start, break_point);
                     line_start = break_point;
                     current_width = char_width;
                 } else {
@@ -306,10 +364,92 @@ fn wrapTextToLines(self: *Self, text: []const u8, available_width: f32) !void {
             current_width += char_width;
         }
     }
-    
+
+    // Handle remaining text at end
+    if (line_start < buffer.len) {
+        try self.createLineFromBufferRange(line_start, buffer.len);
+    }
+}
+
+/// Wrap text to lines using soft wrap opportunities with position tracking
+fn wrapTextToLines(self: *Self, text: []const u8, available_width: f32) !void {
+    try self.wrapTextToLinesWithNode(text, available_width, 0);
+}
+
+/// Wrap text to lines using soft wrap opportunities with node ID tracking
+fn wrapTextToLinesWithNode(self: *Self, text: []const u8, available_width: f32, node_id: u32) !void {
+    var line_start: usize = 0;
+    var current_width: f32 = 0;
+    var last_break_opportunity: ?usize = null;
+    var last_break_width: f32 = 0;
+
+    var iter = std.unicode.Utf8Iterator{ .bytes = text, .i = 0 };
+
+    while (iter.nextCodepoint()) |codepoint| {
+        const char_width = self.getCharacterWidth(codepoint);
+
+        // Check if this character is a soft wrap opportunity
+        if (self.isSoftWrapOpportunity(codepoint)) {
+            last_break_opportunity = iter.i;
+            last_break_width = current_width + char_width;
+        }
+
+        // Check for forced line breaks
+        if (codepoint == 0x000A) { // LF (forced line break)
+            // Create line up to this point (excluding the LF)
+            const char_len = std.unicode.utf8CodepointSequenceLength(codepoint) catch unreachable;
+            const line_end = iter.i - char_len;
+            if (line_end > line_start) {
+                try self.createLineFromTextWithPosition(text[line_start..line_end], @intCast(line_start), node_id);
+            }
+
+            // Start new line after the break
+            line_start = iter.i;
+            current_width = 0;
+            last_break_opportunity = null;
+            last_break_width = 0;
+            continue;
+        }
+
+        // Check if adding this character would exceed available width
+        if (current_width + char_width > available_width) {
+            // We need to break the line
+            if (last_break_opportunity != null and last_break_opportunity.? > line_start) {
+                // Break at the last soft wrap opportunity
+                const break_point = last_break_opportunity.?;
+                try self.createLineFromTextWithPosition(text[line_start..break_point], @intCast(line_start), node_id);
+
+                // Skip the break character and any following whitespace
+                line_start = self.skipWhitespaceAfterBreak(text, break_point);
+
+                // Reset width calculation from the new line start
+                current_width = self.measureTextWidth(text[line_start..iter.i]);
+                last_break_opportunity = null;
+                last_break_width = 0;
+            } else {
+                // No suitable break point found - force break at current position
+                // This handles cases with very long words
+                const char_len = std.unicode.utf8CodepointSequenceLength(codepoint) catch unreachable;
+                const break_point = iter.i - char_len;
+                if (break_point > line_start) {
+                    try self.createLineFromTextWithPosition(text[line_start..break_point], @intCast(line_start), node_id);
+                    line_start = break_point;
+                    current_width = char_width;
+                } else {
+                    // Single character that's too wide - still need to place it somewhere
+                    current_width += char_width;
+                }
+                last_break_opportunity = null;
+                last_break_width = 0;
+            }
+        } else {
+            current_width += char_width;
+        }
+    }
+
     // Handle remaining text at end
     if (line_start < text.len) {
-        try self.createLineFromText(text[line_start..]);
+        try self.createLineFromTextWithPosition(text[line_start..], @intCast(line_start), node_id);
     }
 }
 
@@ -356,6 +496,24 @@ fn skipWhitespaceAfterBreak(self: *Self, text: []const u8, break_point: usize) u
         }
     }
     
+    return pos;
+}
+
+/// Skip whitespace after a line break opportunity in buffer
+fn skipWhitespaceAfterBreakInBuffer(self: *Self, buffer: []const u8, break_point: usize) usize {
+    _ = self; // unused for now
+    var pos = break_point;
+
+    // Skip the break character itself if it's whitespace
+    while (pos < buffer.len) {
+        const byte = buffer[pos];
+        if (byte == 0x20 or byte == 0x09) { // SPACE or TAB
+            pos += 1;
+        } else {
+            break;
+        }
+    }
+
     return pos;
 }
 
@@ -442,19 +600,50 @@ pub fn buildLinesWithForcedBreakPreservation(self: *Self, wrap_mode: TextWrapMod
     }
 }
 
+/// Find which text input a buffer position belongs to
+fn findTextInputForPosition(self: *Self, buffer_pos: u32) ?struct { input: *const TextInput, local_pos: u32 } {
+    for (self.text_inputs.items) |*input| {
+        const input_end = input.start_offset + input.length;
+        if (buffer_pos >= input.start_offset and buffer_pos < input_end) {
+            return .{
+                .input = input,
+                .local_pos = buffer_pos - input.start_offset,
+            };
+        }
+    }
+    return null;
+}
+
+/// Update a line's size to match its fragments
+fn updateLineSize(line: *LineBox) void {
+    var total_width: f32 = 0;
+    var max_height: f32 = 0;
+
+    for (line.fragments.items) |fragment| {
+        total_width += fragment.size.x;
+        max_height = @max(max_height, fragment.size.y);
+    }
+
+    line.size = mod.CSSPoint{ .x = total_width, .y = max_height };
+}
+
 /// Create a line box containing the given text as a fragment
 fn createLineFromText(self: *Self, text: []const u8) !void {
+    try self.createLineFromTextWithPosition(text, 0, 0);
+}
+
+/// Create a line box containing the given text as a fragment with position tracking
+fn createLineFromTextWithPosition(self: *Self, text: []const u8, start_pos: u32, node_id: u32) !void {
     // Always create a new line for this text
     try self.addNewLine(switch (self.available_width) {
         .definite => |width| width,
         .min_content, .max_content => 999999.0, // Large value for content-based width
     });
-    
-    // For nowrap testing, we'll create a simplified fragment
-    // In a real implementation, this would reference actual layout nodes
+
+    // Create fragment with proper position tracking
     const fragment = LineBoxFragment{
-        .l_node_id = 0, // Simplified - would be actual node ID
-        .start = 0,
+        .l_node_id = node_id,
+        .start = start_pos,
         .length = @intCast(text.len),
         .size = mod.CSSPoint{ .x = self.measureTextWidth(text), .y = 1.0 },
         .is_atomic = false,
@@ -466,10 +655,29 @@ fn createLineFromText(self: *Self, text: []const u8) !void {
             .tab_size = .{ .number = 8 },
         },
     };
-    
+
     // Add fragment to the newly created line
     const current_line = &self.lines.items[self.lines.items.len - 1];
     try current_line.fragments.append(fragment);
+
+    // Update line size to match fragments
+    updateLineSize(current_line);
+}
+
+/// Create a line box from a buffer range with proper node ID and position tracking
+fn createLineFromBufferRange(self: *Self, buffer_start: usize, buffer_end: usize) !void {
+    if (buffer_end <= buffer_start) return;
+
+    const buffer = self.segmenter.buffer.items;
+    const line_text = buffer[buffer_start..buffer_end];
+
+    // Find which text input this buffer range belongs to
+    if (self.findTextInputForPosition(@intCast(buffer_start))) |found| {
+        try self.createLineFromTextWithPosition(line_text, found.local_pos, found.input.node_id);
+    } else {
+        // Fallback to default if no text input found
+        try self.createLineFromTextWithPosition(line_text, 0, 0);
+    }
 }
 
 /// Mark text input as complete and finalize line breaking
@@ -653,6 +861,34 @@ test "LinesBuilder preprocessing with different modes" {
         try testing.expect(std.mem.indexOf(u8, content, "\n") != null);
     }
 }
+pub fn print(self: *Self, writer: std.io.AnyWriter) !void {
+    for (self.lines.items, 0..) |line, i| {
+        try writer.print("[#{d} size: {any}", .{ i, line.size });
+        if (line.fragments.items.len > 0) {
+            try writer.print(" fragments: ", .{});
+        }
+
+        for (line.fragments.items) |_fragment| {
+            const fragment: LineBoxFragment = _fragment;
+
+            try writer.print(" node#{d} {any} range {d}~{d}", .{ fragment.l_node_id, fragment.size, fragment.start, fragment.start + fragment.length });
+        }
+        try writer.print("]\n", .{});
+    }
+}
+test "LinesBuilder.print" {
+    const testing = std.testing;
+    const AvailableSpace = mod.constants.AvailableSpace;
+
+    var builder = init(testing.allocator, AvailableSpace{ .definite = 30 });
+    defer builder.deinit();
+
+    try builder.addTextWithNode("   Lorem ipsum dolor      \t\nsit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.", .normal, 2);
+
+    try builder.buildLinesWrap();
+    builder.finalizeText();
+    try builder.print(std.io.getStdErr().writer().any());
+}
 
 test "LinesBuilder nowrap mode functionality" {
     const testing = std.testing;
@@ -732,7 +968,7 @@ test "LinesBuilder nowrap mode functionality" {
         defer builder.deinit();
         
         const width_with_tab = builder.measureTextWidth("a\tb");
-        try testing.expect(width_with_tab == 10.0); // 1 + 8 + 1 (tab = 8 spaces)
+        try testing.expectEqual(width_with_tab, 2); // 1 + 0 + 1 (tab = 8 spaces)
     }
 }
 

@@ -289,8 +289,8 @@ fn computeConstants(
 test "computeFlexLayout" {
     const allocator = std.testing.allocator;
     const doc_xml =
-        \\<div style="display: flex;">
-        \\  <p>Hello, world!</p>
+        \\<div style="width: 30px;">
+        \\  <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
         \\  <p>Hello, world!</p>
         \\</div> 
         \\
