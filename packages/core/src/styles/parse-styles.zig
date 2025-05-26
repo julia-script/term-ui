@@ -358,6 +358,12 @@ pub fn parseStyleProperty(tree: *Tree, node_id: Node.NodeId, _key: []const u8, _
             return;
         };
         tree.getNode(node_id).styles.pointer_events = parsed.value;
+    } else if (std.mem.eql(u8, key, "z-index")) {
+        const parsed = parsers.z_index.parse(value, 0) catch {
+            logger.warn("Invalid z-index value: '{s}'\n", .{value});
+            return;
+        };
+        tree.getNode(node_id).styles.z_index = parsed.value;
     } else {
         logger.warn("Unknown style property: '{s}'\n", .{key});
     }

@@ -40,6 +40,9 @@ pub const LineBox = @import("./text/LineBox.zig");
 pub const LineBoxFragment = @import("./text/LineBoxFragment.zig");
 pub const LineBoxList = LineBox.LineBoxList;
 
+pub const RenderList = @import("./RenderList.zig");
+pub const RenderListBuilder = @import("./RenderListBuilder.zig");
+
 test {
     std.testing.refAllDecls(@This());
 }

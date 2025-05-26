@@ -188,10 +188,19 @@ fn computeInner(
             .{ .start = false, .end = false },
         );
 
+        // FIXME: review if this is correct
+        const child_css_margins = context.getStyleValue(css_types.LengthPercentageAutoRect, child_id, .margin);
+        const child_margin = mod.CSSRect{
+            .top = mod.math.maybeResolve(child_css_margins.top, inputs.parent_size.x) orelse 0,
+            .right = mod.math.maybeResolve(child_css_margins.right, inputs.parent_size.x) orelse 0,
+            .bottom = mod.math.maybeResolve(child_css_margins.bottom, inputs.parent_size.x) orelse 0,
+            .left = mod.math.maybeResolve(child_css_margins.left, inputs.parent_size.x) orelse 0,
+        };
+
         context.setBox(child_id, .{
             .size = child_layout.size,
             .location = .{ .x = offset_x, .y = padding.top + border.top },
-            .margin = child_layout.resolved_margin,
+            .margin = child_margin,
             .padding = child_layout.resolved_padding,
             .border = child_layout.resolved_border,
             .content_size = child_layout.content_size,
