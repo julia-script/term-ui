@@ -326,6 +326,13 @@ pub fn paintFromRenderList(self: *Self, render_list: *const RenderList) !void {
                 // Use the color and format from the text fragment
                 try self.drawText(text.position.x, text.position.y, text.text, text.color, text.format);
             },
+            .selection_overlay => |sel| {
+                // Skip if outside clip rect
+                if (!sel.bounds.intersectsWith(self.clip_rect)) continue;
+
+                // Draw semi-transparent selection overlay
+                try self.fillRect(sel.bounds, .{ .solid = sel.color });
+            },
             .push_clip => |clip| {
                 try self.pushClip(clip.rect);
             },

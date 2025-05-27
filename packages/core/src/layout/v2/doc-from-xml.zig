@@ -9,11 +9,11 @@ const s = @import("../../styles/styles.zig");
 /// Simple configuration options used when converting XML into a test DOM tree.
 pub const Options = struct {
     /// Discard text nodes that only contain whitespace.
-    ignore_empty_text: bool = true,
+    ignore_empty_text: bool = false,
     /// Remove leading and trailing whitespace from text nodes.
     trim_text: bool = false,
     /// Split text nodes on newline characters into multiple nodes.
-    split_lines: bool = true,
+    split_lines: bool = false,
 };
 
 /// Parse a string of XML into the document tree representation understood by

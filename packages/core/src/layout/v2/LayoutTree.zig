@@ -403,7 +403,17 @@ fn printNodeInternal(self: *Self, node_id: LayoutNode.Id, writer: std.io.AnyWrit
             if (is_root) {
                 // root has no prefix
             }
-            try writer.print("[{s} #{d}] \"{s}\"", .{ @tagName(node.data), node.id, text.contents.items });
+            try writer.print("[{s} #{d}] \"", .{ @tagName(node.data), node.id });
+            for (text.contents.items) |c| {
+                switch (c) {
+                    '\n' => try writer.writeAll("\\n"),
+                    '\t' => try writer.writeAll("\\t"),
+                    '\r' => try writer.writeAll("\\r"),
+                    else => try writer.writeByte(c),
+                }
+            }
+
+            try writer.print("\"", .{});
         },
         .inline_node => |inline_node| {
             try writer.print("[{s} #{d}", .{ @tagName(node.data), node.id });
@@ -487,6 +497,7 @@ fn printLineBox(_: *Self, line_box: *const mod.LineBox, index: usize, writer: st
         try writer.writeAll("├── ");
 
     try writer.print("[line_box #{d} fragments={d}]", .{ index, line_box.fragments.items.len });
+
     try writer.writeByte('\n');
 
     var new_prefix_buf: [256]u8 = undefined;
@@ -502,8 +513,16 @@ fn printLineBox(_: *Self, line_box: *const mod.LineBox, index: usize, writer: st
             try writer.writeAll("└── ")
         else
             try writer.writeAll("├── ");
-        try writer.print("[fragment node={{#{d}}} range={d}-{d} pos=({:.2}, {:.2}) text=\"{s}\"]", .{ fragment.l_node_id, fragment.start, fragment.start + fragment.length, fragment.position.x, fragment.position.y, fragment.text });
-        try writer.writeByte('\n');
+        try writer.print("[fragment node={{#{d}}} range={d}-{d} pos=({:.2}, {:.2}) text=\"", .{ fragment.l_node_id, fragment.start, fragment.start + fragment.length, fragment.position.x, fragment.position.y });
+        for (fragment.text) |c| {
+            switch (c) {
+                '\n' => try writer.writeAll("\\n"),
+                '\t' => try writer.writeAll("\\t"),
+                '\r' => try writer.writeAll("\\r"),
+                else => try writer.writeByte(c),
+            }
+        }
+        try writer.print("\"]\n", .{});
     }
 }
 

@@ -1,0 +1,80 @@
+// Snapshot from: layout/v2/text/LineBuilder.zig:802:9
+// Function: test.Phase 1: Process consecutive segment breaks
+// Description: consecutive segment breaks
+
+Input XML:
+<div>
+  <p>Line1&#10;&#10;&#10;Line2</p>
+  <p>Single&#10;break</p>
+  <p>Mixed&#10;&#10;multiple&#10;breaks</p>
+</div>
+
+DocTree:
+[node#0 block flow_root]
+    [text #1] "\n  "
+    [node#2 block flow_root]
+        [text #3] "Line1\n\n\nLine2"
+    [text #4] "\n  "
+    [node#5 block flow_root]
+        [text #6] "Single\nbreak"
+    [text #7] "\n  "
+    [node#8 block flow_root]
+        [text #9] "Mixed\n\nmultiple\nbreaks"
+    [text #10] "\n"
+LayoutTree:
+[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
+└── [block_container_node #1 ref={doc#0} children={7} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
+    ├── [inline_container_node #3 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
+    │   ├── [line_box #0 fragments=1]
+    │   │   └── [fragment node={#2} range=0-1 pos=(0.00e0, 0.00e0) text=" "]
+    │   └── [text_node #2] "\n  "
+    ├── [block_container_node #4 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
+    │   └── [inline_container_node #5 ref={doc#2} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
+    │       ├── [line_box #0 fragments=1]
+    │       │   └── [fragment node={#6} range=0-11 pos=(0.00e0, 0.00e0) text="Line1 Line2"]
+    │       └── [text_node #6] "Line1\n\n\nLine2"
+    ├── [inline_container_node #8 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
+    │   ├── [line_box #0 fragments=1]
+    │   │   └── [fragment node={#7} range=0-1 pos=(0.00e0, 0.00e0) text=" "]
+    │   └── [text_node #7] "\n  "
+    ├── [block_container_node #9 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
+    │   └── [inline_container_node #10 ref={doc#5} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
+    │       ├── [line_box #0 fragments=1]
+    │       │   └── [fragment node={#11} range=0-12 pos=(0.00e0, 0.00e0) text="Single break"]
+    │       └── [text_node #11] "Single\nbreak"
+    ├── [inline_container_node #13 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
+    │   ├── [line_box #0 fragments=1]
+    │   │   └── [fragment node={#12} range=0-1 pos=(0.00e0, 0.00e0) text=" "]
+    │   └── [text_node #12] "\n  "
+    ├── [block_container_node #14 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
+    │   └── [inline_container_node #15 ref={doc#8} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
+    │       ├── [line_box #0 fragments=1]
+    │       │   └── [fragment node={#16} range=0-21 pos=(0.00e0, 0.00e0) text="Mixed multiple breaks"]
+    │       └── [text_node #16] "Mixed\n\nmultiple\nbreaks"
+    └── [inline_container_node #18 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
+        ├── [line_box #0 fragments=1]
+        │   └── [fragment node={#17} range=0-1 pos=(0.00e0, 0.00e0) text=" "]
+        └── [text_node #17] "\n"
+
+Rendered Text Output:
+Inline Context #1: 1 line(s)
+  Line 0: " "
+
+Inline Context #2: 1 line(s)
+  Line 0: "Line1 Line2"
+
+Inline Context #3: 1 line(s)
+  Line 0: " "
+
+Inline Context #4: 1 line(s)
+  Line 0: "Single break"
+
+Inline Context #5: 1 line(s)
+  Line 0: " "
+
+Inline Context #6: 1 line(s)
+  Line 0: "Mixed multiple breaks"
+
+Inline Context #7: 1 line(s)
+  Line 0: " "
+

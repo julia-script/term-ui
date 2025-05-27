@@ -12,6 +12,8 @@ pub const PipelineOptions = struct {
         width: f32 = 80,
         height: f32 = 24,
     } = .{},
+    /// Selections to create (each selection is [node_id, start_offset, end_offset])
+    selections: ?[]const [3]u32 = null,
 };
 
 /// Captures the entire rendering pipeline for testing
@@ -44,6 +46,21 @@ pub fn expectPipeline(
     
     try doc_tree.print(writer.any());
     try writer.writeAll("\n");
+    
+    // Create selections if specified
+    if (options.selections) |selections| {
+        try writer.writeAll("--- Selections ---\n");
+        for (selections, 0..) |sel, i| {
+            const selection_id = try doc_tree.createSelection(
+                .{ .node_id = sel[0], .offset = sel[1] },
+                .{ .node_id = sel[0], .offset = sel[2] }
+            );
+            try writer.print("Selection {d}: node={d}, range=[{d},{d}), id={d}\n", .{
+                i, sel[0], sel[1], sel[2], selection_id
+            });
+        }
+        try writer.writeAll("\n");
+    }
     
     // 3. Build and show layout tree
     try writer.writeAll("--- Layout Tree (before computation) ---\n");
@@ -85,6 +102,7 @@ pub fn expectPipeline(
     defer render_list.deinit();
     
     var builder = layout_v2.RenderListBuilder.init(&layout_tree, &doc_tree, &render_list);
+    defer builder.deinit();
     try builder.build();
     
     try render_list.print(writer.any());

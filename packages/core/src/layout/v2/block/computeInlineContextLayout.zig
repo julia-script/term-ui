@@ -7,8 +7,8 @@ const ContainerContext = mod.ContainerContext;
 const CSSMaybePoint = mod.CSSMaybePoint;
 const css_types = @import("../../../css/types.zig");
 
-/// Recursively process a node and its children to add text content to LinesBuilder
-fn processNodeRecursively(context: *LayoutContext, lines_builder: *mod.LinesBuilder, node_id: LayoutNode.Id, white_space: css_types.WhiteSpace) !void {
+/// Recursively process a node and its children to add text content to LineBuilder
+fn processNodeRecursively(context: *LayoutContext, lines_builder: *mod.LineBuilder, node_id: LayoutNode.Id, white_space: css_types.WhiteSpace) !void {
     const node = context.layout_tree.getNodePtr(node_id);
 
     switch (node.data) {
@@ -23,7 +23,7 @@ fn processNodeRecursively(context: *LayoutContext, lines_builder: *mod.LinesBuil
             const text_content = text_node.contents.items;
 
             // Add this text node's content to the lines builder
-            try lines_builder.appendNodeSlice(text_content, white_space, node_id);
+            try lines_builder.appendNodeSlice(text_content, node_id);
         },
 
         .inline_node => |*inline_node| {
@@ -179,33 +179,44 @@ pub fn computeInlineContextLayout(context: *LayoutContext, inputs: ContainerCont
 fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: LayoutNode.Id) (mod.ComputeLayoutError || error{InvalidUtf8})!mod.LayoutResult {
     const allocator = context.layout_tree.allocator;
 
-    // Initialize LinesBuilder with available space from layout constraints
+    // Initialize LineBuilder with available space from layout constraints
+    const whitespace = switch (context.getStyleValue(css_types.WhiteSpace, l_node_id, .white_space)) {
+        .inherit => css_types.WhiteSpace.normal, // TODO: should be resolved by this point
+        else => context.getStyleValue(css_types.WhiteSpace, l_node_id, .white_space),
+    };
+    const whitespace_longhand = whitespace.toLonghand(); // TODO: should be resolved by this point
+
     const available_width = inputs.available_space.x;
-    var lines_builder = mod.LinesBuilder.init(allocator, available_width);
+    var lines_builder = mod.LineBuilder.init(
+        allocator,
+        available_width,
+        context,
+        whitespace_longhand.wrap_mode,
+        whitespace_longhand.collapse,
+    );
     defer lines_builder.deinit();
 
-    const whitespace = context.getStyleValue(css_types.WhiteSpace, l_node_id, .white_space);
+    // The style system should resolve shorthands and inherit values during cascade/computation.
     // Recursively process all child nodes to collect text content
     try processNodeRecursively(context, &lines_builder, l_node_id, whitespace);
 
-    const wrap_mode = whitespace.toLonghand().wrap_mode;
+    // Build lines using the multi-pass system
+    try lines_builder.runPhase1CollapseAndTransformation();
 
-    try lines_builder.buildLinesWithWrapMode(wrap_mode);
+    // // Apply text alignment if container has definite width
+    // const text_align = context.getStyleValue(css_types.TextAlign, l_node_id, .text_align);
+    // if (text_align != .inherit) {
+    //     switch (available_width) {
+    //         .definite => |width| {
+    //             lines_builder.applyTextAlignment(text_align, width);
+    //         },
+    //         .min_content, .max_content => {
+    //             // No alignment for content-based sizing
+    //         },
+    //     }
+    // }
 
-    // Apply text alignment if container has definite width
-    const text_align = context.getStyleValue(css_types.TextAlign, l_node_id, .text_align);
-    if (text_align != .inherit) {
-        switch (available_width) {
-            .definite => |width| {
-                lines_builder.applyTextAlignment(text_align, width);
-            },
-            .min_content, .max_content => {
-                // No alignment for content-based sizing
-            },
-        }
-    }
-
-    // Calculate content size from LinesBuilder's measured line dimensions
+    // Calculate content size from LineBuilder's measured line dimensions
     var content_width: f32 = 0;
     var content_height: f32 = 0;
 

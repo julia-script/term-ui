@@ -1,0 +1,70 @@
+// Snapshot from: renderer/v2/test_pipeline.zig:265:9
+// Function: test.pipeline: multiple selections
+// Description: multiple-selections
+
+=== Pipeline Snapshot: multiple-selections ===
+
+--- Input XML ---
+<root style="width: 50px; height: 8px; background-color: #1e293b;">
+  <span style="color: #10b981;">The quick brown fox jumps over the lazy dog</span>
+</root>
+
+--- DOM Tree ---
+[node#0 block flow_root]
+    [node#1 inline flow]
+        [text #2] "The quick brown fox jumps over the lazy dog"
+
+--- Selections ---
+Selection 0: node=2, range=[4,9), id=0
+Selection 1: node=2, range=[35,39), id=1
+
+--- Layout Tree (before computation) ---
+[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+└── [inline_container_node #1 ref={doc#0} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    └── [inline_node #2 ref={doc#1} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        └── [text_node #3] "The quick brown fox jumps over the lazy dog"
+
+--- Layout Computation ---
+Available space: 60x10
+
+--- Layout Tree (after computation) ---
+[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (60.00, 10.00) content: (60.00, 10.00)]}]
+└── [inline_container_node #1 ref={doc#0} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 8.00) content: (60.00, 1.00)]}]
+    ├── [line_box #0 fragments=1]
+    │   └── [fragment node={#3} range=0-43 pos=(0.00e0, 0.00e0) text="The quick brown fox jumps over the lazy dog"]
+    └── [inline_node #2 ref={doc#1} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        └── [text_node #3] "The quick brown fox jumps over the lazy dog"
+
+--- Render List ---
+RenderList (4 items):
+  [0] Box #1 bounds=(0.0,0.0 50.0x8.0) z=0 bg=#1e293bff
+  [1] TextFragment #3 bounds=(0.0,0.0 43.0x1.0) z=0 text="The quick brown fox jumps over the lazy dog"
+  [2] SelectionOverlay #1 bounds=(34.0,0.0 5.0x1.0) color=#007bff4c
+  [3] SelectionOverlay #0 bounds=(3.0,0.0 6.0x1.0) color=#007bff4c
+
+--- Rendered Output ---
+Raw (escape sequences as \E):
+\E[48;2;30;41;59m\E[38;2;16;185;129mThe\E[48;2;21;66;118m      \E[48;2;30;41;59m brown fox jumps over the\E[48;2;21;66;118m     \E[48;2;30;41;59m dog\E[38;2;255;255;255m       \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m\n
+
+
+Visual:
+\E[48;2;30;41;59m\E[38;2;16;185;129mThe\E[48;2;21;66;118m      \E[48;2;30;41;59m brown fox jumps over the\E[48;2;21;66;118m     \E[48;2;30;41;59m dog\E[38;2;255;255;255m       \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m
+
+
+--- Canvas Info ---
+Dimensions: 50x8
+Total cells: 400

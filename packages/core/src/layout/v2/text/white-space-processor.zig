@@ -5,6 +5,7 @@ const TextWrapMode = @import("../../../styles/white-space.zig").TextWrapMode;
 const TabSize = @import("../../../styles/white-space.zig").TabSize;
 const ArrayList = std.ArrayList;
 const unicode = @import("../../../uni/codepoint.zig");
+const WhiteSpaceLonghand = @import("../../../styles/white-space.zig").WhiteSpaceLonghand;
 
 /// White space character classification according to W3C spec
 pub const WhiteSpaceClass = enum {
@@ -49,7 +50,12 @@ pub fn isCollapsible(codepoint: u21, collapse_mode: WhiteSpaceCollapse) bool {
             .segment_break => false, // But segment breaks are preserved
             .other => false,
         },
-        .inherit => false, // Shouldn't reach here in practice
+        .@"preserve-spaces" => switch (char_class) {
+            .tab, .segment_break => true, // Tabs and segment breaks are collapsible (converted to spaces)
+            .space => false, // Spaces are preserved
+            .other => false,
+        },
+        .inherit => std.debug.panic("inherit property should be resolved during style computation", .{}),
     };
 }
 
@@ -57,7 +63,7 @@ pub fn isCollapsible(codepoint: u21, collapse_mode: WhiteSpaceCollapse) bool {
 pub fn isSegmentBreakPreserved(collapse_mode: WhiteSpaceCollapse) bool {
     return switch (collapse_mode) {
         .preserve, .@"preserve-breaks" => true,
-        .collapse => false,
+        .collapse, .@"preserve-spaces" => false,
         .inherit => false,
     };
 }
@@ -641,13 +647,13 @@ pub const WhiteSpaceProcessor = struct {
     }
 
     /// Process text with initial whitespace collapsing support for cross-boundary scenarios
-    /// If should_collapse_initial is true, removes leading collapsible whitespace
+    /// If should_collapse_initial is true, collapses or removes leading whitespace based on context
     pub fn processTextWithInitialCollapse(self: *WhiteSpaceProcessor, text: []const u8, collapse_mode: WhiteSpaceCollapse, should_collapse_initial: bool) ![]u8 {
         // First normalize carriage returns
         const normalized = try normalizeCarriageReturns(text, self.allocator);
         defer self.allocator.free(normalized);
 
-        // Remove initial collapsible whitespace if requested
+        // Remove/collapse initial collapsible whitespace if requested
         const initial_processed = if (should_collapse_initial)
             try self.removeInitialCollapsibleWhitespace(normalized, collapse_mode)
         else
@@ -659,9 +665,8 @@ pub const WhiteSpaceProcessor = struct {
     }
 
     /// Convenience method to process text with a WhiteSpace shorthand value
-    pub fn processTextWithWhiteSpace(self: *WhiteSpaceProcessor, text: []const u8, white_space: WhiteSpace, should_collapse_initial: bool) ![]u8 {
-        const longhand = white_space.toLonghand();
-        return try self.processTextWithInitialCollapse(text, longhand.collapse, should_collapse_initial);
+    pub fn processTextWithWhiteSpace(self: *WhiteSpaceProcessor, text: []const u8, white_space: WhiteSpaceLonghand, should_collapse_initial: bool) ![]u8 {
+        return try self.processTextWithInitialCollapse(text, white_space.collapse, should_collapse_initial);
     }
 
     /// Process text for preserve-spaces mode (SVG xml:space="preserve")
@@ -1438,7 +1443,7 @@ test "WhiteSpaceProcessor full text processing" {
     // Test with white-space shorthand
     {
         const input = "hello  \t\nworld";
-        const result = try processor.processTextWithWhiteSpace(input, .normal, false);
+        const result = try processor.processTextWithWhiteSpace(input, WhiteSpace.normal.toLonghand(), false);
         defer testing.allocator.free(result);
 
         try testing.expectEqualStrings("hello world", result);
@@ -1446,7 +1451,7 @@ test "WhiteSpaceProcessor full text processing" {
 
     {
         const input = "hello  \t\nworld";
-        const result = try processor.processTextWithWhiteSpace(input, .pre, false);
+        const result = try processor.processTextWithWhiteSpace(input, WhiteSpace.pre.toLonghand(), false);
         defer testing.allocator.free(result);
 
         try testing.expectEqualStrings("hello  \t\nworld", result);
@@ -1454,7 +1459,7 @@ test "WhiteSpaceProcessor full text processing" {
 
     {
         const input = "hello  \t\nworld";
-        const result = try processor.processTextWithWhiteSpace(input, .nowrap, false);
+        const result = try processor.processTextWithWhiteSpace(input, WhiteSpace.nowrap.toLonghand(), false);
         defer testing.allocator.free(result);
 
         try testing.expectEqualStrings("hello world", result);
@@ -2513,7 +2518,7 @@ test "comprehensive pre-wrap mode: preserve spaces, wrap text" {
     // Pre-wrap specific wrapping behavior tests
     {
         // Test that pre-wrap mode allows wrapping (unlike pre mode)
-        // This would be tested in LinesBuilder integration, but we can verify
+        // This would be tested in LineBuilder integration, but we can verify
         // that the text processing preserves content for wrapping
         const long_text = "This is a very long line that should wrap in pre-wrap mode but preserve all spaces";
         const result = try processor.processPhaseI(long_text, .preserve);

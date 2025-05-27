@@ -89,4 +89,13 @@ pub const LineBoxList = struct {
         }
         return new;
     }
+    pub fn appendLine(self: *@This(), line: Self) !void {
+        try self.list.append(self.allocator, line);
+    }
+    pub fn getLinePtr(self: *@This(), index: usize) *Self {
+        return &self.list.items[index];
+    }
+    pub fn appendFragmentToLastLine(self: *@This(), fragment: LineBoxFragment) !void {
+        try self.getLinePtr(self.list.items.len - 1).fragments.append(self.allocator, fragment);
+    }
 };

@@ -7,8 +7,8 @@ const ContainerContext = mod.ContainerContext;
 const CSSMaybePoint = mod.CSSMaybePoint;
 const css_types = @import("../../../css/types.zig");
 
-/// Recursively process a node and its children to add text content to LinesBuilder
-fn processNodeRecursively(context: *LayoutContext, lines_builder: *mod.LinesBuilder, node_id: LayoutNode.Id, white_space: css_types.WhiteSpace) !void {
+/// Recursively process a node and its children to add text content to LineBuilder
+fn processNodeRecursively(context: *LayoutContext, lines_builder: *mod.LineBuilder, node_id: LayoutNode.Id, white_space: css_types.WhiteSpace) !void {
     const node = context.layout_tree.getNodePtr(node_id);
 
     switch (node.data) {
@@ -179,9 +179,9 @@ pub fn computeInlineContextLayout(context: *LayoutContext, inputs: ContainerCont
 fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: LayoutNode.Id) (mod.ComputeLayoutError || error{InvalidUtf8})!mod.LayoutResult {
     const allocator = context.layout_tree.allocator;
 
-    // Initialize LinesBuilder with available space from layout constraints
+    // Initialize LineBuilder with available space from layout constraints
     const available_width = inputs.available_space.x;
-    var lines_builder = mod.LinesBuilder.init(allocator, available_width);
+    var lines_builder = mod.LineBuilder.init(allocator, available_width);
     defer lines_builder.deinit();
 
     const whitespace = context.getStyleValue(css_types.WhiteSpace, l_node_id, .white_space);
@@ -205,7 +205,7 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
         }
     }
 
-    // Calculate content size from LinesBuilder's measured line dimensions
+    // Calculate content size from LineBuilder's measured line dimensions
     var content_width: f32 = 0;
     var content_height: f32 = 0;
 

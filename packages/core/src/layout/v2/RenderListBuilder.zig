@@ -14,6 +14,8 @@ render_list: *RenderList,
 current_offset: mod.CSSPoint = .{ .x = 0, .y = 0 },
 /// Track current z-index for stacking context
 current_z_index: i32 = 0,
+/// Map from doc node ID to selection IDs that have boundaries in that node
+selection_boundaries: std.AutoHashMapUnmanaged(DocTree.Node.NodeId, std.ArrayListUnmanaged(DocTree.Selection.Id)) = .{},
 
 const Self = @This();
 
@@ -25,13 +27,64 @@ pub fn init(layout_tree: *LayoutTree, doc_tree: *DocTree, render_list: *RenderLi
     };
 }
 
+pub fn deinit(self: *Self) void {
+    var iter = self.selection_boundaries.iterator();
+    while (iter.next()) |entry| {
+        entry.value_ptr.deinit(self.layout_tree.allocator);
+    }
+    self.selection_boundaries.deinit(self.layout_tree.allocator);
+}
+
 /// Build the render list from the layout tree
 pub fn build(self: *Self) !void {
+    // Preprocess selections to find which nodes contain boundaries
+    try self.preprocessSelections();
+
     // Start from the root node (0)
     try self.buildNode(0);
 
-    // Sort by paint order after building
-    self.render_list.sortByPaintOrder();
+    // TODO: Implement proper CSS stacking context handling
+    // Currently we just traverse in tree order which is incorrect for:
+    // - Elements with z-index (should be sorted within their stacking context)
+    // - Positioned elements (have different paint order rules)
+    // - Proper stacking context creation (position + z-index, opacity < 1, etc.)
+    // 
+    // For now, we don't sort at all and just render in tree order with
+    // selections immediately after their text fragments
+}
+
+/// Preprocess selections to build a map of layout nodes to selection boundaries
+fn preprocessSelections(self: *Self) !void {
+    // Clear any existing data
+    var iter = self.selection_boundaries.iterator();
+    while (iter.next()) |entry| {
+        entry.value_ptr.deinit(self.layout_tree.allocator);
+    }
+    self.selection_boundaries.clearRetainingCapacity();
+
+    // Iterate through all selections
+    var sel_iter = self.doc_tree.selections.iterator();
+    while (sel_iter.next()) |entry| {
+        const selection_id = entry.key_ptr.*;
+        const selection = entry.value_ptr;
+        const range = selection.getRange(self.doc_tree);
+
+        // Add start boundary
+        const start_entry = try self.selection_boundaries.getOrPut(self.layout_tree.allocator, range.start.node_id);
+        if (!start_entry.found_existing) {
+            start_entry.value_ptr.* = .{};
+        }
+        try start_entry.value_ptr.append(self.layout_tree.allocator, selection_id);
+
+        // Add end boundary if different from start
+        if (range.start.node_id != range.end.node_id) {
+            const end_entry = try self.selection_boundaries.getOrPut(self.layout_tree.allocator, range.end.node_id);
+            if (!end_entry.found_existing) {
+                end_entry.value_ptr.* = .{};
+            }
+            try end_entry.value_ptr.append(self.layout_tree.allocator, selection_id);
+        }
+    }
 }
 
 /// Build render items for a node and its children
@@ -215,8 +268,179 @@ fn buildLineBoxes(self: *Self, container: *LayoutTree.InlineContainerNode, conta
                     .z_index = z_index,
                 },
             });
+
+            // Check if this fragment's doc node has any selection boundaries
+            const l_node = self.layout_tree.getNodePtr(fragment.l_node_id);
+            if (l_node.ref == .doc_node) {
+                const doc_node_id = l_node.ref.doc_node;
+                if (self.selection_boundaries.get(doc_node_id)) |selection_ids| {
+                    // Process each selection that has a boundary in this node
+                    for (selection_ids.items) |selection_id| {
+                        try self.addSelectionOverlay(&fragment, frag_abs_pos, selection_id);
+                    }
+                }
+            }
         }
     }
+}
+
+/// Add selection overlay for a fragment
+fn addSelectionOverlay(
+    self: *Self,
+    fragment: *const mod.LineBoxFragment,
+    frag_abs_pos: mod.CSSPoint,
+    selection_id: DocTree.Selection.Id,
+) !void {
+    const selection = self.doc_tree.getSelection(selection_id);
+    const range = selection.getRange(self.doc_tree);
+
+    // Get the doc node ID for this fragment's layout node
+    const l_node = self.layout_tree.getNodePtr(fragment.l_node_id);
+    if (l_node.ref != .doc_node) return; // Only process nodes with doc references
+    const doc_node_id = l_node.ref.doc_node;
+
+    // Check if this fragment contains the selection boundaries
+    const has_start = range.start.node_id == doc_node_id;
+    const has_end = range.end.node_id == doc_node_id;
+
+    if (!has_start and !has_end) {
+        // This fragment is in the middle of the selection - render full overlay
+        try self.render_list.addItem(.{
+            .selection_overlay = .{
+                .bounds = .{
+                    .x = frag_abs_pos.x,
+                    .y = frag_abs_pos.y,
+                    .width = fragment.size.x,
+                    .height = fragment.size.y,
+                },
+                .color = styles.color.Color.rgba(0.0, 123.0 / 255.0, 1.0, 0.3),
+                .selection_id = selection_id,
+            },
+        });
+        return;
+    }
+
+    // Fragment contains at least one boundary - need to calculate partial overlay
+    var start_offset: f32 = 0;
+    var end_offset: f32 = fragment.size.x;
+
+    if (has_start and range.start.offset >= fragment.dom_range.start and range.start.offset <= fragment.dom_range.end) {
+        // Map DOM offset to position in fragment text
+        const processed_offset = self.mapDomOffsetToProcessedOffset(
+            range.start.offset,
+            fragment.dom_range.start,
+            fragment.dom_range.end,
+            fragment.l_node_id,
+            fragment.text,
+        );
+        
+        // Measure the text up to this offset to get pixel position
+        if (processed_offset > 0) {
+            const text_before = fragment.text[0..processed_offset];
+            start_offset = measureTextWidth(text_before);
+        }
+    }
+
+    if (has_end and range.end.offset >= fragment.dom_range.start and range.end.offset <= fragment.dom_range.end) {
+        // Map DOM offset to position in fragment text
+        const processed_offset = self.mapDomOffsetToProcessedOffset(
+            range.end.offset,
+            fragment.dom_range.start,
+            fragment.dom_range.end,
+            fragment.l_node_id,
+            fragment.text,
+        );
+        
+        // Measure the text up to this offset to get pixel position
+        if (processed_offset > 0) {
+            const text_before = fragment.text[0..processed_offset];
+            end_offset = measureTextWidth(text_before);
+        }
+    }
+
+    // Only add overlay if there's something to render
+    if (end_offset > start_offset) {
+        try self.render_list.addItem(.{
+            .selection_overlay = .{
+                .bounds = .{
+                    .x = frag_abs_pos.x + start_offset,
+                    .y = frag_abs_pos.y,
+                    .width = end_offset - start_offset,
+                    .height = fragment.size.y,
+                },
+                .color = styles.color.Color.rgba(0.0, 123.0 / 255.0, 1.0, 0.3),
+                .selection_id = selection_id,
+            },
+        });
+    }
+}
+
+/// Map DOM offset to processed text offset (inverse of mapProcessedOffsetWithinRange)
+/// Returns the offset in the processed/fragment text
+fn mapDomOffsetToProcessedOffset(
+    self: *Self,
+    dom_offset: u32,
+    dom_range_start: u32,
+    dom_range_end: u32,
+    l_node_id: LayoutTree.LayoutNode.Id,
+    processed_text: []const u8,
+) usize {
+    // Get the original DOM text
+    const l_node = self.layout_tree.getNodePtr(l_node_id);
+    if (l_node.ref != .doc_node) return 0;
+    
+    const doc_node_id = l_node.ref.doc_node;
+    const dom_text = self.doc_tree.getText(doc_node_id).bytes.items;
+    const dom_text_slice = dom_text[dom_range_start..dom_range_end];
+    
+    // If offset is at the start, return 0
+    if (dom_offset <= dom_range_start) return 0;
+    
+    // If offset is at or past the end, return the full processed text length
+    if (dom_offset >= dom_range_end) return processed_text.len;
+    
+    // Calculate relative offset within the fragment's DOM range
+    const relative_dom_offset = dom_offset - dom_range_start;
+    
+    var dom_pos: usize = 0;
+    var processed_pos: usize = 0;
+    
+    while (dom_pos < relative_dom_offset and dom_pos < dom_text_slice.len and processed_pos < processed_text.len) {
+        // If we're at whitespace in the DOM text
+        if (std.ascii.isWhitespace(dom_text_slice[dom_pos])) {
+            // Skip the entire whitespace sequence in DOM
+            while (dom_pos < dom_text_slice.len and std.ascii.isWhitespace(dom_text_slice[dom_pos])) {
+                dom_pos += 1;
+            }
+            
+            // If we've reached or passed the target offset while in whitespace, 
+            // position is at the processed space (if it exists)
+            if (dom_pos >= relative_dom_offset) {
+                return processed_pos;
+            }
+            
+            // If this whitespace sequence produced a space in processed text, advance processed position
+            if (processed_pos < processed_text.len and processed_text[processed_pos] == ' ') {
+                processed_pos += 1;
+            }
+        } else {
+            // Non-whitespace character - these map 1:1
+            dom_pos += 1;
+            processed_pos += 1;
+        }
+    }
+    
+    return processed_pos;
+}
+
+/// Measure text width using terminal-aware measurement
+fn measureTextWidth(text: []const u8) f32 {
+    // Use the terminal-aware width function that excludes ANSI colors
+    // and properly handles Unicode characters (CJK, emojis, combining chars)
+    const utf8WidthExcludingAnsiColors = @import("../../uni/string-width.zig").utf8WidthExcludingAnsiColors;
+    const measured_width = utf8WidthExcludingAnsiColors(text);
+    
+    return @as(f32, @floatFromInt(measured_width));
 }
 
 /// Check if a box should be rendered (has background or borders)

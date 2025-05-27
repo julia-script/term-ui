@@ -32,7 +32,7 @@ style_manager: StyleManager,
 computed_style_cache: ComputedStyleCache,
 input_manager: ?InputManager = null,
 node_id_counter: Node.NodeId = 0,
-selections: std.AutoHashMapUnmanaged(Node.NodeId, Selection) = .{},
+selections: std.AutoHashMapUnmanaged(Selection.Id, Selection) = .{},
 
 live_ranges: std.AutoHashMapUnmanaged(u32, Range) = .{},
 live_range_counter: u32 = 0,
@@ -926,7 +926,20 @@ fn printNode(self: *Self, writer: std.io.AnyWriter, node_id: Node.NodeId, indent
     _ = layout; // autofix
     const kind = self.getNodeKind(node_id);
     if (kind == .text) {
-        try writer.print("[{s} #{d}] \"{s}\"\n", .{ @tagName(kind), node_id, self.getText(node_id).bytes.items });
+        const text = self.getText(node_id).bytes.items;
+        try writer.print("[{s} #{d}] \"", .{
+            @tagName(kind),
+            node_id,
+        });
+        for (text) |c| {
+            switch (c) {
+                '\n' => try writer.writeAll("\\n"),
+                '\t' => try writer.writeAll("\\t"),
+                '\r' => try writer.writeAll("\\r"),
+                else => try writer.writeByte(c),
+            }
+        }
+        try writer.print("\"\n", .{});
     } else {
         const display = self.getStyle(node_id).display;
 

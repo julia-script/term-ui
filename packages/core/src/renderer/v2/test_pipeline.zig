@@ -220,3 +220,93 @@ test "pipeline: gradient border" {
         @src(),
     );
 }
+
+test "pipeline: text selection" {
+    const xml =
+        \\<root style="width: 40px; height: 5px; background-color: #1e293b;">
+        \\  <span style="color: #f59e0b;">Hello, World!</span>
+        \\</root>
+    ;
+
+    try pipeline.expectPipeline(
+        std.testing.allocator,
+        xml,
+        "text-selection",
+        .{
+            .available_space = .{ .width = 50, .height = 10 },
+            // Select "World" - text node is typically node 2 (root=0, span=1, text=2)
+            .selections = &[_][3]u32{
+                .{ 2, 7, 12 }, // node_id=2, start=7, end=12
+            },
+        },
+        @src(),
+    );
+}
+
+test "pipeline: multiple selections" {
+    const xml =
+        \\<root style="width: 50px; height: 8px; background-color: #1e293b;">
+        \\  <span style="color: #10b981;">The quick brown fox jumps over the lazy dog</span>
+        \\</root>
+    ;
+
+    try pipeline.expectPipeline(
+        std.testing.allocator,
+        xml,
+        "multiple-selections",
+        .{
+            .available_space = .{ .width = 60, .height = 10 },
+            // Select "quick" and "lazy"
+            .selections = &[_][3]u32{
+                .{ 2, 4, 9 },   // "quick"
+                .{ 2, 35, 39 }, // "lazy"
+            },
+        },
+        @src(),
+    );
+}
+
+test "pipeline: selection spanning wrapped text" {
+    const xml =
+        \\<root style="width: 20px; height: 10px; background-color: #1f2937;">
+        \\  <span style="color: #fbbf24;">This is a long text that should wrap to multiple lines</span>
+        \\</root>
+    ;
+
+    try pipeline.expectPipeline(
+        std.testing.allocator,
+        xml,
+        "selection-wrapped-text",
+        .{
+            .available_space = .{ .width = 25, .height = 15 },
+            // Select from "long" to "should"
+            .selections = &[_][3]u32{
+                .{ 2, 10, 30 }, // "long text that should"
+            },
+        },
+        @src(),
+    );
+}
+
+test "pipeline: empty text node selection" {
+    const xml =
+        \\<root style="width: 40px; height: 10px; background-color: #1e293b;">
+        \\  <div style="color: #f59e0b;">First<span>   </span>paragraph</div>
+        \\</root>
+    ;
+
+    try pipeline.expectPipeline(
+        std.testing.allocator,
+        xml,
+        "empty-text-node-selection",
+        .{
+            .available_space = .{ .width = 50, .height = 15 },
+            // Select the whitespace-only span content
+            // Text nodes: root=0, div=1, text1=2, span=3, text2=4, text3=5
+            .selections = &[_][3]u32{
+                .{ 4, 0, 3 }, // The three spaces in the span
+            },
+        },
+        @src(),
+    );
+}

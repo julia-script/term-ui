@@ -6,17 +6,19 @@ const white_space_types = @import("../../../styles/white-space.zig");
 const std = @import("std");
 
 l_node_id: LayoutNode.Id,
+/// The start index of the fragment in the original text node
 start: u32,
 length: u32,
 size: mod.CSSPoint,
 is_atomic: bool,
-white_space_info: WhiteSpaceInfo,
 /// The processed text content of this fragment (owned by the fragment)
 text: []const u8,
 /// Allocator used for text memory management
 allocator: std.mem.Allocator,
 /// Position of this fragment within its line (set by text alignment)
 position: mod.CSSPoint = .{ .x = 0, .y = 0 },
+/// Range in the original DOM text node (for selection mapping)
+dom_range: struct { start: u32, end: u32 } = .{ .start = 0, .end = 0 },
 
 const WhiteSpaceInfo = struct {
     has_preserved_spaces: bool,
@@ -32,10 +34,10 @@ pub fn dupe(self: *@This(), allocator: std.mem.Allocator) !@This() {
         .length = self.length,
         .size = self.size,
         .is_atomic = self.is_atomic,
-        .white_space_info = self.white_space_info,
         .text = try allocator.dupe(u8, self.text),
         .allocator = allocator,
         .position = self.position,
+        .dom_range = self.dom_range,
     };
 }
 pub fn endsWithWhitespace(self: *@This()) bool {

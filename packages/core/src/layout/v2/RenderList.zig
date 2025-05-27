@@ -87,6 +87,8 @@ pub const RenderItem = union(enum) {
     push_clip: ClipItem,
     /// Pop a clipping region
     pop_clip: void,
+    /// Draw selection overlay
+    selection_overlay: SelectionOverlayItem,
 
     pub fn deinit(self: *RenderItem, allocator: std.mem.Allocator) void {
         _ = self;
@@ -133,6 +135,15 @@ pub const ClipItem = struct {
     rect: Rect,
 };
 
+pub const SelectionOverlayItem = struct {
+    /// Bounding box for the selection overlay
+    bounds: Rect,
+    /// Semi-transparent color for the selection
+    color: styles.color.Color = styles.color.Color.rgba(0.0, 123.0/255.0, 1.0, 0.3),
+    /// Selection ID to identify which selection this belongs to
+    selection_id: u32,
+};
+
 /// Add a render item to the list
 pub fn addItem(self: *Self, item: RenderItem) !void {
     try self.items.append(self.allocator, item);
@@ -161,6 +172,7 @@ fn getZIndex(item: RenderItem) i32 {
         .box => |box| box.z_index,
         .text_fragment => |text| text.z_index,
         .push_clip, .pop_clip => 0,
+        .selection_overlay => 0, // Selections are rendered in tree order, right after their text
     };
 }
 
@@ -225,6 +237,16 @@ pub fn print(self: *Self, writer: std.io.AnyWriter) !void {
                 });
             },
             .pop_clip => try writer.print("PopClip", .{}),
+            .selection_overlay => |sel| {
+                try writer.print("SelectionOverlay #{d} bounds=({d:.1},{d:.1} {d:.1}x{d:.1}) color=#{x:0>8}", .{
+                    sel.selection_id,
+                    sel.bounds.x,
+                    sel.bounds.y,
+                    sel.bounds.width,
+                    sel.bounds.height,
+                    sel.color.toHex(),
+                });
+            },
         }
         try writer.print("\n", .{});
     }

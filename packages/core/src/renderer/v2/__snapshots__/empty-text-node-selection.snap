@@ -1,0 +1,80 @@
+// Snapshot from: renderer/v2/test_pipeline.zig:310:9
+// Function: test.pipeline: empty text node selection
+// Description: empty-text-node-selection
+
+=== Pipeline Snapshot: empty-text-node-selection ===
+
+--- Input XML ---
+<root style="width: 40px; height: 10px; background-color: #1e293b;">
+  <div style="color: #f59e0b;">First<span>   </span>paragraph</div>
+</root>
+
+--- DOM Tree ---
+[node#0 block flow_root]
+    [node#1 block flow_root]
+        [text #2] "First"
+        [node#3 inline flow]
+        [text #4] "paragraph"
+
+--- Selections ---
+Selection 0: node=4, range=[0,3), id=0
+
+--- Layout Tree (before computation) ---
+[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+└── [block_container_node #1 ref={doc#0} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    └── [inline_container_node #2 ref={doc#1} children={3} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        ├── [text_node #3] "First"
+        ├── [inline_node #4 ref={doc#3} children={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        └── [text_node #5] "paragraph"
+
+--- Layout Computation ---
+Available space: 50x15
+
+--- Layout Tree (after computation) ---
+[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 15.00) content: (50.00, 15.00)]}]
+└── [block_container_node #1 ref={doc#0} children={1} box={[loc: (0.00, 0.00) size: (40.00, 10.00) content: (50.00, 1.00)]}]
+    └── [inline_container_node #2 ref={doc#1} children={3} lines={1} box={[loc: (0.00, 0.00) size: (40.00, 1.00) content: (40.00, 1.00)]}]
+        ├── [line_box #0 fragments=2]
+        │   ├── [fragment node={#3} range=0-5 pos=(0.00e0, 0.00e0) text="First"]
+        │   └── [fragment node={#5} range=0-9 pos=(5.00e0, 0.00e0) text="paragraph"]
+        ├── [text_node #3] "First"
+        ├── [inline_node #4 ref={doc#3} children={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        └── [text_node #5] "paragraph"
+
+--- Render List ---
+RenderList (4 items):
+  [0] Box #1 bounds=(0.0,0.0 40.0x10.0) z=0 bg=#1e293bff
+  [1] TextFragment #3 bounds=(0.0,0.0 5.0x1.0) z=0 text="First"
+  [2] TextFragment #5 bounds=(5.0,0.0 9.0x1.0) z=0 text="paragraph"
+  [3] SelectionOverlay #0 bounds=(5.0,0.0 3.0x1.0) color=#007bff4c
+
+--- Rendered Output ---
+Raw (escape sequences as \E):
+\E[48;2;30;41;59m\E[38;2;245;158;11mFirst\E[48;2;21;66;118m   \E[48;2;30;41;59magraph\E[38;2;255;255;255m                          \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m\n
+
+
+Visual:
+\E[48;2;30;41;59m\E[38;2;245;158;11mFirst\E[48;2;21;66;118m   \E[48;2;30;41;59magraph\E[38;2;255;255;255m                          \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m
+
+
+--- Canvas Info ---
+Dimensions: 40x10
+Total cells: 400

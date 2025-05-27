@@ -2,9 +2,10 @@ const std = @import("std");
 const visible = @import("../uni/string-width.zig").visible;
 
 bytes: std.ArrayListUnmanaged(u8) = .{},
-line_breaks: ?std.ArrayListUnmanaged(usize) = .{},
 
 const Self = @This();
+// TODO: lines need to be processed according to w3c spec
+// Newlines in HTML may be represented either as U+000D CARRIAGE RETURN (CR) characters, U+000A LINE FEED (LF) characters, or pairs of U+000D CARRIAGE RETURN (CR), U+000A LINE FEED (LF) characters in that order.
 
 pub fn init() Self {
     return Self{};
@@ -24,7 +25,26 @@ pub fn countCodepoints(self: *Self) usize {
 pub fn iterCodepoints(self: *Self) std.unicode.Utf8Iterator {
     return std.unicode.Utf8Iterator{ .i = 0, .bytes = self.bytes.items };
 }
+
 pub fn append(self: *Self, allocator: std.mem.Allocator, bytes: []const u8) !void {
+    try self.bytes.ensureUnusedCapacity(allocator, bytes.len);
+    // To normalize newlines in a string, replace every U+000D CR U+000A LF code point pair with a single U+000A LF code point, and then replace every remaining U+000D CR code point with a U+000A LF code point.
+    var i: usize = 0;
+    while (i < bytes.len) : (i += 1) {
+        const b = bytes[i];
+        switch (b) {
+            '\r' => {
+                if (i + 1 < bytes.len and bytes[i + 1] == '\n') {
+                    i += 1;
+                }
+                self.bytes.appendAssumeCapacity('\n');
+            },
+            else => {
+                self.bytes.appendAssumeCapacity(b);
+            },
+        }
+    }
+
     try self.bytes.appendSlice(allocator, bytes);
 }
 
@@ -47,9 +67,6 @@ pub fn clearAndFree(self: *Self, allocator: std.mem.Allocator) void {
 
 pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
     self.bytes.deinit(allocator);
-    if (self.line_breaks) |*line_breaks| {
-        line_breaks.deinit(allocator);
-    }
 }
 pub fn replace(self: *Self, allocator: std.mem.Allocator, start: usize, count: usize, bytes: []const u8) !void {
     try self.bytes.replaceRange(allocator, start, count, bytes);

@@ -588,6 +588,9 @@ fn unescapeEntity(text: []const u8) !u8 {
         .{ .text = "&amp;", .replacement = '&' },
         .{ .text = "&apos;", .replacement = '\'' },
         .{ .text = "&quot;", .replacement = '"' },
+        .{ .text = "&#10;", .replacement = '\n' },
+        .{ .text = "&#9;", .replacement = '\t' },
+        .{ .text = "&Tab;", .replacement = '\t' },
     };
 
     for (entities) |entity| {

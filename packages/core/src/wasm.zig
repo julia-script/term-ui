@@ -584,8 +584,7 @@ test {
     _ = @import("./tree/NodeIterator.zig");
     _ = @import("./layout/v2/mod.zig");
     _ = @import("./uni/LineBreakStream.zig");
-    _ = @import("./layout/v2/text/white-space-processor.zig");
-    _ = @import("./layout/v2/text/LinesBuilder.zig");
+    _ = @import("./layout/v2/text/LineBuilder.zig");
     _ = @import("./renderer/v2/mod.zig");
     _ = @import("./renderer/v2/test_pipeline.zig");
 }
