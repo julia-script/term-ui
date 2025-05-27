@@ -11,7 +11,7 @@ pub const Options = struct {
     /// Discard text nodes that only contain whitespace.
     ignore_empty_text: bool = true,
     /// Remove leading and trailing whitespace from text nodes.
-    trim_text: bool = true,
+    trim_text: bool = false,
     /// Split text nodes on newline characters into multiple nodes.
     split_lines: bool = true,
 };

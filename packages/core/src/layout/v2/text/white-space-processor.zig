@@ -648,9 +648,9 @@ pub const WhiteSpaceProcessor = struct {
         defer self.allocator.free(normalized);
 
         // Remove initial collapsible whitespace if requested
-        const initial_processed = if (should_collapse_initial) 
+        const initial_processed = if (should_collapse_initial)
             try self.removeInitialCollapsibleWhitespace(normalized, collapse_mode)
-        else 
+        else
             try self.allocator.dupe(u8, normalized);
         defer self.allocator.free(initial_processed);
 
@@ -696,7 +696,7 @@ pub const WhiteSpaceProcessor = struct {
 
         var start_index: usize = 0;
         var iter = std.unicode.Utf8Iterator{ .bytes = text, .i = 0 };
-        
+
         // Skip initial collapsible whitespace
         while (iter.nextCodepoint()) |codepoint| {
             if (isCollapsible(codepoint, collapse_mode)) {

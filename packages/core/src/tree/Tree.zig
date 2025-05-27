@@ -923,44 +923,19 @@ fn printNode(self: *Self, writer: std.io.AnyWriter, node_id: Node.NodeId, indent
     // const node = self.getNode(node_id);
     try writer.writeByteNTimes(' ', indent * 4);
     const layout = self.getLayout(node_id);
+    _ = layout; // autofix
     const kind = self.getNodeKind(node_id);
     if (kind == .text) {
         try writer.print("[{s} #{d}] \"{s}\"\n", .{ @tagName(kind), node_id, self.getText(node_id).bytes.items });
     } else {
         const display = self.getStyle(node_id).display;
-        const has_computed_text = self.getComputedText(node_id) != null;
 
-        try writer.print("[{s}#{d} {s} {s} {any} #{d} pos=[{d},{d}] size=[{d},{d}] content_size=[{d},{d}] border=[{d}, {d}, {d}, {d}]]\n", .{
+        try writer.print("[{s}#{d} {s} {s}]\n", .{
             @tagName(kind),
             node_id,
             @tagName(display.outside),
             @tagName(display.inside),
-            has_computed_text,
-            node_id,
-            layout.location.x,
-            layout.location.y,
-            layout.size.x,
-            layout.size.y,
-            layout.content_size.x,
-            layout.content_size.y,
-            layout.border.top,
-            layout.border.right,
-            layout.border.bottom,
-            layout.border.left,
         });
-
-        // } else {
-        //     try writer.print("[{s} {s} {s}  #{d} x={d} y={d} width={d} height={d}]\n", .{
-        //         @tagName(kind),
-        //         @tagName(display.outside),
-        //         @tagName(display.inside),
-        //         node_id,
-        //         layout.location.x,
-        //         layout.location.y,
-        //         layout.size.x,
-        //         layout.size.y,
-        //     });
-        // }
     }
 
     for (self.getChildren(node_id).items) |child_id| {

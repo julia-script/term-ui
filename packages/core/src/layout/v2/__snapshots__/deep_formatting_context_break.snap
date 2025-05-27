@@ -1,0 +1,39 @@
+// Snapshot from: layout/v2/LayoutTree.zig:578:7
+// Function: test.deep formatting context break
+// Description: deep formatting context break
+
+DocTree:
+[node#0 block flow_root]
+    [text #1] "  Italic only"
+    [text #2] "  "
+    [node#3 inline flow]
+        [text #4] "  italic and bold"
+        [text #5] "    "
+        [node#6 block flow_root]
+            [text #7] "Wow, a block!"
+        [node#8 block flow_root]
+            [text #9] "Wow, another block!"
+        [text #10] "    More italic and bold text"
+        [text #11] "  "
+    [text #12] " "
+    [text #13] "  More italic text"
+LayoutTree:
+[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+└── [block_container_node #1 ref={doc#0} children={3} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    ├── [inline_container_node #3 ref={anon} children={3} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │   ├── [text_node #2] "  Italic only"
+    │   ├── [text_node #4] "  "
+    │   └── [inline_node #5 continuation={#15} ref={doc#3} children={2} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │       ├── [text_node #6] "  italic and bold"
+    │       └── [text_node #7] "    "
+    ├── [block_container_node #8 ref={anon} children={2} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │   ├── [inline_container_node #9 ref={doc#6} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │   │   └── [text_node #10] "Wow, a block!"
+    │   └── [inline_container_node #11 ref={doc#8} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │       └── [text_node #12] "Wow, another block!"
+    └── [inline_container_node #14 ref={anon} children={3} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        ├── [inline_node #15 continuationOf={#5} ref={doc#3} children={2} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        │   ├── [text_node #13] "    More italic and bold text"
+        │   └── [text_node #16] "  "
+        ├── [text_node #17] " "
+        └── [text_node #18] "  More italic text"

@@ -165,7 +165,7 @@ pub fn computeInlineContextLayout(context: *LayoutContext, inputs: ContainerCont
     }, l_node_id) catch |err| switch (err) {
         error.InvalidUtf8 => {
             // Handle invalid UTF-8 by returning empty content
-            return .{
+            return .{ 
                 .size = .{ .x = 0, .y = 0 },
                 .resolved_margin = margin,
                 .resolved_padding = padding,
@@ -260,14 +260,8 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
         .y = if (css_overflow.x == .scroll) css_scrollbar_width else 0,
     };
 
-    // Use known dimensions if available, otherwise use content dimensions
-    const final_size = mod.CSSPoint{
-        .x = inputs.known_dimensions.x orelse content_width,
-        .y = inputs.known_dimensions.y orelse content_height,
-    };
-
     return .{
-        .size = final_size,
+        .size = .{ .x = content_width, .y = content_height },
         .content_size = .{ .x = content_width, .y = content_height },
         .line_boxes = try lines_builder.toOwnedLineBoxes(context.allocator),
         .resolved_margin = resolved_margin,
@@ -299,6 +293,7 @@ test "computeInlineContextLayout" {
     try mod.computeLayout(
         &context,
         .{ .x = .{ .definite = 100 }, .y = .max_content },
+        0,
     );
     try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
 }
@@ -327,6 +322,7 @@ test "computeInlineContextLayout with forced breaks" {
     try mod.computeLayout(
         &context,
         .{ .x = .min_content, .y = .max_content },
+        0,
     );
     try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
 }
@@ -353,6 +349,7 @@ test "computeInlineContextLayout single line" {
     try mod.computeLayout(
         &context,
         .{ .x = .{ .definite = 100 }, .y = .max_content },
+        0,
     );
     try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
 }
@@ -379,6 +376,7 @@ test "computeInlineContextLayout multiple fragments one line" {
     try mod.computeLayout(
         &context,
         .{ .x = .{ .definite = 100 }, .y = .max_content },
+        0,
     );
     try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
 }
@@ -405,6 +403,7 @@ test "computeInlineContextLayout long text wrapping" {
     try mod.computeLayout(
         &context,
         .{ .x = .{ .definite = 20 }, .y = .max_content },
+        0,
     );
     try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
 }
@@ -426,6 +425,7 @@ test "computeInlineContextLayout real forced breaks" {
     try mod.computeLayout(
         &context,
         .{ .x = .min_content, .y = .max_content },
+        0,
     );
     try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
 }
@@ -450,6 +450,7 @@ test "computeInlineContextLayout text alignment" {
         try mod.computeLayout(
             &context,
             .{ .x = .{ .definite = 50 }, .y = .max_content },
+            0,
         );
         try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
     }
@@ -471,6 +472,7 @@ test "computeInlineContextLayout text alignment" {
         try mod.computeLayout(
             &context,
             .{ .x = .{ .definite = 50 }, .y = .max_content },
+            0,
         );
         try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
     }
@@ -492,6 +494,7 @@ test "computeInlineContextLayout text alignment" {
         try mod.computeLayout(
             &context,
             .{ .x = .{ .definite = 50 }, .y = .max_content },
+            0,
         );
         try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
     }
@@ -513,6 +516,7 @@ test "computeInlineContextLayout text alignment" {
         try mod.computeLayout(
             &context,
             .{ .x = .{ .definite = 20 }, .y = .max_content },
+            0,
         );
         try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
     }

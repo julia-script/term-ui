@@ -1,0 +1,68 @@
+// Snapshot from: renderer/v2/test_pipeline.zig:36:9
+// Function: test.pipeline: nested boxes
+// Description: nested-boxes
+
+=== Pipeline Snapshot: nested-boxes ===
+
+--- Input XML ---
+<root style="width: 30px; height: 10px; background-color: #1f2937;">
+  <div style="width: 10px; height: 3px; background-color: #3b82f6;"></div>
+  <div style="width: 15px; height: 4px; background-color: #10b981;"></div>
+</root>
+
+--- DOM Tree ---
+[node#0 block flow_root]
+    [node#1 block flow_root]
+    [node#2 block flow_root]
+
+--- Layout Tree (before computation) ---
+[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+└── [block_container_node #1 ref={doc#0} children={2} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    ├── [inline_container_node #2 ref={doc#1} children={0} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    └── [inline_container_node #3 ref={doc#2} children={0} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+
+--- Layout Computation ---
+Available space: 40x15
+
+--- Layout Tree (after computation) ---
+[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (40.00, 15.00) content: (40.00, 15.00)]}]
+└── [block_container_node #1 ref={doc#0} children={2} box={[loc: (0.00, 0.00) size: (30.00, 10.00) content: (40.00, 7.00)]}]
+    ├── [inline_container_node #2 ref={doc#1} children={0} lines={0} box={[loc: (0.00, 0.00) size: (10.00, 3.00) content: (30.00, 0.00)]}]
+    └── [inline_container_node #3 ref={doc#2} children={0} lines={0} box={[loc: (0.00, 3.00) size: (15.00, 4.00) content: (30.00, 0.00)]}]
+
+--- Render List ---
+RenderList (3 items):
+  [0] Box #1 bounds=(0.0,0.0 30.0x10.0) z=0 bg=#1f2937ff
+  [1] Box #2 bounds=(0.0,0.0 10.0x3.0) z=0 bg=#3b82f6ff
+  [2] Box #3 bounds=(0.0,3.0 15.0x4.0) z=0 bg=#10b981ff
+
+--- Rendered Output ---
+Raw (escape sequences as \E):
+\E[48;2;59;130;246m\E[38;2;255;255;255m          \E[48;2;31;41;55m                    \E[0m\n
+\E[48;2;59;130;246m\E[38;2;255;255;255m          \E[48;2;31;41;55m                    \E[0m\n
+\E[48;2;59;130;246m\E[38;2;255;255;255m          \E[48;2;31;41;55m                    \E[0m\n
+\E[48;2;16;185;129m\E[38;2;255;255;255m               \E[48;2;31;41;55m               \E[0m\n
+\E[48;2;16;185;129m\E[38;2;255;255;255m               \E[48;2;31;41;55m               \E[0m\n
+\E[48;2;16;185;129m\E[38;2;255;255;255m               \E[48;2;31;41;55m               \E[0m\n
+\E[48;2;16;185;129m\E[38;2;255;255;255m               \E[48;2;31;41;55m               \E[0m\n
+\E[48;2;31;41;55m\E[38;2;255;255;255m                              \E[0m\n
+\E[48;2;31;41;55m\E[38;2;255;255;255m                              \E[0m\n
+\E[48;2;31;41;55m\E[38;2;255;255;255m                              \E[0m\n
+
+
+Visual:
+\E[48;2;59;130;246m\E[38;2;255;255;255m          \E[48;2;31;41;55m                    \E[0m
+\E[48;2;59;130;246m\E[38;2;255;255;255m          \E[48;2;31;41;55m                    \E[0m
+\E[48;2;59;130;246m\E[38;2;255;255;255m          \E[48;2;31;41;55m                    \E[0m
+\E[48;2;16;185;129m\E[38;2;255;255;255m               \E[48;2;31;41;55m               \E[0m
+\E[48;2;16;185;129m\E[38;2;255;255;255m               \E[48;2;31;41;55m               \E[0m
+\E[48;2;16;185;129m\E[38;2;255;255;255m               \E[48;2;31;41;55m               \E[0m
+\E[48;2;16;185;129m\E[38;2;255;255;255m               \E[48;2;31;41;55m               \E[0m
+\E[48;2;31;41;55m\E[38;2;255;255;255m                              \E[0m
+\E[48;2;31;41;55m\E[38;2;255;255;255m                              \E[0m
+\E[48;2;31;41;55m\E[38;2;255;255;255m                              \E[0m
+
+
+--- Canvas Info ---
+Dimensions: 30x10
+Total cells: 300

@@ -131,32 +131,16 @@ pub const InlineContainerNode = struct {
     }
 };
 
-// pub const LineBox = struct {
-//     fragments: Array(Fragment) = .{},
-//     pub const Fragment = struct {
-//         node: LayoutNode.Id,
-//         start: usize,
-//         end: usize,
-//         text: []u8,
-//         allocator: std.mem.Allocator,
-//         position: mod.CSSPoint,
-
-//         pub fn deinit(self: *@This()) void {
-//             self.allocator.free(self.text);
-//         }
-//     };
-//     pub fn deinit(self: *LineBox, allocator: std.mem.Allocator) void {
-//         for (self.fragments.items) |*fragment| {
-//             fragment.deinit();
-//         }
-//         self.fragments.deinit(allocator);
-//     }
-// };
-
 pub fn fromTree(allocator: std.mem.Allocator, tree: *DocTree) !Self {
     var self = Self.init(allocator);
-    // Start building the layout tree at the document root.
-    _ = try self.build(tree, DocTree.ROOT_NODE_ID);
+
+    // Create an anonymous viewport node as the actual root
+    const viewport_id = try self.createNode(.{ .block_container_node = .{} }, .anonymous);
+
+    // Build the document tree and append it as a child of the viewport
+    const doc_root_id = try self.build(tree, DocTree.ROOT_NODE_ID);
+    try self.appendNode(viewport_id, doc_root_id);
+
     return self;
 }
 
@@ -195,6 +179,7 @@ const BuildError = error{
 const MixedContextBuilder = struct {
     layout_tree: *Self,
     doc_tree: *DocTree,
+    doc_node_id: DocNodeId,
     root_container_id: LayoutNode.Id,
     current_container_id: LayoutNode.Id,
     allocator: std.mem.Allocator,
@@ -207,11 +192,12 @@ const MixedContextBuilder = struct {
             else => unreachable,
         };
     }
-    pub fn init(allocator: std.mem.Allocator, layout_tree: *Self, doc_tree: *DocTree, root_container_id: LayoutNode.Id) !MixedContextBuilder {
+    pub fn init(allocator: std.mem.Allocator, layout_tree: *Self, doc_tree: *DocTree, root_container_id: LayoutNode.Id, doc_node_id: DocNodeId) !MixedContextBuilder {
         return MixedContextBuilder{
             .allocator = allocator,
             .layout_tree = layout_tree,
             .doc_tree = doc_tree,
+            .doc_node_id = doc_node_id,
             .root_container_id = root_container_id,
             .current_container_id = root_container_id,
         };
@@ -278,7 +264,7 @@ const MixedContextBuilder = struct {
     }
 
     pub fn build(self: *MixedContextBuilder) BuildError!void {
-        const children = self.doc_tree.getNodeChildren(self.root_container_id);
+        const children = self.doc_tree.getNodeChildren(self.doc_node_id);
         for (children) |child| {
             if (isDisplayNone(self.doc_tree, child)) continue;
             try self.buildFromNode(child);
@@ -301,7 +287,7 @@ const MixedContextBuilder = struct {
         }
         if (isInlineFlow(self.doc_tree, node_id)) {
             const id = try self.layout_tree.createNode(.{ .inline_node = .{} }, .{ .doc_node = node_id });
-            try self.layout_tree.appendNode(self.getCurrentParent(), id);
+            try self.appendNode(id);
             // push to the stack
             try self.stack.append(self.allocator, id);
             defer _ = self.stack.pop();
@@ -354,6 +340,7 @@ fn build(self: *Self, tree: *DocTree, node_id: DocNodeId) BuildError!LayoutNode.
 }
 pub fn buildInsideBlock(self: *Self, tree: *DocTree, node_id: DocNodeId) !LayoutNode.Id {
     const children = tree.getNodeChildren(node_id);
+    std.debug.print("node: {d} children: {any}\n", .{ node_id, children });
     var only_inline_children = true;
     for (children) |child| {
         if (isDisplayNone(tree, child)) continue;
@@ -361,6 +348,7 @@ pub fn buildInsideBlock(self: *Self, tree: *DocTree, node_id: DocNodeId) !Layout
             only_inline_children = false;
         }
     }
+    std.debug.print("only_inline_children: {any}\n", .{only_inline_children});
     if (only_inline_children) {
         const inline_container_id = try self.createNode(.{ .inline_container_node = .{
             .line_boxes = .{
@@ -376,7 +364,7 @@ pub fn buildInsideBlock(self: *Self, tree: *DocTree, node_id: DocNodeId) !Layout
     }
 
     const container_id = try self.createNode(.{ .block_container_node = .{} }, .{ .doc_node = node_id });
-    var mixed_context_builder = try MixedContextBuilder.init(self.allocator, self, tree, container_id);
+    var mixed_context_builder = try MixedContextBuilder.init(self.allocator, self, tree, container_id, node_id);
     defer mixed_context_builder.deinit();
     try mixed_context_builder.build();
     return container_id;
@@ -526,7 +514,9 @@ pub fn printRoot(self: *Self, writer: std.io.AnyWriter) !void {
     try self.printNode(0, writer);
 }
 
-pub fn expectLayoutTree(description: []const u8, docXml: []const u8, expected: []const u8) !void {
+pub fn expectLayoutTree(description: []const u8, docXml: []const u8, comptime loc: std.builtin.SourceLocation) !void {
+    const snapshot = @import("../../testing/snapshot.zig");
+
     var tree = try docFromXml(std.testing.allocator, docXml, .{});
     defer tree.deinit();
 
@@ -536,14 +526,13 @@ pub fn expectLayoutTree(description: []const u8, docXml: []const u8, expected: [
     var buf = std.ArrayList(u8).init(std.testing.allocator);
     defer buf.deinit();
     const writer = buf.writer().any();
-    try lt.printRoot(writer);
-    if (std.mem.eql(u8, expected, buf.items)) {
-        std.debug.print("\x1b[32m✓\x1b[0m {s}\n", .{description});
-    } else {
-        std.debug.print("\x1b[31m✗\x1b[0m {s}\n", .{description});
-    }
+    try writer.print("DocTree:\n", .{});
+    try tree.print(writer);
+    try writer.print("LayoutTree:\n", .{});
 
-    try std.testing.expectEqualStrings(expected, buf.items);
+    try lt.printRoot(writer);
+
+    try snapshot.expectMatchSnapshot(loc, std.testing.allocator, description, buf.items);
 }
 test "LayoutTree" {
     try expectLayoutTree("inline only",
@@ -554,14 +543,7 @@ test "LayoutTree" {
         \\  </span>
         \\  zzz
         \\</span>
-    ,
-        \\[inline_container_node #0 ref={doc#0} children={2} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        \\├── [inline_node #1 ref={doc#1} children={2} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        \\│   ├── [text_node #2] "abc"
-        \\│   └── [text_node #3] "def"
-        \\└── [text_node #4] "zzz"
-        \\
-    );
+    , @src());
 }
 
 test "deep formatting context break" {
@@ -593,23 +575,7 @@ test "deep formatting context break" {
         \\  More italic text
         \\</i>
         \\
-    ,
-        \\[block_container_node #0 ref={doc#0} children={3} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        \\├── [inline_container_node #2 ref={anon} children={2} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        \\│   ├── [text_node #1] "Italic only"
-        \\│   └── [inline_node #3 continuation={#12} ref={doc#2} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        \\│       └── [text_node #4] "italic and bold"
-        \\├── [block_container_node #5 ref={anon} children={2} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        \\│   ├── [inline_container_node #6 ref={doc#4} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        \\│   │   └── [text_node #7] "Wow, a block!"
-        \\│   └── [inline_container_node #8 ref={doc#6} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        \\│       └── [text_node #9] "Wow, another block!"
-        \\└── [inline_container_node #11 ref={anon} children={2} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        \\    ├── [inline_node #12 continuationOf={#3} ref={doc#2} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        \\    │   └── [text_node #10] "More italic and bold text"
-        \\    └── [text_node #13] "More italic text"
-        \\
-    );
+    , @src());
 
     try expectLayoutTree("deep formatting context break 2",
         \\<i>
@@ -625,23 +591,16 @@ test "deep formatting context break" {
         \\  More italic text
         \\</i>
         \\
-    ,
-        \\[block_container_node #0 ref={doc#0} children={3} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        \\├── [inline_container_node #2 ref={anon} children={2} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        \\│   ├── [text_node #1] "Italic only"
-        \\│   └── [inline_node #3 continuation={#13} ref={doc#2} children={2} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        \\│       ├── [text_node #4] "italic and bold"
-        \\│       └── [inline_node #8 continuation={#14} ref={doc#6} children={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        \\├── [block_container_node #5 ref={anon} children={2} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        \\│   ├── [inline_container_node #6 ref={doc#4} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        \\│   │   └── [text_node #7] "Wow, a block!"
-        \\│   └── [inline_container_node #9 ref={doc#7} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        \\│       └── [text_node #10] "Wow, another block!"
-        \\└── [inline_container_node #12 ref={anon} children={2} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        \\    ├── [inline_node #13 continuationOf={#3} ref={doc#2} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        \\    │   └── [inline_node #14 continuationOf={#8} ref={doc#6} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        \\    │       └── [text_node #11] "More italic and bold text"
-        \\    └── [text_node #15] "More italic text"
-        \\
-    );
+    , @src());
+}
+
+test "inline and block mixing" {
+    try expectLayoutTree("inline and block mixing",
+        \\<root style="width: 40px; height: 15px; background-color: #f9fafb;">
+        \\  <div style="background-color: #e5e7eb;">Block 1</div>
+        \\  <span style="color: #dc2626;">Inline text</span>
+        \\  <span style="color: #059669;"> with more text</span>
+        \\  <div style="background-color: #d1d5db;">Block 2</div>
+        \\</root>
+    , @src());
 }

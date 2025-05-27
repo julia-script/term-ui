@@ -38,11 +38,24 @@ fn expectMatchSnapshotImpl(
     } else |err| {
         if (err != error.EnvironmentVariableNotFound) return err;
     }
+    
+    // Add header with source location info
+    var actual_with_header = std.ArrayList(u8).init(allocator);
+    defer actual_with_header.deinit();
+    
+    try actual_with_header.writer().print(
+        \\// Snapshot from: {s}:{d}:{d}
+        \\// Function: {s}
+        \\// Description: {s}
+        \\
+        \\
+    , .{ loc.file, loc.line, loc.column, loc.fn_name, description });
+    try actual_with_header.appendSlice(actual);
 
     var file = std.fs.cwd().openFile(snapshot_path, .{ .mode = .read_only }) catch |err| {
         if (err == error.FileNotFound) {
             update = true;
-            return writeSnapshot(snapshot_path, actual);
+            return writeSnapshot(snapshot_path, actual_with_header.items);
         } else {
             return err;
         }
@@ -50,17 +63,17 @@ fn expectMatchSnapshotImpl(
     defer file.close();
 
     if (update) {
-        return writeSnapshot(snapshot_path, actual);
+        return writeSnapshot(snapshot_path, actual_with_header.items);
     }
 
     const stat = try file.stat();
     const buf = try file.readToEndAlloc(allocator, stat.size);
     defer allocator.free(buf);
 
-    if (!std.mem.eql(u8, buf, actual)) {
+    if (!std.mem.eql(u8, buf, actual_with_header.items)) {
         std.debug.print("Snapshot mismatch for {s}\n", .{snapshot_path});
     }
-    try std.testing.expectEqualStrings(buf, actual);
+    try std.testing.expectEqualStrings(buf, actual_with_header.items);
 }
 
 fn writeSnapshot(path: []const u8, data: []const u8) !void {

@@ -1,0 +1,19 @@
+// Snapshot from: layout/v2/LayoutTree.zig:546:7
+// Function: test.LayoutTree
+// Description: inline only
+
+DocTree:
+[node#0 block flow_root]
+    [node#1 inline flow]
+        [text #2] "    abc"
+        [text #3] "    def"
+        [text #4] "  "
+    [text #5] "  zzz"
+LayoutTree:
+[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+└── [inline_container_node #1 ref={doc#0} children={2} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    ├── [inline_node #2 ref={doc#1} children={3} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │   ├── [text_node #3] "    abc"
+    │   ├── [text_node #4] "    def"
+    │   └── [text_node #5] "  "
+    └── [text_node #6] "  zzz"

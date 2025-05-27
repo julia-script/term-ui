@@ -1,23 +1,45 @@
 const mod = @import("mod.zig");
 const LayoutContext = mod.LayoutContext;
 
-pub fn computeLayout(context: *LayoutContext, available_space: mod.PointOf(mod.constants.AvailableSpace), l_root_id: mod.LayoutNode.Id) mod.ComputeLayoutError!void {
+pub fn computeLayout(context: *LayoutContext, available_space: mod.PointOf(mod.constants.AvailableSpace)) mod.ComputeLayoutError!void {
+    // Always use viewport root (ID 0)
+    const viewport_id: mod.LayoutNode.Id = 0;
+    
+    // For viewport node, use definite dimensions if available
+    const viewport_size = mod.CSSMaybePoint{
+        .x = switch (available_space.x) {
+            .definite => |size| size,
+            else => null,
+        },
+        .y = switch (available_space.y) {
+            .definite => |size| size,
+            else => null,
+        },
+    };
+    
     const root_layout = try mod.performChildLayout(
         context,
-        l_root_id,
-        mod.CSSMaybePoint.NULL,
-        mod.CSSMaybePoint.NULL,
+        viewport_id,
+        viewport_size,
+        viewport_size,
         available_space,
         .inherent_size,
         .{ .start = false, .end = false },
     );
-    context.setBox(l_root_id, .{
-        .size = root_layout.size,
-        .content_size = root_layout.content_size,
-        .location = .{ .x = 0, .y = 0 }, // Root is positioned at origin
-        .margin = root_layout.resolved_margin,
-        .padding = root_layout.resolved_padding,
-        .border = root_layout.resolved_border,
-        .scrollbar_size = root_layout.scrollbar_size,
+    
+    // If available space is not definite, size should be based on the child
+    const final_size = mod.CSSPoint{
+        .x = if (viewport_size.x) |x| x else root_layout.size.x,
+        .y = if (viewport_size.y) |y| y else root_layout.size.y,
+    };
+    
+    context.setBox(viewport_id, .{
+        .size = final_size,
+        .content_size = final_size,
+        .location = .{ .x = 0, .y = 0 },
+        .margin = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
+        .padding = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
+        .border = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
+        .scrollbar_size = .{ .x = 0, .y = 0 },
     }, root_layout.line_boxes);
 }

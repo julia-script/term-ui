@@ -1,0 +1,113 @@
+// Snapshot from: renderer/v2/test_pipeline.zig:130:9
+// Function: test.pipeline: inline and block mixing
+// Description: inline-block-mixing
+
+=== Pipeline Snapshot: inline-block-mixing ===
+
+--- Input XML ---
+<root style="width: 40px; height: 15px; background-color: #f9fafb;">
+  <div style="background-color: #e5e7eb;">Block 1</div>
+  <span style="color: #dc2626;">Inline text</span>
+  <span style="color: #059669;"> with more text</span>
+  <div style="background-color: #d1d5db;">Block 2</div>
+</root>
+
+--- DOM Tree ---
+[node#0 block flow_root]
+    [node#1 block flow_root]
+        [text #2] "Block 1"
+    [node#3 inline flow]
+        [text #4] "Inline text"
+    [node#5 inline flow]
+        [text #6] " with more text"
+    [node#7 block flow_root]
+        [text #8] "Block 2"
+
+--- Layout Tree (before computation) ---
+[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+└── [block_container_node #1 ref={doc#0} children={3} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    ├── [inline_container_node #2 ref={doc#1} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │   └── [text_node #3] "Block 1"
+    ├── [inline_container_node #5 ref={anon} children={2} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │   ├── [inline_node #4 ref={doc#3} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │   │   └── [text_node #6] "Inline text"
+    │   └── [inline_node #7 ref={doc#5} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │       └── [text_node #8] " with more text"
+    └── [block_container_node #9 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        └── [inline_container_node #10 ref={doc#7} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+            └── [text_node #11] "Block 2"
+
+--- Layout Computation ---
+Available space: 50x20
+
+--- Layout Tree (after computation) ---
+[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 20.00) content: (50.00, 20.00)]}]
+└── [block_container_node #1 ref={doc#0} children={3} box={[loc: (0.00, 0.00) size: (40.00, 15.00) content: (50.00, 3.00)]}]
+    ├── [inline_container_node #2 ref={doc#1} children={1} lines={1} box={[loc: (0.00, 0.00) size: (40.00, 1.00) content: (40.00, 1.00)]}]
+    │   ├── [line_box #0 fragments=1]
+    │   │   └── [fragment node={#3} range=0-7 pos=(0.00e0, 0.00e0) text="Block 1"]
+    │   └── [text_node #3] "Block 1"
+    ├── [inline_container_node #5 ref={anon} children={2} lines={1} box={[loc: (0.00, 1.00) size: (40.00, 1.00) content: (40.00, 1.00)]}]
+    │   ├── [line_box #0 fragments=2]
+    │   │   ├── [fragment node={#6} range=0-11 pos=(0.00e0, 0.00e0) text="Inline text"]
+    │   │   └── [fragment node={#8} range=0-15 pos=(1.10e1, 0.00e0) text=" with more text"]
+    │   ├── [inline_node #4 ref={doc#3} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │   │   └── [text_node #6] "Inline text"
+    │   └── [inline_node #7 ref={doc#5} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │       └── [text_node #8] " with more text"
+    └── [block_container_node #9 ref={anon} children={1} box={[loc: (0.00, 2.00) size: (40.00, 1.00) content: (40.00, 1.00)]}]
+        └── [inline_container_node #10 ref={doc#7} children={1} lines={1} box={[loc: (0.00, 0.00) size: (40.00, 1.00) content: (40.00, 1.00)]}]
+            ├── [line_box #0 fragments=1]
+            │   └── [fragment node={#11} range=0-7 pos=(0.00e0, 0.00e0) text="Block 2"]
+            └── [text_node #11] "Block 2"
+
+--- Render List ---
+RenderList (7 items):
+  [0] Box #1 bounds=(0.0,0.0 40.0x15.0) z=0 bg=#f9fafbff
+  [1] Box #2 bounds=(0.0,0.0 40.0x1.0) z=0 bg=#e5e7ebff
+  [2] TextFragment #3 bounds=(0.0,0.0 7.0x1.0) z=0 text="Block 1"
+  [3] TextFragment #6 bounds=(0.0,1.0 11.0x1.0) z=0 text="Inline text"
+  [4] TextFragment #8 bounds=(11.0,1.0 15.0x1.0) z=0 text=" with more text"
+  [5] Box #10 bounds=(0.0,2.0 40.0x1.0) z=0 bg=#d1d5dbff
+  [6] TextFragment #11 bounds=(0.0,2.0 7.0x1.0) z=0 text="Block 2"
+
+--- Rendered Output ---
+Raw (escape sequences as \E):
+\E[48;2;229;231;235m\E[38;2;255;255;255mBlock 1                                 \E[0m\n
+\E[48;2;249;250;251m\E[38;2;220;38;38mInline text\E[38;2;5;150;105m with more text\E[38;2;255;255;255m              \E[0m\n
+\E[48;2;209;213;219m\E[38;2;255;255;255mBlock 2                                 \E[0m\n
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m\n
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m\n
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m\n
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m\n
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m\n
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m\n
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m\n
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m\n
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m\n
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m\n
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m\n
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m\n
+
+
+Visual:
+\E[48;2;229;231;235m\E[38;2;255;255;255mBlock 1                                 \E[0m
+\E[48;2;249;250;251m\E[38;2;220;38;38mInline text\E[38;2;5;150;105m with more text\E[38;2;255;255;255m              \E[0m
+\E[48;2;209;213;219m\E[38;2;255;255;255mBlock 2                                 \E[0m
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m
+\E[48;2;249;250;251m\E[38;2;255;255;255m                                        \E[0m
+
+
+--- Canvas Info ---
+Dimensions: 40x15
+Total cells: 600

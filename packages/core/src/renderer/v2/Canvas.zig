@@ -1,0 +1,541 @@
+const std = @import("std");
+const Array = std.ArrayListUnmanaged;
+const Point = @import("../../layout/point.zig").Point;
+const PointF32 = Point(f32);
+const Color = @import("../../colors/Color.zig");
+const styles = @import("../../styles/styles.zig");
+const RenderList = @import("../../layout/v2/mod.zig").RenderList;
+const string_width = @import("../../uni/string-width.zig");
+const grapheme = @import("../../layout/grapheme.zig");
+const css_types = @import("../../css/types.zig");
+const toType = @import("../../utils/convert.zig").toType;
+const assert = std.debug.assert;
+
+cells: Array(Cell) = .{},
+previous_cells: Array(Cell) = .{},
+force_redraw: bool = true,
+clear_color: Color = Color.tw.black,
+fg_color: Color = Color.tw.white,
+allocator: std.mem.Allocator,
+size: PointF32,
+/// Stack of clipping rectangles
+clip_stack: Array(RenderList.Rect) = .{},
+/// Current clipping rectangle
+clip_rect: RenderList.Rect,
+
+const Self = @This();
+
+pub const Rect = RenderList.Rect;
+
+pub const Cell = struct {
+    data: CellData = .{ .text = " " },
+    bg: Color,
+    fg: Color,
+    format: TextFormat = .{},
+    width: u32 = 1,
+    is_continuation: bool = false,
+    // Buffer for storing UTF-8 encoded border characters
+    char_buf: [4]u8 = [_]u8{' '} ** 4,
+    char_len: u8 = 1,
+    
+    pub const CellData = union(enum) {
+        text: []const u8,
+        border_char: styles.border.BoxChar,
+    };
+    
+    /// Set border character, merging with existing border if present
+    pub fn setBorderChar(self: *Cell, border_char: styles.border.BoxChar) void {
+        switch (self.data) {
+            .text => {
+                // Replace text with border
+                self.data = .{ .border_char = border_char };
+                self.width = 1;
+            },
+            .border_char => |*existing| {
+                // Merge borders - only update sides that have non-none style
+                if (border_char.n.style != .none) {
+                    existing.n = border_char.n;
+                }
+                if (border_char.e.style != .none) {
+                    existing.e = border_char.e;
+                }
+                if (border_char.s.style != .none) {
+                    existing.s = border_char.s;
+                }
+                if (border_char.w.style != .none) {
+                    existing.w = border_char.w;
+                }
+                self.width = 1;
+            },
+        }
+        
+        // Update the char buffer with the UTF-8 representation
+        if (self.data == .border_char) {
+            const char_code = styles.border.BoxChar.getChar(self.data.border_char);
+            self.char_len = @intCast(std.unicode.utf8Encode(char_code, &self.char_buf) catch 1);
+        }
+    }
+    
+    /// Get the character to render
+    pub fn getChar(self: *const Cell) []const u8 {
+        switch (self.data) {
+            .text => |text| return text,
+            .border_char => return self.char_buf[0..self.char_len],
+        }
+    }
+    
+    /// Check if two cells are equal
+    pub fn equal(self: *const Cell, other: *const Cell) bool {
+        if (!self.bg.equal(other.bg)) return false;
+        if (!self.fg.equal(other.fg)) return false;
+        if (self.width != other.width) return false;
+        if (self.is_continuation != other.is_continuation) return false;
+        
+        // Compare format
+        if (!self.format.equal(other.format)) return false;
+        
+        // Compare cell data
+        switch (self.data) {
+            .text => |a_text| switch (other.data) {
+                .text => |b_text| if (!std.mem.eql(u8, a_text, b_text)) return false,
+                .border_char => return false,
+            },
+            .border_char => |a_border| switch (other.data) {
+                .text => return false,
+                .border_char => |b_border| {
+                    if (a_border.n.style != b_border.n.style or a_border.n.weight != b_border.n.weight) return false;
+                    if (a_border.e.style != b_border.e.style or a_border.e.weight != b_border.e.weight) return false;
+                    if (a_border.s.style != b_border.s.style or a_border.s.weight != b_border.s.weight) return false;
+                    if (a_border.w.style != b_border.w.style or a_border.w.weight != b_border.w.weight) return false;
+                },
+            },
+        }
+        
+        return true;
+    }
+};
+
+pub const TextFormat = struct {
+    is_bold: bool = false,
+    is_italic: bool = false,
+    decoration_line: styles.text_decoration.TextDecorationLine = .none,
+    decoration_color: ?Color = null,
+
+    pub fn fromStyle(
+        font_weight: styles.font_weight.FontWeight,
+        font_style: styles.font_style.FontStyle,
+        text_decoration: styles.text_decoration.TextDecoration,
+    ) TextFormat {
+        return .{
+            .is_bold = font_weight == .bold,
+            .is_italic = font_style == .italic,
+            .decoration_line = text_decoration.line,
+        };
+    }
+
+    pub fn equal(self: TextFormat, other: TextFormat) bool {
+        if (self.is_bold != other.is_bold) return false;
+        if (self.is_italic != other.is_italic) return false;
+        if (self.decoration_line != other.decoration_line) return false;
+        
+        // Compare optional decoration_color
+        if (self.decoration_color) |self_color| {
+            if (other.decoration_color) |other_color| {
+                if (!self_color.equal(other_color)) return false;
+            } else {
+                return false;
+            }
+        } else if (other.decoration_color != null) {
+            return false;
+        }
+        
+        return true;
+    }
+};
+
+pub fn init(allocator: std.mem.Allocator, size: PointF32, clear_color: Color, fg_color: Color) !Self {
+    var self = Self{
+        .allocator = allocator,
+        .size = size,
+        .clear_color = clear_color,
+        .fg_color = fg_color,
+        .clip_rect = .{ .x = 0, .y = 0, .width = size.x, .height = size.y },
+    };
+
+    const width_int = toType(u32, @ceil(size.x));
+    const height_int = toType(u32, @ceil(size.y));
+    const cell_count = width_int * height_int;
+    try self.cells.ensureTotalCapacity(allocator, cell_count);
+    try self.previous_cells.ensureTotalCapacity(allocator, cell_count);
+
+    // Initialize cells
+    for (0..cell_count) |_| {
+        self.cells.appendAssumeCapacity(.{ .bg = clear_color, .fg = fg_color });
+        self.previous_cells.appendAssumeCapacity(.{ .bg = clear_color, .fg = fg_color });
+    }
+
+    return self;
+}
+
+pub fn deinit(self: *Self) void {
+    self.cells.deinit(self.allocator);
+    self.previous_cells.deinit(self.allocator);
+    self.clip_stack.deinit(self.allocator);
+}
+
+pub fn resize(self: *Self, size: PointF32) !void {
+    if (size.x == self.size.x and size.y == self.size.y) {
+        return;
+    }
+
+    self.size = size;
+    self.clip_rect = .{ .x = 0, .y = 0, .width = size.x, .height = size.y };
+    self.force_redraw = true;
+
+    const width_int = toType(u32, @ceil(size.x));
+    const height_int = toType(u32, @ceil(size.y));
+    const cell_count = width_int * height_int;
+    try self.cells.resize(self.allocator, cell_count);
+    try self.previous_cells.resize(self.allocator, cell_count);
+
+    // Initialize new cells
+    for (self.cells.items) |*cell| {
+        cell.* = .{ .bg = self.clear_color, .fg = self.fg_color };
+    }
+    for (self.previous_cells.items) |*cell| {
+        cell.* = .{ .bg = self.clear_color, .fg = self.fg_color };
+    }
+}
+
+pub fn clear(self: *Self) void {
+    for (self.cells.items) |*cell| {
+        cell.* = .{ .bg = self.clear_color, .fg = self.fg_color };
+    }
+    self.force_redraw = true;
+}
+
+fn getCell(self: *Self, x: u32, y: u32) ?*Cell {
+    const width_int = toType(u32, @ceil(self.size.x));
+    const height_int = toType(u32, @ceil(self.size.y));
+    if (x >= width_int or y >= height_int) return null;
+    return &self.cells.items[y * width_int + x];
+}
+
+fn setCell(self: *Self, x: u32, y: u32, cell: Cell) void {
+    const width_int = toType(u32, @ceil(self.size.x));
+    const height_int = toType(u32, @ceil(self.size.y));
+    if (x >= width_int or y >= height_int) return;
+    self.cells.items[y * width_int + x] = cell;
+}
+
+/// Get previous cells slice for diffing
+pub fn getPreviousCells(self: *const Self) []const Cell {
+    return self.previous_cells.items;
+}
+
+/// Save current state as previous for diffing
+pub fn savePreviousState(self: *Self) !void {
+    self.previous_cells.clearRetainingCapacity();
+    try self.previous_cells.appendSlice(self.allocator, self.cells.items);
+}
+
+/// Paint from a render list
+pub fn paintFromRenderList(self: *Self, render_list: *const RenderList) !void {
+    // Clear canvas first
+    self.clear();
+
+    // Paint each item in order
+    for (render_list.items.items) |item| {
+        switch (item) {
+            .box => |box| {
+                // Skip if outside clip rect
+                if (!box.bounds.intersectsWith(self.clip_rect)) continue;
+
+                // Draw background
+                if (box.background) |bg| {
+                    try self.fillRect(box.bounds, bg);
+                }
+
+                // Draw borders
+                if (hasBorders(box.border_style)) {
+                    try self.drawBorder(box.bounds, box.border_style, box.border_color);
+                }
+            },
+            .text_fragment => |text| {
+                // Skip if outside clip rect
+                if (!text.bounds.intersectsWith(self.clip_rect)) continue;
+
+                // Use the color and format from the text fragment
+                try self.drawText(text.position.x, text.position.y, text.text, text.color, text.format);
+            },
+            .push_clip => |clip| {
+                try self.pushClip(clip.rect);
+            },
+            .pop_clip => {
+                self.popClip();
+            },
+        }
+    }
+}
+
+fn pushClip(self: *Self, rect: Rect) !void {
+    // Save current clip rect
+    try self.clip_stack.append(self.allocator, self.clip_rect);
+    // Set new clip rect as intersection with current
+    self.clip_rect = self.clip_rect.intersect(rect);
+}
+
+fn popClip(self: *Self) void {
+    if (self.clip_stack.pop()) |rect| {
+        self.clip_rect = rect;
+    }
+}
+
+fn fillRect(self: *Self, rect: Rect, background: styles.background.Background) !void {
+    const color = switch (background) {
+        .solid => |c| c,
+        else => self.clear_color, // TODO: handle gradients
+    };
+
+    // Convert to integer coordinates
+    const x_start = @max(0, @as(i32, @intFromFloat(@floor(rect.x))));
+    const y_start = @max(0, @as(i32, @intFromFloat(@floor(rect.y))));
+    const x_end = @min(@as(i32, @intFromFloat(@ceil(self.size.x))), @as(i32, @intFromFloat(@ceil(rect.x + rect.width))));
+    const y_end = @min(@as(i32, @intFromFloat(@ceil(self.size.y))), @as(i32, @intFromFloat(@ceil(rect.y + rect.height))));
+
+    // Fill cells
+    var y: i32 = y_start;
+    while (y < y_end) : (y += 1) {
+        var x: i32 = x_start;
+        while (x < x_end) : (x += 1) {
+            // Check if within clip rect
+            if (!self.clip_rect.contains(@floatFromInt(x), @floatFromInt(y))) continue;
+
+            if (self.getCell(@intCast(x), @intCast(y))) |cell| {
+                cell.bg = color;
+            }
+        }
+    }
+}
+
+fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anytype) !void {
+    // Ensure border char lookup is loaded
+    _ = styles.border.BoxChar.load() catch {};
+    
+    const x_start = @as(u32, @intFromFloat(@floor(rect.x)));
+    const y_start = @as(u32, @intFromFloat(@floor(rect.y)));
+    const x_end = @as(u32, @intFromFloat(@floor(rect.x + rect.width)));
+    const y_end = @as(u32, @intFromFloat(@floor(rect.y + rect.height)));
+    
+    // Helper to get border color
+    const getColor = struct {
+        fn get(bc: anytype) Color {
+            switch (bc) {
+                .solid => |c| return c,
+                else => return Color.tw.white,
+            }
+        }
+    }.get;
+    
+    // Draw corners
+    if (x_end > x_start and y_end > y_start) {
+        // Top-left corner
+        if (self.getCell(x_start, y_start)) |cell| {
+            cell.setBorderChar(.{
+                .s = border_style.left,
+                .e = border_style.top,
+            });
+            cell.fg = getColor(border_color.top);
+        }
+        
+        // Top-right corner
+        if (x_end > x_start + 1) {
+            if (self.getCell(x_end - 1, y_start)) |cell| {
+                cell.setBorderChar(.{
+                    .s = border_style.right,
+                    .w = border_style.top,
+                });
+                cell.fg = getColor(border_color.top);
+            }
+        }
+        
+        // Bottom-left corner
+        if (y_end > y_start + 1) {
+            if (self.getCell(x_start, y_end - 1)) |cell| {
+                cell.setBorderChar(.{
+                    .n = border_style.left,
+                    .e = border_style.bottom,
+                });
+                cell.fg = getColor(border_color.bottom);
+            }
+            
+            // Bottom-right corner
+            if (x_end > x_start + 1) {
+                if (self.getCell(x_end - 1, y_end - 1)) |cell| {
+                    cell.setBorderChar(.{
+                        .n = border_style.right,
+                        .w = border_style.bottom,
+                    });
+                    cell.fg = getColor(border_color.bottom);
+                }
+            }
+        }
+    }
+    
+    // Draw horizontal borders
+    if (x_end > x_start + 2) {
+        var x = x_start + 1;
+        while (x < x_end - 1) : (x += 1) {
+            // Top border
+            if (self.getCell(x, y_start)) |cell| {
+                cell.setBorderChar(.{
+                    .e = border_style.top,
+                    .w = border_style.top,
+                });
+                cell.fg = getColor(border_color.top);
+            }
+            
+            // Bottom border
+            if (y_end > y_start + 1) {
+                if (self.getCell(x, y_end - 1)) |cell| {
+                    cell.setBorderChar(.{
+                        .e = border_style.bottom,
+                        .w = border_style.bottom,
+                    });
+                    cell.fg = getColor(border_color.bottom);
+                }
+            }
+        }
+    }
+    
+    // Draw vertical borders
+    if (y_end > y_start + 2) {
+        var y = y_start + 1;
+        while (y < y_end - 1) : (y += 1) {
+            // Left border
+            if (self.getCell(x_start, y)) |cell| {
+                cell.setBorderChar(.{
+                    .n = border_style.left,
+                    .s = border_style.left,
+                });
+                cell.fg = getColor(border_color.left);
+            }
+            
+            // Right border
+            if (x_end > x_start + 1) {
+                if (self.getCell(x_end - 1, y)) |cell| {
+                    cell.setBorderChar(.{
+                        .n = border_style.right,
+                        .s = border_style.right,
+                    });
+                    cell.fg = getColor(border_color.right);
+                }
+            }
+        }
+    }
+}
+
+fn drawText(self: *Self, x: f32, y: f32, text: []const u8, color: Color, format: TextFormat) !void {
+    const y_int: u32 = @intFromFloat(@floor(y));
+    var x_pos = x;
+
+    // Iterate through graphemes
+    var iter = try grapheme.GraphemeIterator.init(text);
+    while (iter.next()) |slice| {
+        const width_usize = string_width.visible.width.exclude_ansi_colors.utf8(slice);
+        const width = toType(u32, width_usize);
+
+        const x_int: u32 = @intFromFloat(@floor(x_pos));
+
+        // Check if within bounds and clip rect
+        const width_int = toType(u32, @ceil(self.size.x));
+        const height_int = toType(u32, @ceil(self.size.y));
+        if (x_int < width_int and y_int < height_int and
+            self.clip_rect.contains(x_pos, y))
+        {
+            if (self.getCell(x_int, y_int)) |cell| {
+                // If drawing over a continuation cell, clear the original cell
+                if (cell.is_continuation) {
+                    // Find and clear the original cell by going backwards
+                    var scan_x = x_int;
+                    while (scan_x > 0) : (scan_x -= 1) {
+                        if (self.getCell(scan_x - 1, y_int)) |prev_cell| {
+                            if (!prev_cell.is_continuation and prev_cell.width > 1) {
+                                // Found the original multi-width cell, clear it
+                                prev_cell.data = .{ .text = " " };
+                                prev_cell.width = 1;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                // If this cell was the start of a multi-width character, clear its continuations
+                if (cell.width > 1) {
+                    var i: u32 = 1;
+                    while (i < cell.width) : (i += 1) {
+                        if (x_int + i < width_int) {
+                            if (self.getCell(x_int + i, y_int)) |next_cell| {
+                                next_cell.data = .{ .text = " " };
+                                next_cell.width = 1;
+                                next_cell.is_continuation = false;
+                            }
+                        }
+                    }
+                }
+                
+                // Now set the new content
+                cell.data = .{ .text = slice };
+                cell.fg = color;
+                cell.format = format;
+                cell.width = width;
+                cell.is_continuation = false;
+            }
+            
+            // Mark subsequent cells as continuations for multi-width characters
+            if (width > 1) {
+                // Get the current cell again to avoid scope issues
+                const current_cell = self.getCell(x_int, y_int).?;
+                
+                var i: u32 = 1;
+                while (i < width) : (i += 1) {
+                    if (x_int + i < width_int) {
+                        if (self.getCell(x_int + i, y_int)) |next_cell| {
+                            next_cell.data = .{ .text = "" };
+                            next_cell.width = 0;
+                            next_cell.bg = current_cell.bg; // Keep same background
+                            next_cell.fg = current_cell.fg;
+                            next_cell.format = current_cell.format;
+                            next_cell.is_continuation = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        x_pos += @floatFromInt(width);
+
+        // Stop if we've gone past the canvas
+        if (x_pos >= self.size.x) break;
+    }
+}
+
+fn hasBorders(border_style: anytype) bool {
+    return border_style.top.style != .none or
+        border_style.right.style != .none or
+        border_style.bottom.style != .none or
+        border_style.left.style != .none;
+}
+
+/// Get cells for rendering
+pub fn getCells(self: *const Self) []const Cell {
+    return self.cells.items;
+}
+
+/// Get cell dimensions
+pub fn getDimensions(self: *const Self) struct { width: u32, height: u32 } {
+    return .{
+        .width = toType(u32, @ceil(self.size.x)),
+        .height = toType(u32, @ceil(self.size.y)),
+    };
+}

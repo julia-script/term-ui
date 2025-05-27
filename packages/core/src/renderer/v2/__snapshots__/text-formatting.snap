@@ -1,0 +1,91 @@
+// Snapshot from: renderer/v2/test_pipeline.zig:169:9
+// Function: test.pipeline: text formatting
+// Description: text-formatting
+
+=== Pipeline Snapshot: text-formatting ===
+
+--- Input XML ---
+<root style="width: 50px; height: 8px; background-color: #1e293b;">
+  <span style="font-weight: bold; color: #f59e0b;">Bold text</span>
+  <span style="font-style: italic; color: #10b981;"> Italic</span>
+  <span style="text-decoration: underline; color: #3b82f6;"> Underline</span>
+  <span style="text-decoration: line-through; color: #ef4444;"> Strike</span>
+</root>
+
+--- DOM Tree ---
+[node#0 block flow_root]
+    [node#1 inline flow]
+        [text #2] "Bold text"
+    [node#3 inline flow]
+        [text #4] " Italic"
+    [node#5 inline flow]
+        [text #6] " Underline"
+    [node#7 inline flow]
+        [text #8] " Strike"
+
+--- Layout Tree (before computation) ---
+[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+└── [inline_container_node #1 ref={doc#0} children={4} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    ├── [inline_node #2 ref={doc#1} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │   └── [text_node #3] "Bold text"
+    ├── [inline_node #4 ref={doc#3} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │   └── [text_node #5] " Italic"
+    ├── [inline_node #6 ref={doc#5} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │   └── [text_node #7] " Underline"
+    └── [inline_node #8 ref={doc#7} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        └── [text_node #9] " Strike"
+
+--- Layout Computation ---
+Available space: 60x10
+
+--- Layout Tree (after computation) ---
+[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (60.00, 10.00) content: (60.00, 10.00)]}]
+└── [inline_container_node #1 ref={doc#0} children={4} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 8.00) content: (60.00, 1.00)]}]
+    ├── [line_box #0 fragments=4]
+    │   ├── [fragment node={#3} range=0-9 pos=(0.00e0, 0.00e0) text="Bold text"]
+    │   ├── [fragment node={#5} range=0-7 pos=(9.00e0, 0.00e0) text=" Italic"]
+    │   ├── [fragment node={#7} range=0-10 pos=(1.60e1, 0.00e0) text=" Underline"]
+    │   └── [fragment node={#9} range=0-7 pos=(2.60e1, 0.00e0) text=" Strike"]
+    ├── [inline_node #2 ref={doc#1} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │   └── [text_node #3] "Bold text"
+    ├── [inline_node #4 ref={doc#3} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │   └── [text_node #5] " Italic"
+    ├── [inline_node #6 ref={doc#5} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │   └── [text_node #7] " Underline"
+    └── [inline_node #8 ref={doc#7} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        └── [text_node #9] " Strike"
+
+--- Render List ---
+RenderList (5 items):
+  [0] Box #1 bounds=(0.0,0.0 50.0x8.0) z=0 bg=#1e293bff
+  [1] TextFragment #3 bounds=(0.0,0.0 9.0x1.0) z=0 text="Bold text" format=[bold]
+  [2] TextFragment #5 bounds=(9.0,0.0 7.0x1.0) z=0 text=" Italic" format=[italic]
+  [3] TextFragment #7 bounds=(16.0,0.0 10.0x1.0) z=0 text=" Underline" format=[underline]
+  [4] TextFragment #9 bounds=(26.0,0.0 7.0x1.0) z=0 text=" Strike" format=[line_through]
+
+--- Rendered Output ---
+Raw (escape sequences as \E):
+\E[48;2;30;41;59m\E[38;2;245;158;11m\E[1mBold text\E[38;2;16;185;129m\E[22m\E[3m Italic\E[38;2;59;130;246m\E[23m\E[4m Underline\E[38;2;239;68;68m\E[24m\E[9m Strike\E[38;2;255;255;255m\E[29m                 \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m\n
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m\n
+
+
+Visual:
+\E[48;2;30;41;59m\E[38;2;245;158;11m\E[1mBold text\E[38;2;16;185;129m\E[22m\E[3m Italic\E[38;2;59;130;246m\E[23m\E[4m Underline\E[38;2;239;68;68m\E[24m\E[9m Strike\E[38;2;255;255;255m\E[29m                 \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m
+\E[48;2;30;41;59m\E[38;2;255;255;255m                                                  \E[0m
+
+
+--- Canvas Info ---
+Dimensions: 50x8
+Total cells: 400

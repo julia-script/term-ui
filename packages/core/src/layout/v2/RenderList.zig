@@ -5,6 +5,8 @@ const DocTree = @import("../../tree/Tree.zig");
 const Style = @import("../../tree/Style.zig");
 const styles = @import("../../styles/styles.zig");
 const Color = @import("../../colors/Color.zig");
+const Canvas = @import("../../renderer/v2/Canvas.zig");
+pub const TextFormat = Canvas.TextFormat;
 
 /// A flat list of render items representing the paint order of the layout tree
 items: std.ArrayListUnmanaged(RenderItem) = .{},
@@ -18,7 +20,7 @@ pub const Rect = struct {
     y: f32,
     width: f32,
     height: f32,
-    
+
     pub fn fromCSSRect(css_rect: mod.CSSRect, location: mod.CSSPoint) Rect {
         return .{
             .x = location.x + css_rect.left,
@@ -27,7 +29,7 @@ pub const Rect = struct {
             .height = css_rect.bottom - css_rect.top,
         };
     }
-    
+
     pub fn fromBox(box: mod.Box) Rect {
         return .{
             .x = box.location.x,
@@ -36,10 +38,31 @@ pub const Rect = struct {
             .height = box.size.y,
         };
     }
-    
+
     pub fn contains(self: Rect, x: f32, y: f32) bool {
         return x >= self.x and x < self.x + self.width and
-               y >= self.y and y < self.y + self.height;
+            y >= self.y and y < self.y + self.height;
+    }
+
+    pub fn intersectsWith(self: Rect, other: Rect) bool {
+        return self.x < other.x + other.width and
+            self.x + self.width > other.x and
+            self.y < other.y + other.height and
+            self.y + self.height > other.y;
+    }
+
+    pub fn intersect(self: Rect, other: Rect) Rect {
+        const x1 = @max(self.x, other.x);
+        const y1 = @max(self.y, other.y);
+        const x2 = @min(self.x + self.width, other.x + other.width);
+        const y2 = @min(self.y + self.height, other.y + other.height);
+
+        return .{
+            .x = x1,
+            .y = y1,
+            .width = @max(0, x2 - x1),
+            .height = @max(0, y2 - y1),
+        };
     }
 };
 
@@ -64,7 +87,7 @@ pub const RenderItem = union(enum) {
     push_clip: ClipItem,
     /// Pop a clipping region
     pop_clip: void,
-    
+
     pub fn deinit(self: *RenderItem, allocator: std.mem.Allocator) void {
         _ = self;
         _ = allocator;
@@ -95,6 +118,10 @@ pub const TextFragmentItem = struct {
     position: mod.CSSPoint,
     /// Reference to text in layout tree (not owned)
     text: []const u8,
+    /// Text color
+    color: styles.color.Color,
+    /// Text formatting (bold, italic, underline, etc)
+    format: TextFormat,
     /// For getting styles and hit testing
     node_id: LayoutTree.LayoutNode.Id,
     /// Z-index for stacking context
@@ -119,12 +146,12 @@ pub fn sortByPaintOrder(self: *Self) void {
 fn compareRenderItems(_: void, a: RenderItem, b: RenderItem) bool {
     const a_z = getZIndex(a);
     const b_z = getZIndex(b);
-    
+
     // Lower z-index paints first
     if (a_z != b_z) {
         return a_z < b_z;
     }
-    
+
     // Same z-index: maintain tree order (which is insertion order)
     return false;
 }
@@ -144,7 +171,7 @@ pub fn print(self: *Self, writer: std.io.AnyWriter) !void {
         try writer.print("  [{d}] ", .{i});
         switch (item) {
             .box => |box| {
-                try writer.print("Box #{d} bounds=({:.1},{:.1} {:.1}x{:.1}) z={d}", .{
+                try writer.print("Box #{d} bounds=({d:.1},{d:.1} {d:.1}x{d:.1}) z={d}", .{
                     box.node_id,
                     box.bounds.x,
                     box.bounds.y,
@@ -160,7 +187,7 @@ pub fn print(self: *Self, writer: std.io.AnyWriter) !void {
                 }
             },
             .text_fragment => |text| {
-                try writer.print("TextFragment #{d} bounds=({:.1},{:.1} {:.1}x{:.1}) z={d} text=\"{s}\"", .{
+                try writer.print("TextFragment #{d} bounds=({d:.1},{d:.1} {d:.1}x{d:.1}) z={d} text=\"{s}\"", .{
                     text.node_id,
                     text.bounds.x,
                     text.bounds.y,
@@ -169,9 +196,28 @@ pub fn print(self: *Self, writer: std.io.AnyWriter) !void {
                     text.z_index,
                     text.text,
                 });
+                // Print formatting info if any
+                if (text.format.is_bold or text.format.is_italic or text.format.decoration_line != .none) {
+                    try writer.print(" format=[", .{});
+                    var first = true;
+                    if (text.format.is_bold) {
+                        try writer.print("bold", .{});
+                        first = false;
+                    }
+                    if (text.format.is_italic) {
+                        if (!first) try writer.print(",", .{});
+                        try writer.print("italic", .{});
+                        first = false;
+                    }
+                    if (text.format.decoration_line != .none) {
+                        if (!first) try writer.print(",", .{});
+                        try writer.print("{s}", .{@tagName(text.format.decoration_line)});
+                    }
+                    try writer.print("]", .{});
+                }
             },
             .push_clip => |clip| {
-                try writer.print("PushClip rect=({:.1},{:.1} {:.1}x{:.1})", .{
+                try writer.print("PushClip rect=({d:.1},{d:.1} {d:.1}x{d:.1})", .{
                     clip.rect.x,
                     clip.rect.y,
                     clip.rect.width,
@@ -187,7 +233,7 @@ pub fn print(self: *Self, writer: std.io.AnyWriter) !void {
 test "RenderList" {
     var list = init(std.testing.allocator);
     defer list.deinit();
-    
+
     // Add some test items
     try list.addItem(.{
         .box = .{
@@ -205,20 +251,22 @@ test "RenderList" {
             .node_id = 1,
         },
     });
-    
+
     try list.addItem(.{
         .text_fragment = .{
             .bounds = .{ .x = 5, .y = 5, .width = 5, .height = 1 },
             .position = .{ .x = 5, .y = 5 },
             .text = "Hello", // Just a reference, not owned
+            .color = Color.tw.white,
+            .format = .{},
             .node_id = 2,
             .z_index = 1,
         },
     });
-    
+
     // Test sorting
     list.sortByPaintOrder();
-    
+
     // Verify order
     try std.testing.expectEqual(@as(usize, 2), list.items.items.len);
     try std.testing.expectEqual(@as(i32, 0), getZIndex(list.items.items[0]));

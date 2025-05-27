@@ -1,0 +1,27 @@
+// Snapshot from: layout/v2/LayoutTree.zig:605:7
+// Function: test.inline and block mixing
+// Description: inline and block mixing
+
+DocTree:
+[node#0 block flow_root]
+    [node#1 block flow_root]
+        [text #2] "Block 1"
+    [node#3 inline flow]
+        [text #4] "Inline text"
+    [node#5 inline flow]
+        [text #6] " with more text"
+    [node#7 block flow_root]
+        [text #8] "Block 2"
+LayoutTree:
+[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+└── [block_container_node #1 ref={doc#0} children={3} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    ├── [inline_container_node #2 ref={doc#1} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │   └── [text_node #3] "Block 1"
+    ├── [inline_container_node #5 ref={anon} children={2} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │   ├── [inline_node #4 ref={doc#3} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │   │   └── [text_node #6] "Inline text"
+    │   └── [inline_node #7 ref={doc#5} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │       └── [text_node #8] " with more text"
+    └── [block_container_node #9 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        └── [inline_container_node #10 ref={doc#7} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+            └── [text_node #11] "Block 2"
