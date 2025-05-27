@@ -10,6 +10,8 @@ const grapheme = @import("../../layout/grapheme.zig");
 const css_types = @import("../../css/types.zig");
 const toType = @import("../../utils/convert.zig").toType;
 const assert = std.debug.assert;
+const gradient = @import("./gradient.zig");
+const Sampler = gradient.Sampler;
 
 cells: Array(Cell) = .{},
 previous_cells: Array(Cell) = .{},
@@ -84,6 +86,16 @@ pub const Cell = struct {
         }
     }
     
+    /// Set background color with compositing
+    pub fn setBg(self: *Cell, color: Color) void {
+        self.bg = Color.composite(color, self.bg, .source_over);
+    }
+
+    /// Set foreground color with compositing against background
+    pub fn setFg(self: *Cell, color: Color) void {
+        self.fg = Color.composite(color, self.bg, .source_over);
+    }
+
     /// Check if two cells are equal
     pub fn equal(self: *const Cell, other: *const Cell) bool {
         if (!self.bg.equal(other.bg)) return false;
@@ -181,6 +193,52 @@ pub fn deinit(self: *Self) void {
     self.cells.deinit(self.allocator);
     self.previous_cells.deinit(self.allocator);
     self.clip_stack.deinit(self.allocator);
+}
+
+/// Clear a cell and optionally its related cells (for multi-width characters)
+/// @param check_related: if true, clears related cells for multi-width chars (use for boundary cells)
+fn clearCell(self: *Self, x: u32, y: u32, check_related: bool) void {
+    const cell = self.getCell(x, y) orelse return;
+    
+    if (check_related) {
+        // If this is a continuation cell, find and clear from the main cell
+        if (cell.is_continuation) {
+            // Look left to find the main cell
+            var main_x = @as(i32, @intCast(x)) - 1;
+            while (main_x >= 0) : (main_x -= 1) {
+                if (self.getCell(@intCast(main_x), y)) |main_cell| {
+                    if (!main_cell.is_continuation and main_cell.width > 0) {
+                        // Found the main cell, clear it and all its continuations
+                        const width = main_cell.width;
+                        for (0..width) |offset| {
+                            if (self.getCell(@intCast(main_x + @as(i32, @intCast(offset))), y)) |c| {
+                                c.data = .{ .text = "" };
+                                c.width = 0;
+                                c.is_continuation = false;
+                            }
+                        }
+                        return;
+                    }
+                } else {
+                    break;
+                }
+            }
+        } else if (cell.width > 1) {
+            // This is a main cell with width > 1, clear all continuations
+            for (1..cell.width) |offset| {
+                if (self.getCell(x + @as(u32, @intCast(offset)), y)) |cont_cell| {
+                    cont_cell.data = .{ .text = "" };
+                    cont_cell.width = 0;
+                    cont_cell.is_continuation = false;
+                }
+            }
+        }
+    }
+    
+    // Clear the current cell
+    cell.data = .{ .text = "" };
+    cell.width = 0;
+    cell.is_continuation = false;
 }
 
 pub fn resize(self: *Self, size: PointF32) !void {
@@ -292,29 +350,69 @@ fn popClip(self: *Self) void {
 }
 
 fn fillRect(self: *Self, rect: Rect, background: styles.background.Background) !void {
-    const color = switch (background) {
-        .solid => |c| c,
-        else => self.clear_color, // TODO: handle gradients
-    };
-
     // Convert to integer coordinates
     const x_start = @max(0, @as(i32, @intFromFloat(@floor(rect.x))));
     const y_start = @max(0, @as(i32, @intFromFloat(@floor(rect.y))));
     const x_end = @min(@as(i32, @intFromFloat(@ceil(self.size.x))), @as(i32, @intFromFloat(@ceil(rect.x + rect.width))));
     const y_end = @min(@as(i32, @intFromFloat(@ceil(self.size.y))), @as(i32, @intFromFloat(@ceil(rect.y + rect.height))));
 
-    // Fill cells
-    var y: i32 = y_start;
-    while (y < y_end) : (y += 1) {
-        var x: i32 = x_start;
-        while (x < x_end) : (x += 1) {
-            // Check if within clip rect
-            if (!self.clip_rect.contains(@floatFromInt(x), @floatFromInt(y))) continue;
+    // Handle different background types
+    switch (background) {
+        .solid => |color| {
+            // Simple solid color fill
+            var y: i32 = y_start;
+            while (y < y_end) : (y += 1) {
+                var x: i32 = x_start;
+                while (x < x_end) : (x += 1) {
+                    // Check if within clip rect
+                    if (!self.clip_rect.contains(@floatFromInt(x), @floatFromInt(y))) continue;
 
-            if (self.getCell(@intCast(x), @intCast(y))) |cell| {
-                cell.bg = color;
+                    const x_u32 = @as(u32, @intCast(x));
+                    const y_u32 = @as(u32, @intCast(y));
+                    
+                    // Check related cells only for boundary cells
+                    const is_boundary = (x == x_start or x == x_end - 1);
+                    self.clearCell(x_u32, y_u32, is_boundary);
+                    
+                    if (self.getCell(x_u32, y_u32)) |cell| {
+                        cell.setBg(color);
+                    }
+                }
             }
-        }
+        },
+        .linear_gradient, .radial_gradient => {
+            // Create sampler for gradient
+            var sampler = try Sampler.from(self.allocator, background, .{
+                .x = rect.width,
+                .y = rect.height,
+            });
+            defer sampler.deinit();
+
+            // Fill cells with sampled colors
+            var y: i32 = y_start;
+            while (y < y_end) : (y += 1) {
+                var x: i32 = x_start;
+                while (x < x_end) : (x += 1) {
+                    // Check if within clip rect
+                    if (!self.clip_rect.contains(@floatFromInt(x), @floatFromInt(y))) continue;
+
+                    const x_u32 = @as(u32, @intCast(x));
+                    const y_u32 = @as(u32, @intCast(y));
+                    
+                    // Check related cells only for boundary cells
+                    const is_boundary = (x == x_start or x == x_end - 1);
+                    self.clearCell(x_u32, y_u32, is_boundary);
+                    
+                    if (self.getCell(x_u32, y_u32)) |cell| {
+                        // Calculate position relative to rect origin
+                        const rel_x = @as(f32, @floatFromInt(x)) - rect.x;
+                        const rel_y = @as(f32, @floatFromInt(y)) - rect.y;
+                        const gradient_color = sampler.at(.{ .x = rel_x, .y = rel_y });
+                        cell.setBg(gradient_color);
+                    }
+                }
+            }
+        },
     }
 }
 
@@ -327,15 +425,30 @@ fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anyt
     const x_end = @as(u32, @intFromFloat(@floor(rect.x + rect.width)));
     const y_end = @as(u32, @intFromFloat(@floor(rect.y + rect.height)));
     
-    // Helper to get border color
-    const getColor = struct {
-        fn get(bc: anytype) Color {
-            switch (bc) {
-                .solid => |c| return c,
-                else => return Color.tw.white,
-            }
-        }
-    }.get;
+    // Create samplers for each border side
+    var top_sampler = try Sampler.from(self.allocator, border_color.top, .{
+        .x = rect.width,
+        .y = rect.height,
+    });
+    defer top_sampler.deinit();
+    
+    var bottom_sampler = try Sampler.from(self.allocator, border_color.bottom, .{
+        .x = rect.width,
+        .y = rect.height,
+    });
+    defer bottom_sampler.deinit();
+    
+    var left_sampler = try Sampler.from(self.allocator, border_color.left, .{
+        .x = rect.width,
+        .y = rect.height,
+    });
+    defer left_sampler.deinit();
+    
+    var right_sampler = try Sampler.from(self.allocator, border_color.right, .{
+        .x = rect.width,
+        .y = rect.height,
+    });
+    defer right_sampler.deinit();
     
     // Draw corners
     if (x_end > x_start and y_end > y_start) {
@@ -345,7 +458,9 @@ fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anyt
                 .s = border_style.left,
                 .e = border_style.top,
             });
-            cell.fg = getColor(border_color.top);
+            const rel_x = @as(f32, @floatFromInt(x_start)) - rect.x;
+            const rel_y = @as(f32, @floatFromInt(y_start)) - rect.y;
+            cell.fg = top_sampler.at(.{ .x = rel_x, .y = rel_y });
         }
         
         // Top-right corner
@@ -355,7 +470,9 @@ fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anyt
                     .s = border_style.right,
                     .w = border_style.top,
                 });
-                cell.fg = getColor(border_color.top);
+                const rel_x = @as(f32, @floatFromInt(x_end - 1)) - rect.x;
+                const rel_y = @as(f32, @floatFromInt(y_start)) - rect.y;
+                cell.fg = top_sampler.at(.{ .x = rel_x, .y = rel_y });
             }
         }
         
@@ -366,7 +483,9 @@ fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anyt
                     .n = border_style.left,
                     .e = border_style.bottom,
                 });
-                cell.fg = getColor(border_color.bottom);
+                const rel_x = @as(f32, @floatFromInt(x_start)) - rect.x;
+                const rel_y = @as(f32, @floatFromInt(y_end - 1)) - rect.y;
+                cell.fg = bottom_sampler.at(.{ .x = rel_x, .y = rel_y });
             }
             
             // Bottom-right corner
@@ -376,7 +495,9 @@ fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anyt
                         .n = border_style.right,
                         .w = border_style.bottom,
                     });
-                    cell.fg = getColor(border_color.bottom);
+                    const rel_x = @as(f32, @floatFromInt(x_end - 1)) - rect.x;
+                    const rel_y = @as(f32, @floatFromInt(y_end - 1)) - rect.y;
+                    cell.fg = bottom_sampler.at(.{ .x = rel_x, .y = rel_y });
                 }
             }
         }
@@ -392,7 +513,9 @@ fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anyt
                     .e = border_style.top,
                     .w = border_style.top,
                 });
-                cell.fg = getColor(border_color.top);
+                const rel_x = @as(f32, @floatFromInt(x)) - rect.x;
+                const rel_y = @as(f32, @floatFromInt(y_start)) - rect.y;
+                cell.fg = top_sampler.at(.{ .x = rel_x, .y = rel_y });
             }
             
             // Bottom border
@@ -402,7 +525,9 @@ fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anyt
                         .e = border_style.bottom,
                         .w = border_style.bottom,
                     });
-                    cell.fg = getColor(border_color.bottom);
+                    const rel_x = @as(f32, @floatFromInt(x)) - rect.x;
+                    const rel_y = @as(f32, @floatFromInt(y_end - 1)) - rect.y;
+                    cell.fg = bottom_sampler.at(.{ .x = rel_x, .y = rel_y });
                 }
             }
         }
@@ -418,7 +543,9 @@ fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anyt
                     .n = border_style.left,
                     .s = border_style.left,
                 });
-                cell.fg = getColor(border_color.left);
+                const rel_x = @as(f32, @floatFromInt(x_start)) - rect.x;
+                const rel_y = @as(f32, @floatFromInt(y)) - rect.y;
+                cell.fg = left_sampler.at(.{ .x = rel_x, .y = rel_y });
             }
             
             // Right border
@@ -428,7 +555,9 @@ fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anyt
                         .n = border_style.right,
                         .s = border_style.right,
                     });
-                    cell.fg = getColor(border_color.right);
+                    const rel_x = @as(f32, @floatFromInt(x_end - 1)) - rect.x;
+                    const rel_y = @as(f32, @floatFromInt(y)) - rect.y;
+                    cell.fg = right_sampler.at(.{ .x = rel_x, .y = rel_y });
                 }
             }
         }

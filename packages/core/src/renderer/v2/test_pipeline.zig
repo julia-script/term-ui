@@ -169,3 +169,54 @@ test "pipeline: text formatting" {
         @src(),
     );
 }
+
+test "pipeline: linear gradient background" {
+    const xml =
+        \\<root style="width: 30px; height: 10px; background-color: linear-gradient(to right, #3b82f6, #10b981);">
+        \\</root>
+    ;
+
+    try pipeline.expectPipeline(
+        std.testing.allocator,
+        xml,
+        "linear-gradient-bg",
+        .{
+            .available_space = .{ .width = 40, .height = 15 },
+        },
+        @src(),
+    );
+}
+
+test "pipeline: radial gradient background" {
+    const xml =
+        \\<root style="width: 20px; height: 10px; background-color: radial-gradient(circle, #f59e0b, #dc2626);">
+        \\</root>
+    ;
+
+    try pipeline.expectPipeline(
+        std.testing.allocator,
+        xml,
+        "radial-gradient-bg",
+        .{
+            .available_space = .{ .width = 30, .height = 15 },
+        },
+        @src(),
+    );
+}
+
+test "pipeline: gradient border" {
+    const xml =
+        \\<root style="width: 20px; height: 8px; background-color: #1e293b; border-style: solid; border-width: 2px; border-color: linear-gradient(45deg, #3b82f6, #f59e0b);">
+        \\</root>
+    ;
+
+    try pipeline.expectPipeline(
+        std.testing.allocator,
+        xml,
+        "gradient-border",
+        .{
+            .available_space = .{ .width = 30, .height = 12 },
+        },
+        @src(),
+    );
+}

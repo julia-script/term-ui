@@ -38,27 +38,27 @@ pub fn deinit(self: *Self) void {
 
 /// Render from a pre-built render list
 pub fn render(self: *Self, render_list: *const RenderList, writer: std.io.AnyWriter) !void {
-    // Infer canvas size from render list bounds
-    var max_x: f32 = 0;
-    var max_y: f32 = 0;
-
-    for (render_list.items.items) |item| {
-        const bounds = switch (item) {
-            .box => |box| box.bounds,
-            .text_fragment => |text| text.bounds,
-            .push_clip => |clip| clip.rect,
-            .pop_clip => continue,
-        };
-
-        max_x = @max(max_x, bounds.x + bounds.width);
-        max_y = @max(max_y, bounds.y + bounds.height);
+    // Get canvas size from the first element (viewport)
+    if (render_list.items.items.len == 0) {
+        // No content in render list
+        return;
     }
 
-    // Resize canvas to fit content (keep as floats)
-    if (max_x > 0 and max_y > 0) {
-        try self.canvas.resize(.{ .x = max_x, .y = max_y });
+    const first_item = render_list.items.items[0];
+    const viewport_bounds = switch (first_item) {
+        .box => |box| box.bounds,
+        .push_clip => |clip| clip.rect,
+        else => std.debug.panic("First render list item must be a box or push_clip for the viewport", .{}),
+    };
+
+    // Size canvas to viewport dimensions
+    if (viewport_bounds.width > 0 and viewport_bounds.height > 0) {
+        try self.canvas.resize(.{ 
+            .x = viewport_bounds.x + viewport_bounds.width, 
+            .y = viewport_bounds.y + viewport_bounds.height 
+        });
     } else {
-        // No content in render list
+        // No valid viewport dimensions
         return;
     }
 
