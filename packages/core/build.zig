@@ -99,4 +99,27 @@ pub fn build(b: *std.Build) !void {
         &install_step.step,
         test_debugger,
     });
+
+    // ---------------- Benchmarks ----------------
+    const bench_tests = b.addTest(.{
+        .root_source_file = b.path("src/wasm.zig"),
+        .name = "bench",
+        .target = target,
+        .optimize = optimize,
+        .test_runner = .{
+            .path = b.path("bench_runner.zig"),
+            .mode = .simple,
+        },
+    });
+
+    const run_bench = b.addRunArtifact(bench_tests);
+    if (b.args) |args| {
+        run_bench.addArgs(args);
+    }
+
+    const bench_step = b.step("bench", "Run benchmarks");
+    pipe(.{
+        &run_bench.step,
+        bench_step,
+    });
 }

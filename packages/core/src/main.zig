@@ -29,4 +29,5 @@ test {
     _ = @import("./renderer/Renderer.zig");
     _ = @import("./renderer/gradient.zig");
     _ = @import("./layout/Selection.zig");
+    _ = @import("./sample_bench.zig");
 }
