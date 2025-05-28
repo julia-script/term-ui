@@ -1,0 +1,14 @@
+// Snapshot from: layout/v2/line-builder/wrap.zig:749:9
+// Function: test.hanging spaces with normal white-space
+// Description: hanging spaces with normal white-space
+
+Wrap test: collapse_mode=collapse, wrap_mode=wrap, width=10
+
+Tokens after wrapping:
+  [0] Line 0: text "Hello" (width=5.0)
+  [1] Line 0: whitespace " " (width=1.0)
+  [2] Line 0: text "world" (width=5.0)
+  [3] Line 0: whitespace " " (width=1.0)
+
+Rendered lines:
+  Line 0: Hello world  (width=12.0)

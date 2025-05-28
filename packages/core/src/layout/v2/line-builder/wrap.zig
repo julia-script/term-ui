@@ -7,12 +7,12 @@ const std = @import("std");
 
 const mod = @import("../mod.zig");
 
-pub fn wrapTokens(tokens: []Token, available_width: mod.constants.AvailableSpace, wrap_mode: css_types.TextWrapMode) void {
+pub fn wrapTokens(tokens: []Token, available_width: mod.constants.AvailableSpace, wrap_mode: css_types.TextWrapMode, white_space_collapse: css_types.WhiteSpaceCollapse) void {
     switch (available_width) {
         .max_content => {
             switch (wrap_mode) {
                 .wrap => {
-                    wrapDefiniteWidth(tokens, std.math.floatMax(f32));
+                    wrapDefiniteWidth(tokens, std.math.floatMax(f32), white_space_collapse);
                 },
                 .nowrap => {
                     wrapNoWrap(tokens);
@@ -24,7 +24,7 @@ pub fn wrapTokens(tokens: []Token, available_width: mod.constants.AvailableSpace
             switch (wrap_mode) {
                 .wrap => {
                     const min_width = computeMinContentWidth(tokens);
-                    wrapDefiniteWidth(tokens, min_width);
+                    wrapDefiniteWidth(tokens, min_width, white_space_collapse);
                 },
                 .nowrap => {
                     wrapNoWrap(tokens);
@@ -35,7 +35,7 @@ pub fn wrapTokens(tokens: []Token, available_width: mod.constants.AvailableSpace
         .definite => |width| {
             switch (wrap_mode) {
                 .wrap => {
-                    wrapDefiniteWidth(tokens, width);
+                    wrapDefiniteWidth(tokens, width, white_space_collapse);
                 },
                 .nowrap => {
                     wrapNoWrap(tokens);
@@ -112,46 +112,96 @@ fn wrapNoWrap(tokens: []Token) void {
     }
 }
 
-pub fn wrapDefiniteWidth(tokens: []Token, width: f32) void {
+/// Determines if end-of-line spaces should hang based on white-space mode
+fn shouldHangEndSpaces(collapse_mode: css_types.WhiteSpaceCollapse) bool {
+    return switch (collapse_mode) {
+        // From the table: "Remove" means they were already removed in Phase I
+        // but any remaining spaces at EOL should hang
+        .collapse, .@"preserve-breaks" => true,
+        // "Hang" in the table (pre-wrap mode)
+        .preserve => true,
+        // preserve-spaces should hang like preserve  
+        .@"preserve-spaces" => true,
+        // "Preserve" means no hanging - spaces take up space and can wrap
+        .@"break-spaces" => false,
+        .inherit => unreachable, // Should be resolved before this point
+    };
+}
+
+pub fn wrapDefiniteWidth(tokens: []Token, width: f32, white_space_collapse: css_types.WhiteSpaceCollapse) void {
     var line_width: f32 = 0;
+    var line_width_without_trailing_spaces: f32 = 0;
     var line_index: usize = 0;
+    const should_hang = shouldHangEndSpaces(white_space_collapse);
 
     var i: usize = 0;
     while (i < tokens.len) : (i += 1) {
         const token = tokens[i];
         switch (token.kind) {
             .text, .atomic => {
-                // if break is prohibited we need to find the next allowed break,
-                // measure and see if it fits as a group
+                // Build a group of tokens with prohibited breaks
                 const start_index = i;
-                var group_width: f32 = token.size.x;
+                var group_width: f32 = 0;
+                var group_width_without_trailing_spaces: f32 = 0;
+                var last_non_whitespace_width: f32 = 0;
                 var j: usize = i;
-                while (j < tokens.len and tokens[j].break_after == .prohibited) : (j += 1) {
-                    group_width += tokens[j].size.x;
+                
+                // Accumulate the group, tracking non-whitespace width
+                while (j < tokens.len) {
+                    const tok = tokens[j];
+                    group_width += tok.size.x;
+                    
+                    if (tok.kind != .whitespace and tok.kind != .segment_break) {
+                        // This is non-whitespace, so update our non-trailing width
+                        group_width_without_trailing_spaces = group_width;
+                        last_non_whitespace_width = group_width;
+                    }
+                    
+                    j += 1;
+                    // Stop if we can break after this token
+                    if (tok.break_after != .prohibited) break;
                 }
-                if (line_width + group_width > width) {
+                
+                // For hanging calculation, we need to check if adding this group would overflow
+                const effective_line_width = if (should_hang) line_width_without_trailing_spaces else line_width;
+                const effective_group_width = if (should_hang) group_width_without_trailing_spaces else group_width;
+                    
+                if (effective_line_width + effective_group_width > width and line_width > 0) {
+                    // Wrap to next line
                     line_index += 1;
                     line_width = 0;
+                    line_width_without_trailing_spaces = 0;
                 }
-                line_width += group_width;
+                
+                // Place tokens on current line
                 for (start_index..j) |k| {
                     tokens[k].line_index = line_index;
                 }
+                
+                // Update line widths
+                line_width += group_width;
+                if (last_non_whitespace_width > 0) {
+                    line_width_without_trailing_spaces += group_width_without_trailing_spaces;
+                }
+                
                 i = j - 1;
             },
             .whitespace => {
-                // we dont break on whitespace unless it's a mandatory break, even if it overflows
+                // Standalone whitespace (not part of a group)
                 tokens[i].line_index = line_index;
                 line_width += token.size.x;
+                // Don't update line_width_without_trailing_spaces
             },
             .segment_break => {
                 tokens[i].line_index = line_index;
-                line_width += token.size.x;
+                // Segment breaks have no width
             },
         }
+        
         if (token.break_after == .mandatory) {
             line_index += 1;
             line_width = 0;
+            line_width_without_trailing_spaces = 0;
         }
     }
 }
@@ -178,7 +228,7 @@ pub const TestHelper = struct {
         WhitespaceRules.measureTokens(tokens.items);
 
         // Apply wrapping
-        wrapTokens(tokens.items, available_width, wrap_mode);
+        wrapTokens(tokens.items, available_width, wrap_mode, collapse_mode);
 
         // Build output for snapshot
         var output = std.ArrayList(u8).init(std.testing.allocator);
@@ -678,6 +728,61 @@ test "nowrap with min-content" {
         .@"preserve-breaks",
         .nowrap,
         .min_content,
+        @src(),
+    );
+}
+
+test "hanging spaces with normal white-space" {
+    const nodes = [_]WhitespaceRules.TestHelper.TestNode{
+        .{ .id = 1, .text = "Hello" },
+        .{ .id = 2, .text = "   " }, // 3 spaces (will collapse to 1)
+        .{ .id = 3, .text = "world" },
+        .{ .id = 4, .text = "   " }, // trailing spaces
+    };
+
+    try TestHelper.testWrap(
+        "hanging spaces with normal white-space",
+        &nodes,
+        .collapse, // normal white-space
+        .wrap,
+        .{ .definite = 10 }, // Should fit: "Hello" + " " + "world" = 11, but only 10 given
+        @src(),
+    );
+}
+
+test "no hanging with break-spaces" {
+    const nodes = [_]WhitespaceRules.TestHelper.TestNode{
+        .{ .id = 1, .text = "Hello" },
+        .{ .id = 2, .text = "     " }, // 5 spaces
+        .{ .id = 3, .text = "world" },
+    };
+
+    try TestHelper.testWrap(
+        "no hanging with break-spaces",
+        &nodes,
+        .@"break-spaces",
+        .wrap,
+        .{ .definite = 11 }, // Should wrap because spaces count
+        @src(),
+    );
+}
+
+test "hanging with pre-wrap" {
+    const nodes = [_]WhitespaceRules.TestHelper.TestNode{
+        .{ .id = 1, .text = "Line" },
+        .{ .id = 2, .text = "   " }, // 3 spaces
+        .{ .id = 3, .text = "one" },
+        .{ .id = 4, .text = "  " }, // 2 spaces
+        .{ .id = 5, .text = "\n" },
+        .{ .id = 6, .text = "Next" },
+    };
+
+    try TestHelper.testWrap(
+        "hanging with pre-wrap",
+        &nodes,
+        .preserve, // pre-wrap
+        .wrap,
+        .{ .definite = 10 },
         @src(),
     );
 }

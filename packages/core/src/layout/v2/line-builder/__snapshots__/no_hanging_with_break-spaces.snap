@@ -1,0 +1,14 @@
+// Snapshot from: layout/v2/line-builder/wrap.zig:757:9
+// Function: test.no hanging with break-spaces
+// Description: no hanging with break-spaces
+
+Wrap test: collapse_mode=break-spaces, wrap_mode=wrap, width=11
+
+Tokens after wrapping:
+  [0] Line 0: text "Hello" (width=5.0)
+  [1] Line 0: whitespace "     " (width=5.0)
+  [2] Line 1: text "world" (width=5.0)
+
+Rendered lines:
+  Line 0: Hello      (width=10.0)
+  Line 1: world (width=5.0)

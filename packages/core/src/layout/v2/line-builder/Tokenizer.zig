@@ -280,6 +280,7 @@ fn transformWhitespace(text: []const u8, collapse_mode: WhiteSpaceCollapse) []co
         },
         .@"preserve-spaces" => " ", // All collapsible chars (tabs, newlines) become single space
         .collapse => " ", // All whitespace becomes single space
+        .@"break-spaces" => text, // Keep as-is like preserve
         .inherit => unreachable, // Should be resolved by now
     };
 }
@@ -322,6 +323,7 @@ fn isCollapsible(codepoint: u21, collapse_mode: WhiteSpaceCollapse) bool {
             '\t', '\n' => true, // Tabs and segment breaks are collapsible (converted to spaces)
             else => false,
         },
+        .@"break-spaces" => false, // Nothing is collapsible in break-spaces mode
         .inherit => std.debug.panic("inherit property should be resolved during style computation", .{}),
     };
 }

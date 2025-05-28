@@ -39,6 +39,8 @@ pub const WhiteSpaceCollapse = enum {
     @"preserve-breaks",
     /// Preserve spaces and treat tabs/segment breaks as spaces (SVG xml:space="preserve")
     @"preserve-spaces",
+    /// Like preserve, but spaces at end of line wrap instead of hanging
+    @"break-spaces",
     inherit,
 };
 

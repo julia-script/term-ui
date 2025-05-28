@@ -24,7 +24,8 @@ pub fn compute(
     );
     defer tokens.deinit();
     WhitespaceRules.applyPhase1Rules(tokens.items, collapse_mode);
-    wrap.wrapTokens(tokens.items, inputs.available_space.x, wrap_mode);
+    WhitespaceRules.measureTokens(tokens.items);
+    wrap.wrapTokens(tokens.items, inputs.available_space.x, wrap_mode, collapse_mode);
     WhitespaceRules.TestHelper.printTokens(tokens.items, std.io.getStdErr().writer().any()) catch {};
 }
 

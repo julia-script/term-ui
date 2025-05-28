@@ -31,6 +31,10 @@ pub fn applyPhase1Rules(tokens: []Token, collapse_mode: WhiteSpaceCollapse) void
         .preserve => {
             // No transformation needed - preserve all whitespace as-is
         },
+        .@"break-spaces" => {
+            // Like preserve but with different wrapping behavior
+            // No transformation needed - preserve all whitespace as-is
+        },
         .inherit => unreachable, // Should be resolved by now
     }
 }
@@ -245,6 +249,7 @@ pub const TestHelper = struct {
             .@"preserve-breaks",
             .@"preserve-spaces",
             .preserve,
+            .@"break-spaces",
         };
 
         for (modes) |mode| {
