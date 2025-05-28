@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/text/LineBuilder.zig:923:9
+// Snapshot from: layout/v2/text/LineBuilder.zig:953:9
 // Function: test.Phase 1: Nested elements with whitespace
 // Description: nested elements whitespace
 
@@ -52,32 +52,18 @@ DocTree:
 LayoutTree:
 [block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
 └── [block_container_node #1 ref={doc#0} children={9} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    ├── [inline_container_node #3 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │   ├── [line_box #0 fragments=1]
-    │   │   └── [fragment node={#2} range=0-1 pos=(0.00e0, 0.00e0) text=" "]
+    ├── [inline_container_node #3 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
     │   └── [text_node #2] "\n  "
     ├── [block_container_node #4 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │   └── [inline_container_node #5 ref={doc#2} children={3} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │       ├── [line_box #0 fragments=3]
-    │       │   ├── [fragment node={#6} range=0-7 pos=(0.00e0, 0.00e0) text="Before "]
-    │       │   ├── [fragment node={#8} range=0-7 pos=(0.00e0, 0.00e0) text="inside "]
-    │       │   └── [fragment node={#9} range=0-5 pos=(0.00e0, 0.00e0) text="after"]
+    │   └── [inline_container_node #5 ref={doc#2} children={3} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
     │       ├── [text_node #6] "Before "
     │       ├── [inline_node #7 ref={doc#4} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
     │       │   └── [text_node #8] "  inside  "
     │       └── [text_node #9] " after"
-    ├── [inline_container_node #11 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │   ├── [line_box #0 fragments=1]
-    │   │   └── [fragment node={#10} range=0-1 pos=(0.00e0, 0.00e0) text=" "]
+    ├── [inline_container_node #11 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
     │   └── [text_node #10] "\n  "
     ├── [block_container_node #12 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │   └── [inline_container_node #13 ref={doc#8} children={5} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │       ├── [line_box #0 fragments=5]
-    │       │   ├── [fragment node={#14} range=0-4 pos=(0.00e0, 0.00e0) text="Text"]
-    │       │   ├── [fragment node={#16} range=0-0 pos=(0.00e0, 0.00e0) text=""]
-    │       │   ├── [fragment node={#17} range=0-1 pos=(0.00e0, 0.00e0) text=" "]
-    │       │   ├── [fragment node={#19} range=0-0 pos=(0.00e0, 0.00e0) text=""]
-    │       │   └── [fragment node={#20} range=0-4 pos=(0.00e0, 0.00e0) text="more"]
+    │   └── [inline_container_node #13 ref={doc#8} children={5} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
     │       ├── [text_node #14] "Text"
     │       ├── [inline_node #15 ref={doc#10} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
     │       │   └── [text_node #16] "\t"
@@ -85,18 +71,10 @@ LayoutTree:
     │       ├── [inline_node #18 ref={doc#13} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
     │       │   └── [text_node #19] "\t"
     │       └── [text_node #20] "more"
-    ├── [inline_container_node #22 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │   ├── [line_box #0 fragments=1]
-    │   │   └── [fragment node={#21} range=0-1 pos=(0.00e0, 0.00e0) text=" "]
+    ├── [inline_container_node #22 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
     │   └── [text_node #21] "\n  "
     ├── [block_container_node #23 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │   └── [inline_container_node #24 ref={doc#17} children={3} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │       ├── [line_box #0 fragments=5]
-    │       │   ├── [fragment node={#25} range=0-5 pos=(0.00e0, 0.00e0) text="Deep "]
-    │       │   ├── [fragment node={#27} range=0-5 pos=(0.00e0, 0.00e0) text="very "]
-    │       │   ├── [fragment node={#29} range=0-7 pos=(0.00e0, 0.00e0) text="nested "]
-    │       │   ├── [fragment node={#30} range=0-7 pos=(0.00e0, 0.00e0) text="content"]
-    │       │   └── [fragment node={#31} range=0-4 pos=(0.00e0, 0.00e0) text=" end"]
+    │   └── [inline_container_node #24 ref={doc#17} children={3} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
     │       ├── [text_node #25] "Deep "
     │       ├── [inline_node #26 ref={doc#19} children={3} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
     │       │   ├── [text_node #27] "very "
@@ -104,20 +82,10 @@ LayoutTree:
     │       │   │   └── [text_node #29] "  nested  "
     │       │   └── [text_node #30] " content"
     │       └── [text_node #31] " end"
-    ├── [inline_container_node #33 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │   ├── [line_box #0 fragments=1]
-    │   │   └── [fragment node={#32} range=0-1 pos=(0.00e0, 0.00e0) text=" "]
+    ├── [inline_container_node #33 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
     │   └── [text_node #32] "\n  "
     ├── [block_container_node #34 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │   └── [inline_container_node #35 ref={doc#26} children={7} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │       ├── [line_box #0 fragments=7]
-    │       │   ├── [fragment node={#36} range=0-8 pos=(0.00e0, 0.00e0) text="Multiple"]
-    │       │   ├── [fragment node={#38} range=0-0 pos=(0.00e0, 0.00e0) text=""]
-    │       │   ├── [fragment node={#39} range=0-0 pos=(0.00e0, 0.00e0) text=""]
-    │       │   ├── [fragment node={#41} range=0-1 pos=(0.00e0, 0.00e0) text=" "]
-    │       │   ├── [fragment node={#42} range=0-0 pos=(0.00e0, 0.00e0) text=""]
-    │       │   ├── [fragment node={#44} range=0-0 pos=(0.00e0, 0.00e0) text=""]
-    │       │   └── [fragment node={#45} range=0-5 pos=(0.00e0, 0.00e0) text="spans"]
+    │   └── [inline_container_node #35 ref={doc#26} children={7} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
     │       ├── [text_node #36] "Multiple "
     │       ├── [inline_node #37 ref={doc#28} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
     │       │   └── [text_node #38] " \t "
@@ -128,36 +96,8 @@ LayoutTree:
     │       ├── [inline_node #43 ref={doc#34} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
     │       │   └── [text_node #44] "   "
     │       └── [text_node #45] " spans"
-    └── [inline_container_node #47 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-        ├── [line_box #0 fragments=1]
-        │   └── [fragment node={#46} range=0-1 pos=(0.00e0, 0.00e0) text=" "]
+    └── [inline_container_node #47 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
         └── [text_node #46] "\n"
 
 Rendered Text Output:
-Inline Context #1: 1 line(s)
-  Line 0: " "
-
-Inline Context #2: 1 line(s)
-  Line 0: "Before inside after"
-
-Inline Context #3: 1 line(s)
-  Line 0: " "
-
-Inline Context #4: 1 line(s)
-  Line 0: "Text more"
-
-Inline Context #5: 1 line(s)
-  Line 0: " "
-
-Inline Context #6: 1 line(s)
-  Line 0: "Deep very nested content end"
-
-Inline Context #7: 1 line(s)
-  Line 0: " "
-
-Inline Context #8: 1 line(s)
-  Line 0: "Multiple spans"
-
-Inline Context #9: 1 line(s)
-  Line 0: " "
-
+(no rendered text)

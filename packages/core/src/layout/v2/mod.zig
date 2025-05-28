@@ -42,6 +42,7 @@ pub const LineBoxList = LineBox.LineBoxList;
 
 pub const RenderList = @import("./RenderList.zig");
 pub const RenderListBuilder = @import("./RenderListBuilder.zig");
+pub const compute = @import("./line-builder/compute.zig").compute;
 
 test {
     std.testing.refAllDecls(@This());

@@ -1,0 +1,32 @@
+// Snapshot from: layout/v2/line-builder/wrap.zig:662:9
+// Function: test.nowrap with max-content
+// Description: nowrap with max-content
+
+Wrap test: collapse_mode=preserve-breaks, wrap_mode=nowrap, width=max-content
+
+Tokens after wrapping:
+  [0] Line 0: text "This" (width=4.0)
+  [1] Line 0: whitespace " " (width=1.0)
+  [2] Line 0: text "should" (width=6.0)
+  [3] Line 0: whitespace " " (width=1.0)
+  [4] Line 0: text "stay" (width=4.0)
+  [5] Line 0: whitespace " " (width=1.0)
+  [6] Line 0: text "on" (width=2.0)
+  [7] Line 0: whitespace " " (width=1.0)
+  [8] Line 0: text "one" (width=3.0)
+  [9] Line 0: whitespace " " (width=1.0)
+  [10] Line 0: text "line" (width=4.0)
+  [11] Line 0: segment_break (mandatory) (width=0.0)
+  [12] Line 1: text "This" (width=4.0)
+  [13] Line 1: whitespace " " (width=1.0)
+  [14] Line 1: text "is" (width=2.0)
+  [15] Line 1: whitespace " " (width=1.0)
+  [16] Line 1: text "the" (width=3.0)
+  [17] Line 1: whitespace " " (width=1.0)
+  [18] Line 1: text "second" (width=6.0)
+  [19] Line 1: whitespace " " (width=1.0)
+  [20] Line 1: text "line" (width=4.0)
+
+Rendered lines:
+  Line 0: This should stay on one line (width=28.0)
+  Line 1: This is the second line (width=23.0)

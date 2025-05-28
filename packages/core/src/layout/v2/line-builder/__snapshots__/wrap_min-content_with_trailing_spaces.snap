@@ -1,0 +1,17 @@
+// Snapshot from: layout/v2/line-builder/wrap.zig:567:9
+// Function: test.wrap min-content with trailing spaces
+// Description: wrap min-content with trailing spaces
+
+Wrap test: collapse_mode=preserve-spaces, wrap_mode=wrap, width=min-content
+
+Tokens after wrapping:
+  [0] Line 1: text "Word" (width=4.0)
+  [1] Line 1: whitespace "    " (width=4.0)
+  [2] Line 2: text "Next" (width=4.0)
+  [3] Line 2: whitespace " " (width=1.0)
+  [4] Line 3: text "Line" (width=4.0)
+
+Rendered lines:
+  Line 1: Word     (width=8.0)
+  Line 2: Next  (width=5.0)
+  Line 3: Line (width=4.0)

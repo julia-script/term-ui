@@ -1,0 +1,11 @@
+// Snapshot from: layout/v2/line-builder/wrap.zig:488:9
+// Function: test.wrap single character per line
+// Description: wrap single character per line
+
+Wrap test: collapse_mode=collapse, wrap_mode=wrap, width=1
+
+Tokens after wrapping:
+  [0] Line 1: text "ABCD" (width=4.0)
+
+Rendered lines:
+  Line 1: ABCD (width=4.0)

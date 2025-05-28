@@ -5,7 +5,9 @@
       "Bash(./zig-out/bin/test)",
       "Bash(grep:*)",
       "Bash(find:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(zig test:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }

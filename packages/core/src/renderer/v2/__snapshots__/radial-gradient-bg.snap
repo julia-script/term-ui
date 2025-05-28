@@ -10,21 +10,27 @@
 
 --- DOM Tree ---
 [node#0 block flow_root]
+    [text #1] "\n"
 
 --- Layout Tree (before computation) ---
 [block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-└── [inline_container_node #1 ref={doc#0} children={0} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+└── [inline_container_node #1 ref={doc#0} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    └── [text_node #2] "\n"
 
 --- Layout Computation ---
 Available space: 30x15
 
 --- Layout Tree (after computation) ---
 [block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (30.00, 15.00) content: (30.00, 15.00)]}]
-└── [inline_container_node #1 ref={doc#0} children={0} lines={0} box={[loc: (0.00, 0.00) size: (20.00, 10.00) content: (30.00, 0.00)]}]
+└── [inline_container_node #1 ref={doc#0} children={1} lines={1} box={[loc: (0.00, 0.00) size: (20.00, 10.00) content: (30.00, 0.00)]}]
+    ├── [line_box #0 fragments=1]
+    │   └── [fragment node={#2} range=0-1 pos={(0.00, 0.00)} size={(1.00, 1.00)} text=" "]
+    └── [text_node #2] "\n"
 
 --- Render List ---
-RenderList (1 items):
+RenderList (2 items):
   [0] Box #1 bounds=(0.0,0.0 20.0x10.0) z=0 bg=<gradient>
+  [1] TextFragment #2 bounds=(0.0,0.0 1.0x1.0) z=0 text=" "
 
 --- Rendered Output ---
 Raw (escape sequences as \E):

@@ -513,7 +513,7 @@ fn printLineBox(_: *Self, line_box: *const mod.LineBox, index: usize, writer: st
             try writer.writeAll("└── ")
         else
             try writer.writeAll("├── ");
-        try writer.print("[fragment node={{#{d}}} range={d}-{d} pos=({:.2}, {:.2}) text=\"", .{ fragment.l_node_id, fragment.start, fragment.start + fragment.length, fragment.position.x, fragment.position.y });
+        try writer.print("[fragment node={{#{d}}} range={d}-{d} pos={{{any}}} size={{{any}}} text=\"", .{ fragment.l_node_id, fragment.start, fragment.start + fragment.length, fragment.position, fragment.size });
         for (fragment.text) |c| {
             switch (c) {
                 '\n' => try writer.writeAll("\\n"),

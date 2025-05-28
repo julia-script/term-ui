@@ -13,6 +13,8 @@ cm_base: ?struct {
     prop: lookups.LineBreak,
 },
 emit_eof_break: bool = false,
+last_buffer_index: usize = 0,
+prev_break_index: usize = 0,
 
 const Context = enum {
     zw_sp,
@@ -28,12 +30,19 @@ const Self = @This();
 pub const Break = struct {
     mandatory: bool,
     i: usize,
+    local_i: usize,
+    slice: []const u8,
 };
 pub fn append(self: *Self, data: []const u8) !void {
     if (!std.unicode.utf8ValidateSlice(data)) {
         return error.InvalidUtf8;
     }
+    self.last_buffer_index = self.buffer.items.len;
     try self.buffer.appendSlice(data);
+}
+
+pub fn getLocalIndex(self: *Self) usize {
+    return self.i - self.last_buffer_index;
 }
 
 pub fn markStreamDone(self: *Self) void {
@@ -81,9 +90,12 @@ pub fn next(self: *Self) ?Break {
 
         const after_code_point = if (iter.nextCodepoint()) |next_code_point| next_code_point else {
             if (self.emit_eof_break) {
+                defer self.prev_break_index = self.i;
                 return Break{
                     .mandatory = true,
                     .i = self.i,
+                    .local_i = self.getLocalIndex(),
+                    .slice = self.buffer.items[self.prev_break_index..self.i],
                 };
             }
             self.i = i;
@@ -98,9 +110,12 @@ pub fn next(self: *Self) ?Break {
         }
 
         if (self.checkPair(before, before_code_point, after, after_code_point)) |mandatory| {
+            defer self.prev_break_index = self.i;
             return Break{
                 .mandatory = mandatory,
                 .i = self.i,
+                .local_i = self.getLocalIndex(),
+                .slice = self.buffer.items[self.prev_break_index..self.i],
             };
         }
         before_code_point = after_code_point;

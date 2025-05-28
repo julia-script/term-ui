@@ -1,0 +1,25 @@
+// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:476:74
+// Function: test.All modes: Complex mixed whitespace sequence
+// Description: complex mixed whitespace sequence
+
+Legend:
+  Token types: T = Text, SP = Space, LB = LineBreak
+  Break types: × = NoBreak, ÷ = BreakAllowed, ! = MandatoryBreak
+  Characters: _ = Space, \t = Tab
+
+=== White-space: collapse ===
+Input:  N1{ T["start"]× SP["_"]÷ T["end"]×}
+Output: N1{ T["start"]× SP["_"]÷ T["end"]×}
+
+=== White-space: preserve-breaks ===
+Input:  N1{ T["start"]× SP["_"]÷ LB[∅]! LB[∅]! SP["_"]÷ T["end"]×}
+Output: N1{ T["start"]× SP[∅]÷ LB[∅]! LB[∅]! SP[∅]÷ T["end"]×}
+
+=== White-space: preserve-spaces ===
+Input:  N1{ T["start"]× SP["__"]÷ LB[∅]! SP["__"]÷ T["end"]×}
+Output: N1{ T["start"]× SP["__"]÷ LB! SP["__"]÷ T["end"]×}
+
+=== White-space: preserve ===
+Input:  N1{ T["start"]× SP["__\t"]÷ LB[∅]! LB[∅]! SP["\t__"]÷ T["end"]×}
+Output: N1{ T["start"]× SP["__\t"]÷ LB[∅]! LB[∅]! SP["\t__"]÷ T["end"]×}
+

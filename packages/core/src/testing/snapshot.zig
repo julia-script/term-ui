@@ -38,11 +38,11 @@ fn expectMatchSnapshotImpl(
     } else |err| {
         if (err != error.EnvironmentVariableNotFound) return err;
     }
-    
+
     // Add header with source location info
     var actual_with_header = std.ArrayList(u8).init(allocator);
     defer actual_with_header.deinit();
-    
+
     try actual_with_header.writer().print(
         \\// Snapshot from: {s}:{d}:{d}
         \\// Function: {s}
@@ -71,7 +71,7 @@ fn expectMatchSnapshotImpl(
     defer allocator.free(buf);
 
     if (!std.mem.eql(u8, buf, actual_with_header.items)) {
-        std.debug.print("Snapshot mismatch for {s}\n", .{snapshot_path});
+        std.debug.print("Snapshot mismatch for {s}\nPass the UPDATE_SNAPSHOTS=true environment variable to update the snapshot\n", .{snapshot_path});
     }
     try std.testing.expectEqualStrings(buf, actual_with_header.items);
 }

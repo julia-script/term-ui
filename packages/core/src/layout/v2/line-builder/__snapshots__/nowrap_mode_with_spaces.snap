@@ -1,0 +1,21 @@
+// Snapshot from: layout/v2/line-builder/wrap.zig:645:9
+// Function: test.nowrap mode with spaces
+// Description: nowrap mode with spaces
+
+Wrap test: collapse_mode=collapse, wrap_mode=nowrap, width=5
+
+Tokens after wrapping:
+  [0] Line 0: text "Word" (width=4.0)
+  [1] Line 0: whitespace " " (width=1.0)
+  [2] Line 0: text "after" (width=5.0)
+  [3] Line 0: whitespace " " (width=1.0)
+  [4] Line 0: text "word" (width=4.0)
+  [5] Line 0: whitespace " " (width=1.0)
+  [6] Line 0: text "should" (width=6.0)
+  [7] Line 0: whitespace " " (width=1.0)
+  [8] Line 0: text "not" (width=3.0)
+  [9] Line 0: whitespace " " (width=1.0)
+  [10] Line 0: text "wrap" (width=4.0)
+
+Rendered lines:
+  Line 0: Word after word should not wrap (width=31.0)

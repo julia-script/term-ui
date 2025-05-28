@@ -1,0 +1,27 @@
+// Snapshot from: layout/v2/line-builder/wrap.zig:314:9
+// Function: test.wrap with newlines
+// Description: wrap with newlines
+
+Wrap test: collapse_mode=preserve-breaks, wrap_mode=wrap, width=50
+
+Tokens after wrapping:
+  [0] Line 0: text "Line" (width=4.0)
+  [1] Line 0: whitespace " " (width=1.0)
+  [2] Line 0: text "one" (width=3.0)
+  [3] Line 0: segment_break (mandatory) (width=0.0)
+  [4] Line 1: text "Line" (width=4.0)
+  [5] Line 1: whitespace " " (width=1.0)
+  [6] Line 1: text "two" (width=3.0)
+  [7] Line 1: whitespace " " (width=1.0)
+  [8] Line 1: text "is" (width=2.0)
+  [9] Line 1: whitespace " " (width=1.0)
+  [10] Line 1: text "longer" (width=6.0)
+  [11] Line 1: segment_break (mandatory) (width=0.0)
+  [12] Line 2: text "Line" (width=4.0)
+  [13] Line 2: whitespace " " (width=1.0)
+  [14] Line 2: text "three" (width=5.0)
+
+Rendered lines:
+  Line 0: Line one (width=8.0)
+  Line 1: Line two is longer (width=18.0)
+  Line 2: Line three (width=10.0)

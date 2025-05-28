@@ -1,0 +1,71 @@
+// Snapshot from: layout/v2/text/LineBuilder.zig:1621:9
+// Function: test.Text wrapping: Pre-wrap mode with definite width
+// Description: pre-wrap mode with definite width
+
+Input XML:
+<div>
+  <p style="white-space: pre-wrap">This long line preserves   spaces   but wraps when needed</p>
+  <p style="white-space: pre-wrap">Multiple     spaces&#9;&#9;tabs&#10;and breaks preserved</p>
+</div>
+
+DocTree:
+[node#0 block flow_root]
+    [text #1] "\n  "
+    [node#2 block flow_root]
+        [text #3] "This long line preserves   spaces   but wraps when needed"
+    [text #4] "\n  "
+    [node#5 block flow_root]
+        [text #6] "Multiple     spaces\t\ttabs\nand breaks preserved"
+    [text #7] "\n"
+LayoutTree:
+[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (25.00, 0.00) content: (25.00, 0.00)]}]
+└── [block_container_node #1 ref={doc#0} children={5} box={[loc: (0.00, 0.00) size: (25.00, 0.00) content: (25.00, 0.00)]}]
+    ├── [inline_container_node #3 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (25.00, 0.00) content: (25.00, 0.00)]}]
+    │   ├── [line_box #0 fragments=1]
+    │   │   └── [fragment node={#2} range=0-1 pos={(0.00, 0.00)} size={(1.00, 1.00)} text=" "]
+    │   └── [text_node #2] "\n  "
+    ├── [block_container_node #4 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (25.00, 0.00) content: (25.00, 0.00)]}]
+    │   └── [inline_container_node #5 ref={doc#2} children={1} lines={3} box={[loc: (0.00, 0.00) size: (25.00, 0.00) content: (25.00, 0.00)]}]
+    │       ├── [line_box #0 fragments=1]
+    │       │   └── [fragment node={#6} range=0-27 pos={(0.00, 0.00)} size={(27.00, 1.00)} text="This long line preserves   "]
+    │       ├── [line_box #1 fragments=1]
+    │       │   └── [fragment node={#6} range=27-51 pos={(0.00, 1.00)} size={(24.00, 1.00)} text="spaces   but wraps when "]
+    │       ├── [line_box #2 fragments=1]
+    │       │   └── [fragment node={#6} range=51-57 pos={(0.00, 2.00)} size={(6.00, 1.00)} text="needed"]
+    │       └── [text_node #6] "This long line preserves   spaces   but wraps when needed"
+    ├── [inline_container_node #8 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (25.00, 0.00) content: (25.00, 0.00)]}]
+    │   ├── [line_box #0 fragments=1]
+    │   │   └── [fragment node={#7} range=0-1 pos={(0.00, 0.00)} size={(1.00, 1.00)} text=" "]
+    │   └── [text_node #7] "\n  "
+    ├── [block_container_node #9 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (25.00, 0.00) content: (25.00, 0.00)]}]
+    │   └── [inline_container_node #10 ref={doc#5} children={1} lines={2} box={[loc: (0.00, 0.00) size: (25.00, 0.00) content: (25.00, 0.00)]}]
+    │       ├── [line_box #0 fragments=1]
+    │       │   └── [fragment node={#11} range=0-25 pos={(0.00, 0.00)} size={(4.00, 1.00)} text="Multiple     spaces\t\ttabs"]
+    │       ├── [line_box #1 fragments=2]
+    │       │   ├── [fragment node={#11} range=26-37 pos={(0.00, 1.00)} size={(11.00, 1.00)} text="and breaks "]
+    │       │   └── [fragment node={#11} range=37-46 pos={(11.00, 1.00)} size={(9.00, 1.00)} text="preserved"]
+    │       └── [text_node #11] "Multiple     spaces\t\ttabs\nand breaks preserved"
+    └── [inline_container_node #13 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (25.00, 0.00) content: (25.00, 0.00)]}]
+        ├── [line_box #0 fragments=1]
+        │   └── [fragment node={#12} range=0-1 pos={(0.00, 0.00)} size={(1.00, 1.00)} text=" "]
+        └── [text_node #12] "\n"
+
+Rendered Text Output:
+Inline Context #1: 1 line(s)
+  Line 0: " " (width: 1)
+
+Inline Context #2: 3 line(s)
+  Line 0: "This long line preserves   " (width: 27)
+  Line 1: "spaces   but wraps when " (width: 24)
+  Line 2: "needed" (width: 6)
+
+Inline Context #3: 1 line(s)
+  Line 0: " " (width: 1)
+
+Inline Context #4: 2 line(s)
+  Line 0: "Multiple     spaces\t\ttabs" (width: 4)
+  Line 1: "and breaks preserved" (width: 20)
+
+Inline Context #5: 1 line(s)
+  Line 0: " " (width: 1)
+

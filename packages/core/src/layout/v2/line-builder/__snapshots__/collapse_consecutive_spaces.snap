@@ -1,0 +1,25 @@
+// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:443:68
+// Function: test.All modes: Collapse consecutive spaces
+// Description: collapse consecutive spaces
+
+Legend:
+  Token types: T = Text, SP = Space, LB = LineBreak
+  Break types: × = NoBreak, ÷ = BreakAllowed, ! = MandatoryBreak
+  Characters: _ = Space, \t = Tab
+
+=== White-space: collapse ===
+Input:  N1{ T["hello"]× SP["_"]÷ T["world"]×}
+Output: N1{ T["hello"]× SP["_"]÷ T["world"]×}
+
+=== White-space: preserve-breaks ===
+Input:  N1{ T["hello"]× SP["___"]÷ T["world"]×}
+Output: N1{ T["hello"]× SP["___"]÷ T["world"]×}
+
+=== White-space: preserve-spaces ===
+Input:  N1{ T["hello"]× SP["___"]÷ T["world"]×}
+Output: N1{ T["hello"]× SP["___"]÷ T["world"]×}
+
+=== White-space: preserve ===
+Input:  N1{ T["hello"]× SP["___"]÷ T["world"]×}
+Output: N1{ T["hello"]× SP["___"]÷ T["world"]×}
+

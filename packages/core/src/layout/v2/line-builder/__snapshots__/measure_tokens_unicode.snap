@@ -1,0 +1,10 @@
+// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:690:9
+// Function: test.Measure tokens with unicode
+// Description: measure tokens unicode
+
+Unicode tokens after measurement:
+Token 0: kind=text, text="Hello😀", size=(7.0, 1.0)
+Token 1: kind=whitespace, text=" ", size=(1.0, 1.0)
+Token 2: kind=text, text="中文", size=(4.0, 1.0)
+Token 3: kind=whitespace, text=" ", size=(1.0, 1.0)
+Token 4: kind=text, text="café", size=(4.0, 1.0)

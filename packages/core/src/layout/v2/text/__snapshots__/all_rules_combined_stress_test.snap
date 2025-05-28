@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/text/LineBuilder.zig:937:9
+// Snapshot from: layout/v2/text/LineBuilder.zig:967:9
 // Function: test.Phase 1: All rules combined stress test
 // Description: all rules combined stress test
 
@@ -33,29 +33,15 @@ DocTree:
 LayoutTree:
 [block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
 └── [block_container_node #1 ref={doc#0} children={7} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    ├── [inline_container_node #3 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │   ├── [line_box #0 fragments=1]
-    │   │   └── [fragment node={#2} range=0-1 pos=(0.00e0, 0.00e0) text=" "]
+    ├── [inline_container_node #3 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
     │   └── [text_node #2] "\n  "
     ├── [block_container_node #4 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │   └── [inline_container_node #5 ref={doc#2} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │       ├── [line_box #0 fragments=1]
-    │       │   └── [fragment node={#6} range=0-16 pos=(0.00e0, 0.00e0) text="Start middle end"]
+    │   └── [inline_container_node #5 ref={doc#2} children={1} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
     │       └── [text_node #6] "Start   \t\t \n\n\n   \t  middle   \t \n   end"
-    ├── [inline_container_node #8 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │   ├── [line_box #0 fragments=1]
-    │   │   └── [fragment node={#7} range=0-1 pos=(0.00e0, 0.00e0) text=" "]
+    ├── [inline_container_node #8 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
     │   └── [text_node #7] "\n  "
     ├── [block_container_node #9 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │   └── [inline_container_node #10 ref={doc#5} children={7} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │       ├── [line_box #0 fragments=7]
-    │       │   ├── [fragment node={#11} range=0-7 pos=(0.00e0, 0.00e0) text="Complex"]
-    │       │   ├── [fragment node={#13} range=0-0 pos=(0.00e0, 0.00e0) text=""]
-    │       │   ├── [fragment node={#14} range=0-1 pos=(0.00e0, 0.00e0) text=" "]
-    │       │   ├── [fragment node={#16} range=0-0 pos=(0.00e0, 0.00e0) text=""]
-    │       │   ├── [fragment node={#17} range=0-0 pos=(0.00e0, 0.00e0) text=""]
-    │       │   ├── [fragment node={#19} range=0-0 pos=(0.00e0, 0.00e0) text=""]
-    │       │   └── [fragment node={#20} range=0-4 pos=(0.00e0, 0.00e0) text="test"]
+    │   └── [inline_container_node #10 ref={doc#5} children={7} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
     │       ├── [text_node #11] "Complex"
     │       ├── [inline_node #12 ref={doc#7} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
     │       │   └── [text_node #13] "   \t "
@@ -66,39 +52,13 @@ LayoutTree:
     │       ├── [inline_node #18 ref={doc#13} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
     │       │   └── [text_node #19] "   "
     │       └── [text_node #20] "test"
-    ├── [inline_container_node #22 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │   ├── [line_box #0 fragments=1]
-    │   │   └── [fragment node={#21} range=0-1 pos=(0.00e0, 0.00e0) text=" "]
+    ├── [inline_container_node #22 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
     │   └── [text_node #21] "\n  "
     ├── [block_container_node #23 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │   └── [inline_container_node #24 ref={doc#17} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │       ├── [line_box #0 fragments=1]
-    │       │   └── [fragment node={#25} range=0-18 pos=(0.00e0, 0.00e0) text="Maximum complexity"]
+    │   └── [inline_container_node #24 ref={doc#17} children={1} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
     │       └── [text_node #25] "Maximum     \t\t\t     \n\n\n\n     \t\t     complexity"
-    └── [inline_container_node #27 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-        ├── [line_box #0 fragments=1]
-        │   └── [fragment node={#26} range=0-1 pos=(0.00e0, 0.00e0) text=" "]
+    └── [inline_container_node #27 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
         └── [text_node #26] "\n"
 
 Rendered Text Output:
-Inline Context #1: 1 line(s)
-  Line 0: " "
-
-Inline Context #2: 1 line(s)
-  Line 0: "Start middle end"
-
-Inline Context #3: 1 line(s)
-  Line 0: " "
-
-Inline Context #4: 1 line(s)
-  Line 0: "Complex test"
-
-Inline Context #5: 1 line(s)
-  Line 0: " "
-
-Inline Context #6: 1 line(s)
-  Line 0: "Maximum complexity"
-
-Inline Context #7: 1 line(s)
-  Line 0: " "
-
+(no rendered text)

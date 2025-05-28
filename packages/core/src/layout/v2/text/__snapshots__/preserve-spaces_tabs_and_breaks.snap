@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/text/LineBuilder.zig:1043:9
+// Snapshot from: layout/v2/text/LineBuilder.zig:1434:9
 // Function: test.Phase 1: preserve-spaces mode - tabs and breaks to spaces
 // Description: preserve-spaces tabs and breaks
 
@@ -24,57 +24,23 @@ DocTree:
 LayoutTree:
 [block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
 └── [block_container_node #1 ref={doc#0} children={7} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    ├── [inline_container_node #3 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │   ├── [line_box #0 fragments=1]
-    │   │   └── [fragment node={#2} range=0-1 pos=(0.00e0, 0.00e0) text=" "]
+    ├── [inline_container_node #3 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
     │   └── [text_node #2] "\n  "
     ├── [block_container_node #4 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │   └── [inline_container_node #5 ref={doc#2} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │       ├── [line_box #0 fragments=1]
-    │       │   └── [fragment node={#6} range=0-16 pos=(0.00e0, 0.00e0) text="Hello world test"]
+    │   └── [inline_container_node #5 ref={doc#2} children={1} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
     │       └── [text_node #6] "Hello\tworld\ntest"
-    ├── [inline_container_node #8 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │   ├── [line_box #0 fragments=1]
-    │   │   └── [fragment node={#7} range=0-1 pos=(0.00e0, 0.00e0) text=" "]
+    ├── [inline_container_node #8 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
     │   └── [text_node #7] "\n  "
     ├── [block_container_node #9 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │   └── [inline_container_node #10 ref={doc#5} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │       ├── [line_box #0 fragments=1]
-    │       │   └── [fragment node={#11} range=0-20 pos=(0.00e0, 0.00e0) text="Multiple tabs breaks"]
+    │   └── [inline_container_node #10 ref={doc#5} children={1} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
     │       └── [text_node #11] "Multiple\t\ttabs\n\nbreaks"
-    ├── [inline_container_node #13 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │   ├── [line_box #0 fragments=1]
-    │   │   └── [fragment node={#12} range=0-1 pos=(0.00e0, 0.00e0) text=" "]
+    ├── [inline_container_node #13 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
     │   └── [text_node #12] "\n  "
     ├── [block_container_node #14 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │   └── [inline_container_node #15 ref={doc#8} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-    │       ├── [line_box #0 fragments=1]
-    │       │   └── [fragment node={#16} range=0-18 pos=(0.00e0, 0.00e0) text="Mixed content here"]
+    │   └── [inline_container_node #15 ref={doc#8} children={1} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
     │       └── [text_node #16] "Mixed\tcontent\nhere"
-    └── [inline_container_node #18 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
-        ├── [line_box #0 fragments=1]
-        │   └── [fragment node={#17} range=0-1 pos=(0.00e0, 0.00e0) text=" "]
+    └── [inline_container_node #18 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (50.00, 0.00) content: (50.00, 0.00)]}]
         └── [text_node #17] "\n"
 
 Rendered Text Output:
-Inline Context #1: 1 line(s)
-  Line 0: " "
-
-Inline Context #2: 1 line(s)
-  Line 0: "Hello world test"
-
-Inline Context #3: 1 line(s)
-  Line 0: " "
-
-Inline Context #4: 1 line(s)
-  Line 0: "Multiple tabs breaks"
-
-Inline Context #5: 1 line(s)
-  Line 0: " "
-
-Inline Context #6: 1 line(s)
-  Line 0: "Mixed content here"
-
-Inline Context #7: 1 line(s)
-  Line 0: " "
-
+(no rendered text)

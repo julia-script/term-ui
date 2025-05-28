@@ -1,0 +1,18 @@
+// Snapshot from: layout/v2/line-builder/wrap.zig:384:9
+// Function: test.wrap preserve spaces
+// Description: wrap preserve spaces
+
+Wrap test: collapse_mode=preserve-spaces, wrap_mode=wrap, width=15
+
+Tokens after wrapping:
+  [0] Line 0: text "Hello" (width=5.0)
+  [1] Line 0: whitespace "  " (width=2.0)
+  [2] Line 0: whitespace "  " (width=2.0)
+  [3] Line 1: text "world" (width=5.0)
+  [4] Line 1: whitespace "  " (width=2.0)
+  [5] Line 2: text "test" (width=4.0)
+
+Rendered lines:
+  Line 0: Hello     (width=9.0)
+  Line 1: world   (width=7.0)
+  Line 2: test (width=4.0)

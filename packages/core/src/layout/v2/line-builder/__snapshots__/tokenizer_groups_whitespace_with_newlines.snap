@@ -1,0 +1,12 @@
+// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:560:97
+// Function: test.Tokenizer groups collapsible whitespace with newlines
+// Description: tokenizer groups whitespace with newlines
+
+Legend:
+  Token types: T = Text, SP = Space, LB = LineBreak
+  Break types: × = NoBreak, ÷ = BreakAllowed, ! = MandatoryBreak
+  Characters: _ = Space, \t = Tab
+  White-space: collapse
+
+Input: N1{ T["hello"]× SP["_"]÷ T["world"]×}
+Output: N1{ T["hello"]× SP["_"]÷ T["world"]×}

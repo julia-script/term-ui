@@ -1,0 +1,8 @@
+// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:645:9
+// Function: test.Measure tokens after Phase 1
+// Description: measure tokens basic
+
+Tokens after measurement:
+Token 0: kind=text, text="Hello", size=(5.0, 1.0)
+Token 1: kind=whitespace, text=" ", size=(1.0, 1.0)
+Token 2: kind=text, text="World", size=(5.0, 1.0)

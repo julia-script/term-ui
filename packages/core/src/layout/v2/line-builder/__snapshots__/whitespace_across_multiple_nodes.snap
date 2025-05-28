@@ -1,0 +1,12 @@
+// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:545:88
+// Function: test.Whitespace collapsing across multiple nodes
+// Description: whitespace across multiple nodes
+
+Legend:
+  Token types: T = Text, SP = Space, LB = LineBreak
+  Break types: × = NoBreak, ÷ = BreakAllowed, ! = MandatoryBreak
+  Characters: _ = Space, \t = Tab
+  White-space: collapse
+
+Input: N1{ T["start"]× SP["_"]÷} N2{ SP["_"]÷ T["middle"]× SP["_"]÷} N3{ SP["_"]÷ T["end"]×}
+Output: N1{ T["start"]× SP["_"]÷} N2{ SP["_"]÷ T["middle"]× SP["_"]÷} N3{ SP["_"]÷ T["end"]×}

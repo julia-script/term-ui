@@ -1,0 +1,86 @@
+// Snapshot from: layout/v2/text/LineBuilder.zig:1676:9
+// Function: test.Text wrapping: Empty and single character content
+// Description: empty and single character wrapping
+
+Input XML:
+<div>
+  <p></p>
+  <p>A</p>
+  <p>B C D E F G H I J K L M N O P Q R S T U V W X Y Z</p>
+</div>
+
+DocTree:
+[node#0 block flow_root]
+    [text #1] "\n  "
+    [node#2 block flow_root]
+    [text #3] "\n  "
+    [node#4 block flow_root]
+        [text #5] "A"
+    [text #6] "\n  "
+    [node#7 block flow_root]
+        [text #8] "B C D E F G H I J K L M N O P Q R S T U V W X Y Z"
+    [text #9] "\n"
+LayoutTree:
+[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (10.00, 0.00) content: (10.00, 0.00)]}]
+└── [block_container_node #1 ref={doc#0} children={7} box={[loc: (0.00, 0.00) size: (10.00, 0.00) content: (10.00, 0.00)]}]
+    ├── [inline_container_node #3 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (10.00, 0.00) content: (10.00, 0.00)]}]
+    │   ├── [line_box #0 fragments=1]
+    │   │   └── [fragment node={#2} range=0-1 pos={(0.00, 0.00)} size={(1.00, 1.00)} text=" "]
+    │   └── [text_node #2] "\n  "
+    ├── [block_container_node #4 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (10.00, 0.00) content: (10.00, 0.00)]}]
+    │   └── [inline_container_node #5 ref={doc#2} children={0} lines={0} box={[loc: (0.00, 0.00) size: (10.00, 0.00) content: (10.00, 0.00)]}]
+    ├── [inline_container_node #7 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (10.00, 0.00) content: (10.00, 0.00)]}]
+    │   ├── [line_box #0 fragments=1]
+    │   │   └── [fragment node={#6} range=0-1 pos={(0.00, 0.00)} size={(1.00, 1.00)} text=" "]
+    │   └── [text_node #6] "\n  "
+    ├── [block_container_node #8 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (10.00, 0.00) content: (10.00, 0.00)]}]
+    │   └── [inline_container_node #9 ref={doc#4} children={1} lines={1} box={[loc: (0.00, 0.00) size: (10.00, 0.00) content: (10.00, 0.00)]}]
+    │       ├── [line_box #0 fragments=1]
+    │       │   └── [fragment node={#10} range=0-1 pos={(0.00, 0.00)} size={(1.00, 1.00)} text="A"]
+    │       └── [text_node #10] "A"
+    ├── [inline_container_node #12 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (10.00, 0.00) content: (10.00, 0.00)]}]
+    │   ├── [line_box #0 fragments=1]
+    │   │   └── [fragment node={#11} range=0-1 pos={(0.00, 0.00)} size={(1.00, 1.00)} text=" "]
+    │   └── [text_node #11] "\n  "
+    ├── [block_container_node #13 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (10.00, 0.00) content: (10.00, 0.00)]}]
+    │   └── [inline_container_node #14 ref={doc#7} children={1} lines={5} box={[loc: (0.00, 0.00) size: (10.00, 0.00) content: (10.00, 0.00)]}]
+    │       ├── [line_box #0 fragments=1]
+    │       │   └── [fragment node={#15} range=0-10 pos={(0.00, 0.00)} size={(10.00, 1.00)} text="B C D E F "]
+    │       ├── [line_box #1 fragments=1]
+    │       │   └── [fragment node={#15} range=10-20 pos={(0.00, 1.00)} size={(10.00, 1.00)} text="G H I J K "]
+    │       ├── [line_box #2 fragments=1]
+    │       │   └── [fragment node={#15} range=20-30 pos={(0.00, 2.00)} size={(10.00, 1.00)} text="L M N O P "]
+    │       ├── [line_box #3 fragments=1]
+    │       │   └── [fragment node={#15} range=30-40 pos={(0.00, 3.00)} size={(10.00, 1.00)} text="Q R S T U "]
+    │       ├── [line_box #4 fragments=2]
+    │       │   ├── [fragment node={#15} range=40-48 pos={(0.00, 4.00)} size={(8.00, 1.00)} text="V W X Y "]
+    │       │   └── [fragment node={#15} range=48-49 pos={(8.00, 4.00)} size={(1.00, 1.00)} text="Z"]
+    │       └── [text_node #15] "B C D E F G H I J K L M N O P Q R S T U V W X Y Z"
+    └── [inline_container_node #17 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (10.00, 0.00) content: (10.00, 0.00)]}]
+        ├── [line_box #0 fragments=1]
+        │   └── [fragment node={#16} range=0-1 pos={(0.00, 0.00)} size={(1.00, 1.00)} text=" "]
+        └── [text_node #16] "\n"
+
+Rendered Text Output:
+Inline Context #1: 1 line(s)
+  Line 0: " " (width: 1)
+
+Inline Context #2: 1 line(s)
+  Line 0: " " (width: 1)
+
+Inline Context #3: 1 line(s)
+  Line 0: "A" (width: 1)
+
+Inline Context #4: 1 line(s)
+  Line 0: " " (width: 1)
+
+Inline Context #5: 5 line(s)
+  Line 0: "B C D E F " (width: 10)
+  Line 1: "G H I J K " (width: 10)
+  Line 2: "L M N O P " (width: 10)
+  Line 3: "Q R S T U " (width: 10)
+  Line 4: "V W X Y Z" (width: 9)
+
+Inline Context #6: 1 line(s)
+  Line 0: " " (width: 1)
+

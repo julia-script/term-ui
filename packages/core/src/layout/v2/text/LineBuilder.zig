@@ -1,5 +1,6 @@
 const WhiteSpaceCollapse = @import("../../../styles/white-space.zig").WhiteSpaceCollapse;
 const unicode = @import("../../../uni/codepoint.zig");
+const LineBreakStream = @import("../../../uni/LineBreakStream.zig");
 
 const TextWrapMode = @import("../../../styles/white-space.zig").TextWrapMode;
 const css_types = @import("../../../css/types.zig");
@@ -9,6 +10,7 @@ const std = @import("std");
 const mod = @import("../mod.zig");
 const snapshot = @import("../../../testing/snapshot.zig");
 const LineBoxFragment = mod.LineBoxFragment;
+const utf8WidthExcludingAnsiColors = @import("../../../uni/string-width.zig").utf8WidthExcludingAnsiColors;
 
 lines: LineBox.LineBoxList,
 available_width: mod.constants.AvailableSpace,
@@ -18,6 +20,14 @@ wrap_mode: TextWrapMode,
 collapse: WhiteSpaceCollapse,
 
 const Self = @This();
+
+const FragmentInfo = struct {
+    start_offset: usize,
+    end_offset: usize,
+    line_index: usize,
+    fragment_index: usize,
+    fragment: *LineBoxFragment,
+};
 
 pub fn init(
     allocator: std.mem.Allocator,
@@ -79,6 +89,21 @@ pub fn appendNodeSlice(self: *Self, text: []const u8, node_id: mod.LayoutNode.Id
             .x = 0,
             .y = 0,
         },
+    });
+}
+pub fn appendFragment(self: *Self, fragment: LineBoxFragment) !void {
+    std.debug.print("appendFragment: '{s}'\n", .{fragment.text});
+    try self.ensureFirstLine();
+    try self.lines.appendFragmentToLastLine(.{
+        .text = try self.allocator.dupe(u8, fragment.text),
+        .dom_range = fragment.dom_range,
+        .l_node_id = fragment.l_node_id,
+        .start = fragment.start,
+        .allocator = self.allocator,
+        .is_atomic = false,
+        .length = @intCast(fragment.text.len),
+        .size = fragment.size,
+        .position = fragment.position,
     });
 }
 pub fn toOwnedLineBoxes(self: *Self, allocator: std.mem.Allocator) !LineBox.LineBoxList {
@@ -245,12 +270,12 @@ pub fn runPhase1CollapseAndTransformation(self: *Self) !void {
             try self.convertTabsAndSegmentBreaksToSpaces();
 
             // Sequences of spaces are treated as non-breaking spaces with wrap opportunities
-            try self.markPreserveSpaceSequences();
+            // try self.markPreserveSpaceSequences();
         },
         .preserve => {
             // For preserve mode: treat spaces as non-breaking spaces
             // Sequences have soft wrap opportunities at the end of each maximal sequence
-            try self.markPreserveSpaceSequences();
+            // try self.markPreserveSpaceSequences();
         },
         .inherit => std.debug.panic("inherit property should be resolved during style computation", .{}),
     }
@@ -566,6 +591,9 @@ const IterFragments = struct {
     line_index: usize,
     fragment_index: usize,
     lines: *LineBox.LineBoxList,
+    pub fn init(lines: *LineBox.LineBoxList) IterFragments {
+        return IterFragments{ .line_index = 0, .fragment_index = 0, .lines = lines };
+    }
     pub fn next(self: *IterFragments) ?*LineBoxFragment {
         const lines = self.lines.items();
         while (true) {
@@ -717,20 +745,22 @@ fn collectAndPrintLinesByContext(layout_tree: *mod.LayoutTree, node_id: mod.Layo
                 try writer.print("Inline Context #{}: {} line(s)\n", .{ context_count.*, lines.len });
 
                 for (lines, 0..) |line, line_idx| {
-                    // Concatenate all fragment texts in the line
+                    // Concatenate all fragment texts in the line and calculate total width
                     var line_text = std.ArrayList(u8).init(std.testing.allocator);
                     defer line_text.deinit();
+                    var total_width: f32 = 0;
 
                     for (line.fragments.items) |fragment| {
                         try line_text.appendSlice(fragment.text);
+                        total_width += fragment.size.x;
                     }
 
-                    // Escape and print the line content
+                    // Escape and print the line content with width
                     var escaped_text = std.ArrayList(u8).init(std.testing.allocator);
                     defer escaped_text.deinit();
                     try escapeText(line_text.items, &escaped_text);
 
-                    try writer.print("  Line {}: \"{s}\"\n", .{ line_idx, escaped_text.items });
+                    try writer.print("  Line {}: \"{s}\" (width: {d})\n", .{ line_idx, escaped_text.items, total_width });
                 }
                 try writer.writeAll("\n");
             }
@@ -1017,17 +1047,378 @@ fn markPreserveSpaceSequences(self: *Self) !void {
         });
     }
 
-    // TODO: Mark these sequences for special treatment in later phases
-    // For now, we store the information but don't modify the text
-    // The actual non-breaking space treatment and soft wrap opportunities
-    // will be handled during line breaking and rendering phases
-
     // Store sequences for later processing (this will be used in Phase 2/3)
     for (sequences.items) |sequence| {
         _ = sequence; // For now, just acknowledge we found them
         // In a complete implementation, we'd mark fragments or store metadata
         // about these sequences for the line breaking algorithm
     }
+}
+pub fn measureText(text: []const u8) f32 {
+    return @floatFromInt(utf8WidthExcludingAnsiColors(text));
+}
+pub fn trimAndMeasureText(text: []const u8) struct {
+    trimmed: []const u8,
+    trimmed_width: f32,
+    full_width: f32,
+} {
+    const trimmed = std.mem.trimEnd(u8, text, " \t"); // new liens should be handled by this point
+    const trimmed_width = measureText(trimmed);
+    // whitespace will always be 1 char wide
+    const trailing_width: f32 = @floatFromInt(text.len - trimmed.len);
+    return .{ .trimmed = trimmed, .trimmed_width = trimmed_width, .full_width = trimmed_width + trailing_width };
+}
+
+/// Run line wrapping based on available width and wrap mode
+/// This handles breaking long lines into multiple lines using Unicode line break algorithm
+pub fn runLineWrapping(self: *Self) !void {
+    switch (self.available_width) {
+        .definite => |width| try self.wrapWithWidth(width),
+        .min_content => {},
+        .max_content => try self.wrapOnMandatoryBreaks(),
+    }
+}
+
+/// Handle max-content wrapping - only break on mandatory breaks (newlines)
+pub fn wrapOnMandatoryBreaks(self: *Self) !void {
+    var current_lines = try self.toOwnedLineBoxes(self.allocator);
+    defer current_lines.deinit();
+
+    // Clear existing lines to rebuild them with proper breaking
+    self.lines.deinit();
+    self.lines = LineBox.LineBoxList{
+        .allocator = self.allocator,
+    };
+
+    for (current_lines.items()) |*line| {
+        try self.wrapLineOnMandatoryBreaks(line);
+    }
+}
+
+/// Break a line only on mandatory breaks (newlines) for max-content
+pub fn wrapLineOnMandatoryBreaks(self: *Self, line: *LineBox) !void {
+    var current_line_width: f32 = 0;
+    var line_y: f32 = 0;
+    
+    // Ensure we have a line to work with
+    if (self.lines.len() == 0) {
+        try self.newLine();
+    }
+
+    for (line.fragments.items) |fragment| {
+        var remaining_text = fragment.text;
+        var current_start: u32 = fragment.start;
+        
+        // Search for newlines and split the fragment accordingly
+        while (std.mem.indexOf(u8, remaining_text, "\n")) |index| {
+            // Add text before the newline
+            if (index > 0) {
+                const text_before_newline = remaining_text[0..index];
+                const measured_width = measureText(text_before_newline);
+                
+                try self.appendFragment(.{
+                    .text = text_before_newline,
+                    .dom_range = fragment.dom_range,
+                    .l_node_id = fragment.l_node_id,
+                    .start = current_start,
+                    .length = @intCast(index),
+                    .allocator = self.allocator,
+                    .is_atomic = false,
+                    .size = .{ .x = measured_width, .y = fragment.size.y },
+                    .position = .{ .x = current_line_width, .y = line_y },
+                });
+                current_line_width += measured_width;
+            }
+            
+            // Create a new line for the mandatory break
+            try self.newLine();
+            line_y += 1;
+            current_line_width = 0;
+
+            // Move to the remainder after the newline
+            remaining_text = remaining_text[index + 1 ..];
+            current_start += @intCast(index + 1);
+        }
+
+        // Append any remaining text after the last newline
+        if (remaining_text.len > 0) {
+            const measured_width = measureText(remaining_text);
+            
+            try self.appendFragment(.{
+                .text = remaining_text,
+                .dom_range = fragment.dom_range,
+                .l_node_id = fragment.l_node_id,
+                .start = current_start,
+                .length = @intCast(remaining_text.len),
+                .allocator = self.allocator,
+                .is_atomic = false,
+                .size = .{ .x = measured_width, .y = fragment.size.y },
+                .position = .{ .x = current_line_width, .y = line_y },
+            });
+            current_line_width += measured_width;
+        }
+    }
+}
+
+pub fn wrapWithWidth(self: *Self, width: f32) !void {
+    var current_lines = try self.toOwnedLineBoxes(self.allocator);
+    defer current_lines.deinit();
+
+    // Clear existing lines to rebuild them with proper wrapping
+    self.lines.deinit();
+    self.lines = LineBox.LineBoxList{
+        .allocator = self.allocator,
+    };
+
+    for (current_lines.items()) |*line| {
+        try self.wrapLineWithWidth(line, width);
+    }
+}
+pub fn wrapLineWithWidth(self: *Self, line: *LineBox, width: f32) !void {
+    // Check if wrapping is disabled for this context
+    if (self.wrap_mode == .nowrap) {
+        return; // Don't wrap if nowrap is set
+    }
+
+    var current_line_width: f32 = 0;
+    var line_y: f32 = 0;
+
+    var linebreak_iter = LineBreakStream.init(self.allocator);
+    defer linebreak_iter.deinit();
+    var pending_fragment: ?LineBoxFragment = null;
+
+    for (line.fragments.items) |original_fragment| {
+        // Skip empty fragments
+        if (original_fragment.text.len == 0) {
+            continue;
+        }
+
+        // Handle any pending fragment from the previous iteration first
+        if (pending_fragment) |pending| {
+            const pending_width = pending.size.x;
+            const current_line_with_pending = current_line_width + pending_width;
+
+            if (current_line_with_pending > width) {
+                try self.newLine();
+                line_y += 1;
+                current_line_width = 0;
+                // Update pending fragment position for new line
+                var updated_pending = pending;
+                updated_pending.position.x = 0;
+                updated_pending.position.y = line_y;
+                try self.appendFragment(updated_pending);
+                std.debug.print("append pending after new line\n", .{});
+                current_line_width = pending_width;
+            } else {
+                // Pending fragment fits, append it and update position
+                var updated_pending = pending;
+                updated_pending.position.x = current_line_width;
+                updated_pending.position.y = line_y;
+                std.debug.print("append pending before new line\n", .{});
+                try self.appendFragment(updated_pending);
+                current_line_width += pending_width;
+            }
+            pending_fragment = null;
+        }
+
+        try linebreak_iter.append(original_fragment.text);
+
+        var last_segment_start: usize = 0;
+        var prev_break_opportunity: usize = 0;
+        var accumulated_width: f32 = 0;
+
+        // Ensure we have a line to work with
+        if (self.lines.len() == 0) {
+            try self.newLine();
+        }
+
+        // Process each potential break opportunity
+        while (linebreak_iter.next()) |linebreak| {
+            std.debug.print("linebreak: '{s}' {}\n", .{ linebreak.slice, linebreak.mandatory });
+            const segment_end = linebreak.local_i;
+
+            // Text from start of current line consideration to this break point
+            const text_to_break = original_fragment.text[prev_break_opportunity..segment_end];
+            const measured = trimAndMeasureText(text_to_break);
+
+            // Check if this is a mandatory break (newline)
+            if (linebreak.mandatory) {
+                // Before handling the mandatory break, we need to process any accumulated content
+                // and ensure it fits within the width constraints
+                
+                // First, check if we have content that needs to be wrapped before the mandatory break
+                const total_width_before_break = current_line_width + accumulated_width + measured.trimmed_width;
+                
+                if (total_width_before_break > width and accumulated_width > 0) {
+                    // We need to wrap before the mandatory break
+                    // Flush accumulated content up to the previous break opportunity
+                    const text_to_add = original_fragment.text[last_segment_start..prev_break_opportunity];
+                    if (text_to_add.len > 0) {
+                        std.debug.print("append before width overflow and mandatory break: '{s}'\n", .{text_to_add});
+                        try self.appendFragment(.{
+                            .text = text_to_add,
+                            .dom_range = original_fragment.dom_range,
+                            .l_node_id = original_fragment.l_node_id,
+                            .start = @intCast(original_fragment.start + last_segment_start),
+                            .allocator = self.allocator,
+                            .is_atomic = false,
+                            .length = @intCast(text_to_add.len),
+                            .position = .{ .x = current_line_width, .y = line_y },
+                            .size = .{ .x = accumulated_width, .y = original_fragment.size.y },
+                        });
+                    }
+                    
+                    // Start a new line before the mandatory break
+                    try self.newLine();
+                    line_y += 1;
+                    current_line_width = 0;
+                    last_segment_start = prev_break_opportunity;
+                }
+                
+                // Now handle the text between the last break opportunity and the mandatory break
+                const text_before_break = original_fragment.text[last_segment_start..segment_end];
+                // Remove the newline character if it's at the end
+                const text_without_newline = if (text_before_break.len > 0 and text_before_break[text_before_break.len - 1] == '\n')
+                    text_before_break[0..text_before_break.len - 1]
+                else
+                    text_before_break;
+                
+                if (text_without_newline.len > 0) {
+                    const final_width = if (accumulated_width > 0) measured.trimmed_width else accumulated_width + measured.trimmed_width;
+                    std.debug.print("append before mandatory break: '{s}'\n", .{text_without_newline});
+                    try self.appendFragment(.{
+                        .text = text_without_newline,
+                        .dom_range = original_fragment.dom_range,
+                        .l_node_id = original_fragment.l_node_id,
+                        .start = @intCast(original_fragment.start + last_segment_start),
+                        .allocator = self.allocator,
+                        .is_atomic = false,
+                        .length = @intCast(text_without_newline.len),
+                        .position = .{ .x = current_line_width, .y = line_y },
+                        .size = .{ .x = final_width, .y = original_fragment.size.y },
+                    });
+                }
+                
+                // Force a new line for mandatory break
+                try self.newLine();
+                line_y += 1;
+                current_line_width = 0;
+                accumulated_width = 0;
+                last_segment_start = segment_end;
+                prev_break_opportunity = segment_end;
+                continue;
+            }
+
+            // Check if current segment would overflow
+            const total_width_with_segment = current_line_width + accumulated_width + measured.trimmed_width;
+
+            if (total_width_with_segment > width) {
+                // Flush what we have accumulated so far
+                if (accumulated_width > 0) {
+                    const text_to_add = original_fragment.text[last_segment_start..prev_break_opportunity];
+                    std.debug.print("append normal flow: '{s}'\n", .{text_to_add});
+                    try self.appendFragment(.{
+                        .text = text_to_add,
+                        .dom_range = original_fragment.dom_range,
+                        .l_node_id = original_fragment.l_node_id,
+                        .start = @intCast(original_fragment.start + last_segment_start),
+                        .allocator = self.allocator,
+                        .is_atomic = false,
+                        .length = @intCast(text_to_add.len),
+                        .position = .{ .x = current_line_width, .y = line_y },
+                        .size = .{ .x = accumulated_width, .y = original_fragment.size.y },
+                    });
+                    current_line_width += accumulated_width;
+                }
+
+                // Start new line
+                try self.newLine();
+                line_y += 1;
+                current_line_width = 0;
+                accumulated_width = 0;
+                last_segment_start = prev_break_opportunity;
+            }
+            accumulated_width += measured.full_width;
+            prev_break_opportunity = segment_end;
+        }
+
+        // Push accumulated segments that we know fit in the current line
+        if (accumulated_width > 0) {
+            const text_to_add = original_fragment.text[last_segment_start..prev_break_opportunity];
+            std.debug.print("append accumulated: '{s}'\n", .{text_to_add});
+            try self.appendFragment(.{
+                .text = text_to_add,
+                .dom_range = original_fragment.dom_range,
+                .l_node_id = original_fragment.l_node_id,
+                .start = @intCast(original_fragment.start + last_segment_start),
+                .allocator = self.allocator,
+                .is_atomic = false,
+                .length = @intCast(text_to_add.len),
+                .position = .{ .x = current_line_width, .y = line_y },
+                .size = .{ .x = accumulated_width, .y = original_fragment.size.y },
+            });
+            current_line_width += accumulated_width;
+        }
+
+        // Handle the remaining segment as a pending fragment
+        const last_segment = original_fragment.text[prev_break_opportunity..];
+        if (last_segment.len > 0) {
+            const last_segment_measured = trimAndMeasureText(last_segment);
+
+            // Check if the remaining segment fits on current line
+            const current_line_with_remaining = current_line_width + last_segment_measured.trimmed_width;
+
+            var next_fragment: LineBoxFragment = .{
+                .text = last_segment,
+                .dom_range = original_fragment.dom_range,
+                .l_node_id = original_fragment.l_node_id,
+                .start = @intCast(original_fragment.start + prev_break_opportunity),
+                .allocator = self.allocator,
+                .is_atomic = false,
+                .length = @intCast(last_segment.len),
+                .position = .{ .x = current_line_width, .y = line_y },
+                .size = .{ .x = last_segment_measured.full_width, .y = original_fragment.size.y },
+            };
+
+            // If we already know this fragment exceeds the width, start a new line immediately
+            if (current_line_with_remaining > width) {
+                try self.newLine();
+                line_y += 1;
+                current_line_width = 0;
+                next_fragment.position.x = 0;
+                next_fragment.position.y = line_y;
+                std.debug.print("append pending after new line but before next fragment\n", .{});
+                try self.appendFragment(next_fragment);
+                current_line_width = last_segment_measured.full_width;
+            } else {
+                // Store as pending to check against next fragment
+                pending_fragment = next_fragment;
+            }
+        }
+    }
+
+    // Append any remaining pending fragment
+    if (pending_fragment) |pending| {
+        var updated_pending = pending;
+        updated_pending.position.x = current_line_width;
+        updated_pending.position.y = line_y;
+        try self.appendFragment(updated_pending);
+    }
+}
+test "Text wrapping: Stress test with complex content" {
+    try expectLines(
+        "wrapping stress test",
+        \\<div>
+        \\  <p>Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt</p>
+        \\  <p>Lorem ipsum <span>dolor sit amet consectetur</span> adipiscing elit <span>sed do eiusmod tempor incididunt</span></p>
+        \\  <p>Multiple <span>nested</span> <em>elements</em> with <strong>different</strong> formatting</p>
+        \\  <p style="white-space: pre-wrap">Preserved   text   with&#9;tabs and&#10;breaks but wrapping</p>
+        // \\  <p style="white-space: nowrap">This extremely long line should not wrap regardless of width</p>
+        \\</div>
+    ,
+        .{ .x = .{ .definite = 30 }, .y = .max_content },
+        @src(),
+    );
 }
 
 test "Phase 1: preserve-spaces mode - tabs and breaks to spaces" {
@@ -1162,4 +1553,371 @@ test "CSS white-space: Edge cases with empty and whitespace-only content" {
         .{ .x = .{ .definite = 50 }, .y = .max_content },
         @src(),
     );
+}
+
+// Text Wrapping Tests
+test "Text wrapping: Basic definite width" {
+    try expectLines(
+        "basic definite width wrapping",
+        \\<div>
+        \\  <p>This is a very long line that should definitely wrap when it exceeds the available width</p>
+        \\  <p>Short line</p>
+        \\  <p>Another extremely long line with many words that will need to be broken across multiple lines</p>
+        \\</div>
+    ,
+        .{ .x = .{ .definite = 20 }, .y = .max_content },
+        @src(),
+    );
+}
+
+test "Text wrapping: Max-content width (no wrapping)" {
+    try expectLines(
+        "max-content no wrapping",
+        \\<div>
+        \\  <p>This is a very long line that should not wrap with max-content width</p>
+        \\  <p>Another long line that stays on one line regardless of content length</p>
+        \\</div>
+    ,
+        .{ .x = .max_content, .y = .max_content },
+        @src(),
+    );
+}
+
+test "Text wrapping: Min-content width (aggressive wrapping)" {
+    try expectLines(
+        "min-content aggressive wrapping",
+        \\<div>
+        \\  <p>This text should wrap aggressively</p>
+        \\  <p>Every break opportunity should be used</p>
+        \\</div>
+    ,
+        .{ .x = .min_content, .y = .max_content },
+        @src(),
+    );
+}
+
+test "Text wrapping: Nowrap mode with definite width" {
+    try expectLines(
+        "nowrap mode with definite width",
+        \\<div>
+        \\  <p style="white-space: nowrap">This very long line should not wrap even with limited width</p>
+        \\  <p style="white-space: nowrap">Another long line that overflows the container</p>
+        \\</div>
+    ,
+        .{ .x = .{ .definite = 15 }, .y = .max_content },
+        @src(),
+    );
+}
+
+test "Text wrapping: Pre-wrap mode with definite width" {
+    try expectLines(
+        "pre-wrap mode with definite width",
+        \\<div>
+        \\  <p style="white-space: pre-wrap">This long line preserves   spaces   but wraps when needed</p>
+        \\  <p style="white-space: pre-wrap">Multiple     spaces&#9;&#9;tabs&#10;and breaks preserved</p>
+        \\</div>
+    ,
+        .{ .x = .{ .definite = 25 }, .y = .max_content },
+        @src(),
+    );
+}
+
+test "Text wrapping: Mixed wrap modes" {
+    try expectLines(
+        "mixed wrap modes",
+        \\<div>
+        \\  <p style="white-space: normal">Normal wrapping behavior with standard text processing</p>
+        \\  <p style="white-space: nowrap">No wrapping even with very long content that exceeds width</p>
+        \\  <p style="white-space: pre-wrap">Pre-wrap with   preserved   spaces but still wraps</p>
+        \\</div>
+    ,
+        .{ .x = .{ .definite = 30 }, .y = .max_content },
+        @src(),
+    );
+}
+
+test "Text wrapping: Very narrow width" {
+    try expectLines(
+        "very narrow width",
+        \\<div>
+        \\  <p>Text</p>
+        \\  <p>Word</p>
+        \\  <p>Multiple words here</p>
+        \\</div>
+    ,
+        .{ .x = .{ .definite = 8 }, .y = .max_content },
+        @src(),
+    );
+}
+
+test "Text wrapping: Fragment boundaries with wrapping" {
+    try expectLines(
+        "fragment boundaries with wrapping",
+        \\<div>
+        \\  <p>Before <span>middle content that is quite long</span> after text</p>
+        \\  <p>Multiple <em>emphasized long text</em> and <strong>bold long text</strong> fragments</p>
+        \\</div>
+    ,
+        .{ .x = .{ .definite = 20 }, .y = .max_content },
+        @src(),
+    );
+}
+
+test "Text wrapping: Empty and single character content" {
+    try expectLines(
+        "empty and single character wrapping",
+        \\<div>
+        \\  <p></p>
+        \\  <p>A</p>
+        \\  <p>B C D E F G H I J K L M N O P Q R S T U V W X Y Z</p>
+        \\</div>
+    ,
+        .{ .x = .{ .definite = 10 }, .y = .max_content },
+        @src(),
+    );
+}
+
+// LineBreaker-specific tests
+test "LineBreaker: Basic definite width wrapping" {
+    const allocator = std.testing.allocator;
+    const LineBreaker = @import("../line-builder/LineBreaker.zig").LineBreaker;
+    const Token = @import("../line-builder/Token.zig");
+    const AvailableSpace = @import("../constants.zig").AvailableSpace;
+    
+    // Create test tokens
+    var tokens = [_]Token{
+        Token{ .kind = .text, .text = "Hello", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .whitespace, .text = " ", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .text, .text = "world", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .whitespace, .text = " ", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .text, .text = "test", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+    };
+    
+    var breaker = try LineBreaker.init(
+        &tokens,
+        AvailableSpace{ .definite = 12 }, // "Hello world " fits, "test" wraps
+        .normal,
+        allocator,
+    );
+    defer breaker.deinit();
+    
+    // First line should be "Hello world "
+    const line1 = try breaker.nextLine(allocator);
+    try std.testing.expect(line1 != null);
+    try std.testing.expectEqual(@as(usize, 0), line1.?.start_token);
+    try std.testing.expectEqual(@as(usize, 4), line1.?.end_token);
+    
+    // Second line should be "test"
+    const line2 = try breaker.nextLine(allocator);
+    try std.testing.expect(line2 != null);
+    try std.testing.expectEqual(@as(usize, 4), line2.?.start_token);
+    try std.testing.expectEqual(@as(usize, 5), line2.?.end_token);
+    
+    // No more lines
+    const line3 = try breaker.nextLine(allocator);
+    try std.testing.expect(line3 == null);
+}
+
+test "LineBreaker: Max-content no wrapping" {
+    const allocator = std.testing.allocator;
+    const LineBreaker = @import("../line-builder/LineBreaker.zig").LineBreaker;
+    const Token = @import("../line-builder/Token.zig");
+    const AvailableSpace = @import("../constants.zig").AvailableSpace;
+    
+    // Create test tokens with text that would normally wrap
+    var tokens = [_]Token{
+        Token{ .kind = .text, .text = "This", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .whitespace, .text = " ", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .text, .text = "is", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .whitespace, .text = " ", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .text, .text = "a", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .whitespace, .text = " ", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .text, .text = "very", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .whitespace, .text = " ", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .text, .text = "long", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .whitespace, .text = " ", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .text, .text = "line", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+    };
+    
+    var breaker = try LineBreaker.init(
+        &tokens,
+        AvailableSpace{ .max_content = {} },
+        .normal,
+        allocator,
+    );
+    defer breaker.deinit();
+    
+    // Should get entire content as one line
+    const line1 = try breaker.nextLine(allocator);
+    try std.testing.expect(line1 != null);
+    try std.testing.expectEqual(@as(usize, 0), line1.?.start_token);
+    try std.testing.expectEqual(@as(usize, 11), line1.?.end_token);
+    
+    // No more lines
+    const line2 = try breaker.nextLine(allocator);
+    try std.testing.expect(line2 == null);
+}
+
+test "LineBreaker: Min-content aggressive wrapping" {
+    const allocator = std.testing.allocator;
+    const LineBreaker = @import("../line-builder/LineBreaker.zig").LineBreaker;
+    const Token = @import("../line-builder/Token.zig");
+    const AvailableSpace = @import("../constants.zig").AvailableSpace;
+    
+    // Create test tokens
+    var tokens = [_]Token{
+        Token{ .kind = .text, .text = "Hello", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .whitespace, .text = " ", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .text, .text = "world", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+    };
+    
+    var breaker = try LineBreaker.init(
+        &tokens,
+        AvailableSpace{ .min_content = {} },
+        .normal,
+        allocator,
+    );
+    defer breaker.deinit();
+    
+    // First line: "Hello "
+    const line1 = try breaker.nextLine(allocator);
+    try std.testing.expect(line1 != null);
+    std.debug.print("Min-content line1: start={d}, end={d}\n", .{ line1.?.start_token, line1.?.end_token });
+    try std.testing.expectEqual(@as(usize, 0), line1.?.start_token);
+    try std.testing.expectEqual(@as(usize, 2), line1.?.end_token);
+    
+    // Second line: "world"
+    const line2 = try breaker.nextLine(allocator);
+    try std.testing.expect(line2 != null);
+    try std.testing.expectEqual(@as(usize, 2), line2.?.start_token);
+    try std.testing.expectEqual(@as(usize, 3), line2.?.end_token);
+    
+    // No more lines
+    const line3 = try breaker.nextLine(allocator);
+    try std.testing.expect(line3 == null);
+}
+
+test "LineBreaker: Nowrap mode with definite width" {
+    const allocator = std.testing.allocator;
+    const LineBreaker = @import("../line-builder/LineBreaker.zig").LineBreaker;
+    const Token = @import("../line-builder/Token.zig");
+    const AvailableSpace = @import("../constants.zig").AvailableSpace;
+    
+    // Create test tokens with mandatory break
+    var tokens = [_]Token{
+        Token{ .kind = .text, .text = "This", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .whitespace, .text = " ", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .text, .text = "line", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .whitespace, .text = " ", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .text, .text = "should", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .whitespace, .text = " ", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .text, .text = "not", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .whitespace, .text = " ", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .text, .text = "wrap", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .segment_break, .text = "\n", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .text, .text = "Next", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .whitespace, .text = " ", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .text, .text = "line", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+    };
+    
+    var breaker = try LineBreaker.init(
+        &tokens,
+        AvailableSpace{ .definite = 10 }, // Very narrow, but nowrap shouldn't break
+        .nowrap,
+        allocator,
+    );
+    defer breaker.deinit();
+    
+    // First line up to segment break
+    const line1 = try breaker.nextLine(allocator);
+    try std.testing.expect(line1 != null);
+    try std.testing.expectEqual(@as(usize, 0), line1.?.start_token);
+    try std.testing.expectEqual(@as(usize, 10), line1.?.end_token); // Up to and including segment break
+    
+    // Second line
+    const line2 = try breaker.nextLine(allocator);
+    try std.testing.expect(line2 != null);
+    try std.testing.expectEqual(@as(usize, 10), line2.?.start_token);
+    try std.testing.expectEqual(@as(usize, 13), line2.?.end_token);
+    
+    // No more lines
+    const line3 = try breaker.nextLine(allocator);
+    try std.testing.expect(line3 == null);
+}
+
+test "LineBreaker: Pre-wrap mode with definite width" {
+    const allocator = std.testing.allocator;
+    const LineBreaker = @import("../line-builder/LineBreaker.zig").LineBreaker;
+    const Token = @import("../line-builder/Token.zig");
+    const AvailableSpace = @import("../constants.zig").AvailableSpace;
+    
+    // Create test tokens with preserved spaces
+    var tokens = [_]Token{
+        Token{ .kind = .text, .text = "Preserve", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .whitespace, .text = "  ", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed }, // Multiple spaces
+        Token{ .kind = .text, .text = "spaces", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .segment_break, .text = "\n", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .text, .text = "here", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+    };
+    
+    var breaker = try LineBreaker.init(
+        &tokens,
+        AvailableSpace{ .definite = 20 },
+        .@"pre-wrap",
+        allocator,
+    );
+    defer breaker.deinit();
+    
+    // First line with preserved spaces
+    const line1 = try breaker.nextLine(allocator);
+    try std.testing.expect(line1 != null);
+    try std.testing.expectEqual(@as(usize, 0), line1.?.start_token);
+    try std.testing.expectEqual(@as(usize, 4), line1.?.end_token);
+    
+    // Second line
+    const line2 = try breaker.nextLine(allocator);
+    try std.testing.expect(line2 != null);
+    try std.testing.expectEqual(@as(usize, 4), line2.?.start_token);
+    try std.testing.expectEqual(@as(usize, 5), line2.?.end_token);
+}
+
+test "LineBreaker: Wrapping stress test" {
+    const allocator = std.testing.allocator;
+    const LineBreaker = @import("../line-builder/LineBreaker.zig").LineBreaker;
+    const Token = @import("../line-builder/Token.zig");
+    const AvailableSpace = @import("../constants.zig").AvailableSpace;
+    
+    // Create complex token sequence
+    var tokens = [_]Token{
+        Token{ .kind = .text, .text = "Verylongwordthatcannotbreak", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .whitespace, .text = " ", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .text, .text = "short", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .whitespace, .text = " ", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .atomic, .text = "", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed, .size = .{ .x = 8, .y = 1 } }, // Atomic element
+        Token{ .kind = .whitespace, .text = " ", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .text, .text = "text", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .segment_break, .text = "\n", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+        Token{ .kind = .text, .text = "newline", .l_node_id = 0, .dom_range = .{ .start = 0, .end = 0 }, .break_after = .allowed },
+    };
+    
+    var breaker = try LineBreaker.init(
+        &tokens,
+        AvailableSpace{ .definite = 15 },
+        .normal,
+        allocator,
+    );
+    defer breaker.deinit();
+    
+    // Should handle long unbreakable word
+    const line1 = try breaker.nextLine(allocator);
+    try std.testing.expect(line1 != null);
+    
+    // Continue getting lines until done
+    var line_count: usize = 1;
+    while (try breaker.nextLine(allocator)) |_| {
+        line_count += 1;
+    }
+    
+    // Should have broken into multiple lines
+    try std.testing.expect(line_count >= 3);
 }

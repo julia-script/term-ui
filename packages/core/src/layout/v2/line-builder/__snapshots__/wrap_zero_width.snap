@@ -1,0 +1,11 @@
+// Snapshot from: layout/v2/line-builder/wrap.zig:473:9
+// Function: test.wrap zero width
+// Description: wrap zero width
+
+Wrap test: collapse_mode=collapse, wrap_mode=wrap, width=0
+
+Tokens after wrapping:
+  [0] Line 1: text "Test" (width=4.0)
+
+Rendered lines:
+  Line 1: Test (width=4.0)

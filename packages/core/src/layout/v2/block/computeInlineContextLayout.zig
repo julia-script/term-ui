@@ -198,10 +198,19 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
 
     // The style system should resolve shorthands and inherit values during cascade/computation.
     // Recursively process all child nodes to collect text content
-    try processNodeRecursively(context, &lines_builder, l_node_id, whitespace);
+    // try processNodeRecursively(context, &lines_builder, l_node_id, whitespace);
+    try mod.compute(
+        context,
+        allocator,
+        inputs,
+        l_node_id,
+        whitespace_longhand.collapse,
+        whitespace_longhand.wrap_mode,
+    );
 
     // Build lines using the multi-pass system
-    try lines_builder.runPhase1CollapseAndTransformation();
+    // try lines_builder.runPhase1CollapseAndTransformation();
+    // try lines_builder.runLineWrapping();
 
     // // Apply text alignment if container has definite width
     // const text_align = context.getStyleValue(css_types.TextAlign, l_node_id, .text_align);
