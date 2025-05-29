@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:545:88
+// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:644:88
 // Function: test.Whitespace collapsing across multiple nodes
 // Description: whitespace across multiple nodes
 

@@ -1,14 +1,14 @@
-// Snapshot from: layout/v2/line-builder/wrap.zig:332:9
+// Snapshot from: layout/v2/line-builder/wrap.zig:382:9
 // Function: test.wrap edge cases
 // Description: wrap edge cases
 
 Wrap test: collapse_mode=collapse, wrap_mode=wrap, width=8
 
 Tokens after wrapping:
-  [0] Line 1: text "exactfit" (width=8.0)
-  [1] Line 1: whitespace " " (width=1.0)
-  [2] Line 2: text "a" (width=1.0)
+  [0] Line 0: text "exactfit" (width=8.0)
+  [1] Line 0: whitespace " " (width=1.0)
+  [2] Line 1: text "a" (width=1.0)
 
 Rendered lines:
-  Line 1: exactfit  (width=9.0)
-  Line 2: a (width=1.0)
+  Line 0: exactfit  (width=9.0)
+  Line 1: a (width=1.0)

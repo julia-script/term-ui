@@ -1,15 +1,14 @@
-// Snapshot from: layout/v2/line-builder/wrap.zig:441:9
+// Snapshot from: layout/v2/line-builder/wrap.zig:491:9
 // Function: test.wrap consecutive spaces collapse
 // Description: wrap consecutive spaces collapse
 
 Wrap test: collapse_mode=collapse, wrap_mode=wrap, width=15
 
 Tokens after wrapping:
-  [0] Line 1: text "Multiple" (width=8.0)
-  [1] Line 1: whitespace " " (width=1.0)
-  [2] Line 1: whitespace " " (width=1.0)
-  [3] Line 2: text "spaces" (width=6.0)
+  [0] Line 0: text "Multiple" (width=8.0)
+  [1] Line 0: whitespace " " (width=1.0)
+  [2] Line 0: whitespace " " (width=1.0)
+  [3] Line 0: text "spaces" (width=6.0)
 
 Rendered lines:
-  Line 1: Multiple   (width=10.0)
-  Line 2: spaces (width=6.0)
+  Line 0: Multiple  spaces (width=16.0)

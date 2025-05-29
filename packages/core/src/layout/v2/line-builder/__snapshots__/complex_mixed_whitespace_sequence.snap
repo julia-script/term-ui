@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:476:74
+// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:575:74
 // Function: test.All modes: Complex mixed whitespace sequence
 // Description: complex mixed whitespace sequence
 
@@ -20,6 +20,10 @@ Input:  N1{ T["start"]× SP["__"]÷ LB[∅]! SP["__"]÷ T["end"]×}
 Output: N1{ T["start"]× SP["__"]÷ LB! SP["__"]÷ T["end"]×}
 
 === White-space: preserve ===
+Input:  N1{ T["start"]× SP["__\t"]÷ LB[∅]! LB[∅]! SP["\t__"]÷ T["end"]×}
+Output: N1{ T["start"]× SP["__\t"]÷ LB[∅]! LB[∅]! SP["\t__"]÷ T["end"]×}
+
+=== White-space: break-spaces ===
 Input:  N1{ T["start"]× SP["__\t"]÷ LB[∅]! LB[∅]! SP["\t__"]÷ T["end"]×}
 Output: N1{ T["start"]× SP["__\t"]÷ LB[∅]! LB[∅]! SP["\t__"]÷ T["end"]×}
 

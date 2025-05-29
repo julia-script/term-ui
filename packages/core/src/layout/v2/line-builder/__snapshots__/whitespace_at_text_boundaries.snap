@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:512:70
+// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:611:70
 // Function: test.All modes: Whitespace at text boundaries
 // Description: whitespace at text boundaries
 
@@ -20,6 +20,10 @@ Input:  N1{ SP["__"]÷ SP["_"]÷ T["start"]× SP["_"]÷ T["middle"]× LB[∅]! S
 Output: N1{ SP["__"]÷ SP["_"]÷ T["start"]× SP["_"]÷ T["middle"]× LB! SP["__"]÷ T["end"]× SP["__"]÷ LB!}
 
 === White-space: preserve ===
+Input:  N1{ SP["__\t"]÷ T["start"]× SP["_"]÷ T["middle"]× SP["\t"]÷ LB[∅]! SP["__"]÷ T["end"]× SP["__"]÷ LB[∅]!}
+Output: N1{ SP["__\t"]÷ T["start"]× SP["_"]÷ T["middle"]× SP["\t"]÷ LB[∅]! SP["__"]÷ T["end"]× SP["__"]÷ LB[∅]!}
+
+=== White-space: break-spaces ===
 Input:  N1{ SP["__\t"]÷ T["start"]× SP["_"]÷ T["middle"]× SP["\t"]÷ LB[∅]! SP["__"]÷ T["end"]× SP["__"]÷ LB[∅]!}
 Output: N1{ SP["__\t"]÷ T["start"]× SP["_"]÷ T["middle"]× SP["\t"]÷ LB[∅]! SP["__"]÷ T["end"]× SP["__"]÷ LB[∅]!}
 

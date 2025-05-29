@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:432:76
+// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:531:76
 // Function: test.All modes: Collapse consecutive segment breaks
 // Description: collapse consecutive segment breaks
 
@@ -20,6 +20,10 @@ Input:  N1{ T["line1"]× LB[∅]! T["line2"]×}
 Output: N1{ T["line1"]× LB! T["line2"]×}
 
 === White-space: preserve ===
+Input:  N1{ T["line1"]× LB[∅]! LB[∅]! LB[∅]! T["line2"]×}
+Output: N1{ T["line1"]× LB[∅]! LB[∅]! LB[∅]! T["line2"]×}
+
+=== White-space: break-spaces ===
 Input:  N1{ T["line1"]× LB[∅]! LB[∅]! LB[∅]! T["line2"]×}
 Output: N1{ T["line1"]× LB[∅]! LB[∅]! LB[∅]! T["line2"]×}
 

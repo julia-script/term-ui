@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/wrap.zig:366:9
+// Snapshot from: layout/v2/line-builder/wrap.zig:416:9
 // Function: test.wrap narrow width
 // Description: wrap narrow width
 
@@ -7,11 +7,10 @@ Wrap test: collapse_mode=collapse, wrap_mode=wrap, width=2
 Tokens after wrapping:
   [0] Line 0: text "a" (width=1.0)
   [1] Line 0: whitespace " " (width=1.0)
-  [2] Line 1: text "b" (width=1.0)
-  [3] Line 1: whitespace " " (width=1.0)
-  [4] Line 2: text "c" (width=1.0)
+  [2] Line 0: text "b" (width=1.0)
+  [3] Line 0: whitespace " " (width=1.0)
+  [4] Line 1: text "c" (width=1.0)
 
 Rendered lines:
-  Line 0: a  (width=2.0)
-  Line 1: b  (width=2.0)
-  Line 2: c (width=1.0)
+  Line 0: a b  (width=4.0)
+  Line 1: c (width=1.0)

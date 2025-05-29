@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:528:88
+// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:627:88
 // Function: test.Node boundaries prevent whitespace grouping
 // Description: node boundaries prevent grouping
 

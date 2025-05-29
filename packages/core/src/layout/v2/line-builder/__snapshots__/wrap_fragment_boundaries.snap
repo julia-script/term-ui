@@ -1,15 +1,14 @@
-// Snapshot from: layout/v2/line-builder/wrap.zig:423:9
+// Snapshot from: layout/v2/line-builder/wrap.zig:473:9
 // Function: test.wrap fragment boundaries
 // Description: wrap fragment boundaries
 
 Wrap test: collapse_mode=collapse, wrap_mode=wrap, width=20
 
 Tokens after wrapping:
-  [0] Line 1: text "Fragment" (width=8.0)
-  [1] Line 1: text "boundary" (width=8.0)
-  [2] Line 1: whitespace " " (width=1.0)
-  [3] Line 2: text "test" (width=4.0)
+  [0] Line 0: text "Fragment" (width=8.0)
+  [1] Line 0: text "boundary" (width=8.0)
+  [2] Line 0: whitespace " " (width=1.0)
+  [3] Line 0: text "test" (width=4.0)
 
 Rendered lines:
-  Line 1: Fragmentboundary  (width=17.0)
-  Line 2: test (width=4.0)
+  Line 0: Fragmentboundary test (width=21.0)

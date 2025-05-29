@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/wrap.zig:405:9
+// Snapshot from: layout/v2/line-builder/wrap.zig:455:9
 // Function: test.wrap mixed whitespace types
 // Description: wrap mixed whitespace types
 
@@ -9,11 +9,10 @@ Tokens after wrapping:
   [1] Line 0: whitespace " " (width=1.0)
   [2] Line 0: text "with" (width=4.0)
   [3] Line 0: whitespace " " (width=1.0)
-  [4] Line 1: text "spaces" (width=6.0)
-  [5] Line 1: whitespace " " (width=1.0)
-  [6] Line 2: text "newline" (width=7.0)
+  [4] Line 0: text "spaces" (width=6.0)
+  [5] Line 0: whitespace " " (width=1.0)
+  [6] Line 1: text "newline" (width=7.0)
 
 Rendered lines:
-  Line 0: Word with  (width=10.0)
-  Line 1: spaces  (width=7.0)
-  Line 2: newline (width=7.0)
+  Line 0: Word with spaces  (width=17.0)
+  Line 1: newline (width=7.0)

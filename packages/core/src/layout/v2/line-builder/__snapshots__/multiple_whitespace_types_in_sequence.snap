@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:500:78
+// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:599:78
 // Function: test.All modes: Multiple whitespace types in sequence
 // Description: multiple whitespace types in sequence
 
@@ -20,6 +20,10 @@ Input:  N1{ T["a"]× SP["__"]÷ T["b"]× SP["_"]÷ T["c"]× LB[∅]! T["d"]× SP
 Output: N1{ T["a"]× SP["__"]÷ T["b"]× SP["_"]÷ T["c"]× LB! T["d"]× SP["__"]÷ LB! SP["__"]÷ T["e"]×}
 
 === White-space: preserve ===
+Input:  N1{ T["a"]× SP["__"]÷ T["b"]× SP["\t\t"]÷ T["c"]× LB[∅]! LB[∅]! T["d"]× SP["__\t"]÷ LB[∅]! SP["__"]÷ T["e"]×}
+Output: N1{ T["a"]× SP["__"]÷ T["b"]× SP["\t\t"]÷ T["c"]× LB[∅]! LB[∅]! T["d"]× SP["__\t"]÷ LB[∅]! SP["__"]÷ T["e"]×}
+
+=== White-space: break-spaces ===
 Input:  N1{ T["a"]× SP["__"]÷ T["b"]× SP["\t\t"]÷ T["c"]× LB[∅]! LB[∅]! T["d"]× SP["__\t"]÷ LB[∅]! SP["__"]÷ T["e"]×}
 Output: N1{ T["a"]× SP["__"]÷ T["b"]× SP["\t\t"]÷ T["c"]× LB[∅]! LB[∅]! T["d"]× SP["__\t"]÷ LB[∅]! SP["__"]÷ T["e"]×}
 

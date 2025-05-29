@@ -1,14 +1,14 @@
-// Snapshot from: layout/v2/line-builder/wrap.zig:295:9
+// Snapshot from: layout/v2/line-builder/wrap.zig:345:9
 // Function: test.wrap long word
 // Description: wrap long word
 
 Wrap test: collapse_mode=collapse, wrap_mode=wrap, width=20
 
 Tokens after wrapping:
-  [0] Line 1: text "Supercalifragilisticexpialidocious" (width=34.0)
-  [1] Line 1: whitespace " " (width=1.0)
-  [2] Line 2: text "word" (width=4.0)
+  [0] Line 0: text "Supercalifragilisticexpialidocious" (width=34.0)
+  [1] Line 0: whitespace " " (width=1.0)
+  [2] Line 1: text "word" (width=4.0)
 
 Rendered lines:
-  Line 1: Supercalifragilisticexpialidocious  (width=35.0)
-  Line 2: word (width=4.0)
+  Line 0: Supercalifragilisticexpialidocious  (width=35.0)
+  Line 1: word (width=4.0)

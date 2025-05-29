@@ -14,5 +14,6 @@
       "Bash(UPDATE_SNAPSHOTS=true zig build debugbuild -Dtest-filter=\"hanging spaces\")"
     ],
     "deny": []
-  }
+  },
+  "enableAllProjectMcpServers": false
 }

@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:606:69
+// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:705:69
 // Function: test.All modes: Complex text with newlines and tabs
 // Description: all modes complex whitespace
 
@@ -20,6 +20,10 @@ Input:  N1{ T["hello"]× SP["__"]÷ SP["_"]÷} N2{ LB[∅]! SP["__"]÷ T["world"
 Output: N1{ T["hello"]× SP["__"]÷ SP["_"]÷} N2{ LB! SP["__"]÷ T["world"]× LB!} N3{ SP["__"]÷ T["end"]×}
 
 === White-space: preserve ===
+Input:  N1{ T["hello"]× SP["__\t"]÷} N2{ LB[∅]! SP["__"]÷ T["world"]× SP["\t"]÷ LB[∅]!} N3{ SP["__"]÷ T["end"]×}
+Output: N1{ T["hello"]× SP["__\t"]÷} N2{ LB[∅]! SP["__"]÷ T["world"]× SP["\t"]÷ LB[∅]!} N3{ SP["__"]÷ T["end"]×}
+
+=== White-space: break-spaces ===
 Input:  N1{ T["hello"]× SP["__\t"]÷} N2{ LB[∅]! SP["__"]÷ T["world"]× SP["\t"]÷ LB[∅]!} N3{ SP["__"]÷ T["end"]×}
 Output: N1{ T["hello"]× SP["__\t"]÷} N2{ LB[∅]! SP["__"]÷ T["world"]× SP["\t"]÷ LB[∅]!} N3{ SP["__"]÷ T["end"]×}
 

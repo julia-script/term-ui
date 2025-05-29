@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:488:79
+// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:587:79
 // Function: test.All modes: Tokenizer grouping of mixed whitespace
 // Description: tokenizer grouping of mixed whitespace
 
@@ -20,6 +20,10 @@ Input:  N1{ T["hello"]× SP["__"]÷ LB[∅]! SP["__"]÷ T["world"]×}
 Output: N1{ T["hello"]× SP["__"]÷ LB! SP["__"]÷ T["world"]×}
 
 === White-space: preserve ===
+Input:  N1{ T["hello"]× SP["__\t"]÷ LB[∅]! SP["__"]÷ T["world"]×}
+Output: N1{ T["hello"]× SP["__\t"]÷ LB[∅]! SP["__"]÷ T["world"]×}
+
+=== White-space: break-spaces ===
 Input:  N1{ T["hello"]× SP["__\t"]÷ LB[∅]! SP["__"]÷ T["world"]×}
 Output: N1{ T["hello"]× SP["__\t"]÷ LB[∅]! SP["__"]÷ T["world"]×}
 

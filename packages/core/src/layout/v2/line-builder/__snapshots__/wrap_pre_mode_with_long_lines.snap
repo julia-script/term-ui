@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/wrap.zig:458:9
+// Snapshot from: layout/v2/line-builder/wrap.zig:508:9
 // Function: test.wrap pre mode with long lines
 // Description: wrap pre mode with long lines
 
@@ -9,23 +9,19 @@ Tokens after wrapping:
   [1] Line 0: whitespace "   " (width=3.0)
   [2] Line 0: text "is" (width=2.0)
   [3] Line 0: whitespace "   " (width=3.0)
-  [4] Line 1: text "pre" (width=3.0)
-  [5] Line 1: whitespace "   " (width=3.0)
-  [6] Line 2: text "formatted" (width=9.0)
-  [7] Line 2: whitespace "   " (width=3.0)
-  [8] Line 3: text "text" (width=4.0)
-  [9] Line 3: segment_break (mandatory) (width=0.0)
-  [10] Line 4: text "With" (width=4.0)
-  [11] Line 4: whitespace "    " (width=4.0)
-  [12] Line 5: text "spaces" (width=6.0)
-  [13] Line 5: whitespace "    " (width=4.0)
-  [14] Line 6: text "preserved" (width=9.0)
+  [4] Line 0: text "pre" (width=3.0)
+  [5] Line 0: whitespace "   " (width=3.0)
+  [6] Line 0: text "formatted" (width=9.0)
+  [7] Line 0: whitespace "   " (width=3.0)
+  [8] Line 1: text "text" (width=4.0)
+  [9] Line 1: segment_break (mandatory) (width=0.0)
+  [10] Line 1: text "With" (width=4.0)
+  [11] Line 1: whitespace "    " (width=4.0)
+  [12] Line 1: text "spaces" (width=6.0)
+  [13] Line 1: whitespace "    " (width=4.0)
+  [14] Line 2: text "preserved" (width=9.0)
 
 Rendered lines:
-  Line 0: This   is    (width=12.0)
-  Line 1: pre    (width=6.0)
-  Line 2: formatted    (width=12.0)
-  Line 3: text (width=4.0)
-  Line 4: With     (width=8.0)
-  Line 5: spaces     (width=10.0)
-  Line 6: preserved (width=9.0)
+  Line 0: This   is   pre   formatted    (width=30.0)
+  Line 1: textWith    spaces     (width=22.0)
+  Line 2: preserved (width=9.0)

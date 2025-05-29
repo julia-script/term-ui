@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:574:74
+// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:673:74
 // Function: test.All modes: Cross-node boundary segment break
 // Description: cross-node boundary segment break
 
@@ -20,6 +20,10 @@ Input:  N1{ T["hello"]× SP["__"]÷} N2{ LB[∅]! SP["__"]÷ T["world"]×}
 Output: N1{ T["hello"]× SP["__"]÷} N2{ LB! SP["__"]÷ T["world"]×}
 
 === White-space: preserve ===
+Input:  N1{ T["hello"]× SP["__"]÷} N2{ LB[∅]! SP["__"]÷ T["world"]×}
+Output: N1{ T["hello"]× SP["__"]÷} N2{ LB[∅]! SP["__"]÷ T["world"]×}
+
+=== White-space: break-spaces ===
 Input:  N1{ T["hello"]× SP["__"]÷} N2{ LB[∅]! SP["__"]÷ T["world"]×}
 Output: N1{ T["hello"]× SP["__"]÷} N2{ LB[∅]! SP["__"]÷ T["world"]×}
 
