@@ -1,0 +1,12 @@
+// Snapshot from: layout/v2/line-builder/TextAlignment.zig:207:9
+// Function: test.left alignment
+// Description: left alignment
+
+Text alignment test: collapse_mode=collapse, text_align=left, width=50
+
+Tokens with positions:
+
+Line 0:
+  [0] pos=0.0 width=4.0 text "Left"
+  [1] pos=4.0 width=1.0 whitespace " "
+  [2] pos=5.0 width=7.0 text "aligned"

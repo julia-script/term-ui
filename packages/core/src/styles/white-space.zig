@@ -204,47 +204,6 @@ test "TextWrapMode enum parsing" {
     }
 }
 
-test "CSS white-space property parsing integration" {
-    const testing = std.testing;
-    const mod = @import("../layout/v2/mod.zig");
-
-    // Test if the style string is being processed correctly
-    {
-        const doc_xml =
-            \\<p style="display: block; white-space: normal">Hello world</p>
-        ;
-        var tree = try mod.docFromXml(testing.allocator, doc_xml, .{});
-        defer tree.deinit();
-
-        const p_node = tree.getChildren(0).items[0];
-        const style = tree.getStyle(p_node);
-
-        // Check if display was parsed (this should work)
-        std.debug.print("Display: {}\n", .{style.display});
-        std.debug.print("WhiteSpace: {}\n", .{style.white_space});
-
-        // The display is set by the XML parser, and white-space should be parsed
-        // Let's just check if white-space parsing is working
-    }
-
-    // Test direct style parsing
-    {
-        const Tree = @import("../tree/Tree.zig");
-        var tree = try Tree.init(testing.allocator);
-        defer tree.deinit();
-
-        const node_id = try tree.createNode();
-
-        // Apply style directly
-        const parseStyleString = @import("parse-styles.zig").parseStyleString;
-        try parseStyleString(&tree, node_id, "white-space: normal");
-
-        const style = tree.getStyle(node_id);
-        std.debug.print("Direct parsing - WhiteSpace: {}\n", .{style.white_space});
-        try testing.expectEqual(WhiteSpace.normal, style.white_space);
-    }
-}
-
 test "TabSize parsing" {
     const testing = std.testing;
 

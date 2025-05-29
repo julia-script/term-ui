@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/wrap.zig:491:9
+// Snapshot from: layout/v2/line-builder/wrap.zig:511:9
 // Function: test.wrap consecutive spaces collapse
 // Description: wrap consecutive spaces collapse
 

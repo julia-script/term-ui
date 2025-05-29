@@ -7,7 +7,7 @@ location: mod.CSSPoint = .{ .x = 0, .y = 0 },
 size: mod.CSSPoint = .{ .x = 0, .y = 0 },
 fragments: ArrayListUnmanaged(LineBoxFragment) = .{},
 allocator: std.mem.Allocator,
-available_width: f32,
+available_width: f32 = 0,
 
 const Self = @This();
 
@@ -17,6 +17,11 @@ pub fn deinit(self: *@This()) void {
         fragment.deinit();
     }
     self.fragments.deinit(self.allocator);
+}
+pub fn append(self: *@This(), fragment: LineBoxFragment) !void {
+    self.size.x += fragment.size.x;
+    self.size.y = @max(self.size.y, fragment.size.y);
+    try self.fragments.append(self.allocator, fragment);
 }
 
 pub fn dupe(self: *@This(), allocator: std.mem.Allocator) !Self {
@@ -36,7 +41,7 @@ pub fn dupe(self: *@This(), allocator: std.mem.Allocator) !Self {
 
 pub fn endsWithWhitespace(self: *@This()) bool {
     if (self.fragments.items.len == 0) return false;
-    
+
     var i = self.fragments.items.len - 1;
     while (true) : (i -= 1) {
         if (self.fragments.items[i].text.len > 0) {
@@ -50,11 +55,11 @@ pub fn endsWithWhitespace(self: *@This()) bool {
 pub const LineBoxList = struct {
     list: ArrayListUnmanaged(Self) = .{},
     allocator: std.mem.Allocator,
-    
+
     pub fn items(self: *@This()) []Self {
         return self.list.items;
     }
-    
+
     pub fn len(self: *const @This()) usize {
         return self.list.items.len;
     }
@@ -65,7 +70,7 @@ pub const LineBoxList = struct {
         }
         self.list.deinit(self.allocator);
     }
-    
+
     pub fn dupe(self: *@This(), allocator: std.mem.Allocator) !@This() {
         var new = @This(){
             .allocator = allocator,
@@ -76,16 +81,34 @@ pub const LineBoxList = struct {
         }
         return new;
     }
-    
+
     pub fn appendLine(self: *@This(), line: Self) !void {
         try self.list.append(self.allocator, line);
     }
-    
+
     pub fn getLinePtr(self: *@This(), index: usize) *Self {
         return &self.list.items[index];
     }
-    
+    pub fn breakLine(self: *@This()) !void {
+        if (self.list.items.len == 0) {
+            try self.appendLine(.{
+                .allocator = self.allocator,
+            });
+        }
+        const last_line = self.getLinePtr(self.list.items.len - 1);
+        try self.appendLine(.{
+            .allocator = self.allocator,
+            .location = .{ .x = 0, .y = last_line.location.y + last_line.size.y },
+        });
+    }
+
     pub fn appendFragmentToLastLine(self: *@This(), fragment: LineBoxFragment) !void {
-        try self.getLinePtr(self.list.items.len - 1).fragments.append(self.allocator, fragment);
+        if (self.list.items.len == 0) {
+            try self.appendLine(.{
+                .allocator = self.allocator,
+            });
+        }
+
+        try self.getLinePtr(self.list.items.len - 1).append(fragment);
     }
 };

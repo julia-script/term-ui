@@ -2,7 +2,6 @@ const DocTree = @import("../../tree/Tree.zig");
 const mod = @import("./mod.zig");
 const LayoutTree = mod.LayoutTree;
 const css_types = @import("../../css/types.zig");
-const LineBox = @import("./text/LineBox.zig");
 const ArrayList = std.ArrayList;
 const docFromXml = mod.docFromXml;
 
@@ -31,7 +30,7 @@ pub fn info(self: *Self, l_node_id: mod.LayoutNode.Id, comptime format: []const 
     writer.writeAll("\n") catch @panic("failed to write");
 }
 
-pub fn setBox(self: *Self, l_node_id: mod.LayoutNode.Id, box: mod.Box, line_boxes: ?LineBox.LineBoxList) void {
+pub fn setBox(self: *Self, l_node_id: mod.LayoutNode.Id, box: mod.Box, line_boxes: ?mod.LineBox.LineBoxList) void {
     self.layout_tree.getNodePtr(l_node_id).box = box;
     if (line_boxes) |lb| {
         self.layout_tree.getNodePtr(l_node_id).data.inline_container_node.line_boxes.deinit();
@@ -62,20 +61,14 @@ pub const StyleProperty = enum {
     align_content,
     gap,
     text_align,
-    white_space,
+    white_space_collapse,
+    text_wrap_mode,
 };
 const styles = @import("../../styles/styles.zig");
 const Styles = @import("../../tree/Style.zig");
 fn getLayoutNodeStyles(self: *Self, l_node_id: mod.LayoutNode.Id) ?*Styles {
     const l_node = self.layout_tree.getNodePtr(l_node_id);
-    switch (l_node.ref) {
-        .doc_node => |doc_node| {
-            return self.doc_tree.getStyle(doc_node);
-        },
-        else => {
-            return null;
-        },
-    }
+    return &l_node.style;
 }
 
 pub fn getChildren(self: *Self, l_node_id: mod.LayoutNode.Id) []const mod.LayoutNode.Id {
@@ -188,10 +181,13 @@ pub fn getStyleValue(self: *Self, T: type, l_node_id: mod.LayoutNode.Id, comptim
             };
         },
         .text_align => {
-            return if (maybe_node_styles) |node_styles| node_styles.text_align else .inherit;
+            return if (maybe_node_styles) |node_styles| node_styles.text_align else .left;
         },
-        .white_space => {
-            return if (maybe_node_styles) |node_styles| node_styles.white_space else .normal;
+        .white_space_collapse => {
+            return if (maybe_node_styles) |node_styles| node_styles.white_space_collapse else .collapse;
+        },
+        .text_wrap_mode => {
+            return if (maybe_node_styles) |node_styles| node_styles.text_wrap_mode else .wrap;
         },
     }
 }

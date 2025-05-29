@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/wrap.zig:617:9
+// Snapshot from: layout/v2/line-builder/wrap.zig:637:9
 // Function: test.wrap min-content with trailing spaces
 // Description: wrap min-content with trailing spaces
 

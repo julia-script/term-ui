@@ -271,7 +271,7 @@ pub fn computeTextLayout(allocator: std.mem.Allocator, node_id: Node.NodeId, tre
     }
 
     const max_width = blk: {
-        if (root_style.white_space == .nowrap or root_style.white_space == .pre) {
+        if (root_style.white_space_collapse == .preserve) {
             break :blk std.math.floatMax(f32);
         }
         break :blk switch (available_space.x) {

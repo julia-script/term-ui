@@ -1,6 +1,7 @@
 const std = @import("std");
 const DocNodeId = @import("../../tree/Node.zig").NodeId;
 const DocTree = @import("../../tree/Tree.zig");
+const Styles = @import("../../tree/Style.zig");
 const Array = std.ArrayListUnmanaged;
 const HashMap = std.AutoHashMapUnmanaged;
 const mod = @import("mod.zig");
@@ -31,8 +32,34 @@ pub fn createNode(self: *Self, data: LayoutNode.Data, ref: DocRef) !LayoutNode.I
     self.node_count += 1;
     return id;
 }
+
+pub fn createNodeWithDocTree(self: *Self, data: LayoutNode.Data, ref: DocRef, doc_tree: *DocTree) !LayoutNode.Id {
+    const id = self.node_count;
+    var node = LayoutNode{ .id = id, .data = data, .ref = ref };
+
+    // Copy styles from doc node if available
+    switch (ref) {
+        .doc_node => |doc_node_id| {
+            node.style = doc_tree.getComputedStyle(doc_node_id);
+        },
+        .anonymous => {
+            // Anonymous nodes will inherit styles from parent later
+        },
+    }
+
+    try self.nodes.put(self.allocator, id, node);
+    self.node_count += 1;
+    return id;
+}
 pub fn createTextNode(self: *Self, contents: []const u8, ref: DocRef) !LayoutNode.Id {
     const node_id = try self.createNode(.{ .text_node = .{} }, ref);
+    var node = self.getNodePtr(node_id);
+    try node.data.text_node.contents.appendSlice(self.allocator, contents);
+    return node_id;
+}
+
+pub fn createTextNodeWithDocTree(self: *Self, contents: []const u8, ref: DocRef, doc_tree: *DocTree) !LayoutNode.Id {
+    const node_id = try self.createNodeWithDocTree(.{ .text_node = .{} }, ref, doc_tree);
     var node = self.getNodePtr(node_id);
     try node.data.text_node.contents.appendSlice(self.allocator, contents);
     return node_id;
@@ -47,6 +74,33 @@ pub fn appendNode(self: *Self, parent_id: LayoutNode.Id, child_id: LayoutNode.Id
     };
     try list.append(self.allocator, child_id);
     try self.setParent(child_id, parent_id);
+
+    // Handle style inheritance for anonymous nodes
+    const child = self.getNodePtr(child_id);
+    if (child.ref == .anonymous) {
+        self.inheritStyles(child_id, parent_id);
+    }
+}
+
+// Inherit specific style properties from parent to child
+fn inheritStyles(self: *Self, child_id: LayoutNode.Id, parent_id: LayoutNode.Id) void {
+    const parent = self.getNodePtr(parent_id);
+    const child = self.getNodePtr(child_id);
+
+    // Inherit text formatting properties
+    child.style.text_align = parent.style.text_align;
+    child.style.white_space_collapse = parent.style.white_space_collapse;
+    child.style.text_wrap_mode = parent.style.text_wrap_mode;
+    child.style.white_space_trim = parent.style.white_space_trim;
+    child.style.tab_size = parent.style.tab_size;
+
+    // Inherit font properties
+    child.style.font_weight = parent.style.font_weight;
+    child.style.font_style = parent.style.font_style;
+    child.style.text_decoration = parent.style.text_decoration;
+
+    // Inherit color
+    child.style.foreground_color = parent.style.foreground_color;
 }
 pub fn setParent(self: *Self, child_id: LayoutNode.Id, parent_id: ?LayoutNode.Id) !void {
     const child = self.getNodePtr(child_id);
@@ -68,6 +122,7 @@ pub const LayoutNode = struct {
     data: Data,
     box: mod.Box = .{},
     cache: Cache = .{},
+    style: Styles = .{},
     pub const Id = u32;
     pub const Data = union(enum) {
         text_node: TextNode,
@@ -121,7 +176,7 @@ pub const BlockContainerNode = struct {
 /// this node also holds the LineBoxes
 pub const InlineContainerNode = struct {
     children: Array(LayoutNode.Id) = .{},
-    line_boxes: mod.LineBoxList,
+    line_boxes: mod.LineBox.LineBoxList,
     continuation: ?LayoutNode.Id = null,
     continuationOf: ?LayoutNode.Id = null,
     pub fn deinit(self: *InlineContainerNode, allocator: std.mem.Allocator) void {
@@ -274,7 +329,7 @@ const MixedContextBuilder = struct {
         const kind = self.doc_tree.getNodeKind(node_id);
         if (kind == .text) {
             const text = self.doc_tree.getText(node_id).bytes.items;
-            const id = try self.layout_tree.createTextNode(text, .{ .doc_node = node_id });
+            const id = try self.layout_tree.createTextNodeWithDocTree(text, .{ .doc_node = node_id }, self.doc_tree);
             try self.appendNode(id);
 
             // return id;
@@ -286,7 +341,7 @@ const MixedContextBuilder = struct {
             return;
         }
         if (isInlineFlow(self.doc_tree, node_id)) {
-            const id = try self.layout_tree.createNode(.{ .inline_node = .{} }, .{ .doc_node = node_id });
+            const id = try self.layout_tree.createNodeWithDocTree(.{ .inline_node = .{} }, .{ .doc_node = node_id }, self.doc_tree);
             try self.appendNode(id);
             // push to the stack
             try self.stack.append(self.allocator, id);
@@ -318,7 +373,7 @@ fn build(self: *Self, tree: *DocTree, node_id: DocNodeId) BuildError!LayoutNode.
     // 1. Text DOM nodes map directly to layout text nodes.
     if (kind == .text) {
         const text = tree.getText(node_id).bytes.items;
-        const id = try self.createTextNode(text, .{ .doc_node = node_id });
+        const id = try self.createTextNodeWithDocTree(text, .{ .doc_node = node_id }, tree);
         return id;
     }
     const style = tree.getStyle(node_id);
@@ -328,7 +383,7 @@ fn build(self: *Self, tree: *DocTree, node_id: DocNodeId) BuildError!LayoutNode.
 
     // 2. Atomic inline elements produce an `InlineNode`, right now we dont have other types of atomic inline elements besides inline-block or inline-flex
     if (isInlineFlow(tree, node_id)) {
-        const id = try self.createNode(.{ .inline_node = .{} }, .{ .doc_node = node_id });
+        const id = try self.createNodeWithDocTree(.{ .inline_node = .{} }, .{ .doc_node = node_id }, tree);
         for (tree.getNodeChildren(node_id)) |child| {
             if (isDisplayNone(tree, child)) continue;
             const child_layout_node_id = try self.build(tree, child);
@@ -350,11 +405,11 @@ pub fn buildInsideBlock(self: *Self, tree: *DocTree, node_id: DocNodeId) !Layout
     }
     std.debug.print("only_inline_children: {any}\n", .{only_inline_children});
     if (only_inline_children) {
-        const inline_container_id = try self.createNode(.{ .inline_container_node = .{
+        const inline_container_id = try self.createNodeWithDocTree(.{ .inline_container_node = .{
             .line_boxes = .{
                 .allocator = self.allocator,
             },
-        } }, .{ .doc_node = node_id });
+        } }, .{ .doc_node = node_id }, tree);
         for (children) |child| {
             if (isDisplayNone(tree, child)) continue;
             const child_layout_node_id = try self.build(tree, child);
@@ -363,7 +418,7 @@ pub fn buildInsideBlock(self: *Self, tree: *DocTree, node_id: DocNodeId) !Layout
         return inline_container_id;
     }
 
-    const container_id = try self.createNode(.{ .block_container_node = .{} }, .{ .doc_node = node_id });
+    const container_id = try self.createNodeWithDocTree(.{ .block_container_node = .{} }, .{ .doc_node = node_id }, tree);
     var mixed_context_builder = try MixedContextBuilder.init(self.allocator, self, tree, container_id, node_id);
     defer mixed_context_builder.deinit();
     try mixed_context_builder.build();
@@ -496,7 +551,7 @@ fn printLineBox(_: *Self, line_box: *const mod.LineBox, index: usize, writer: st
     else
         try writer.writeAll("├── ");
 
-    try writer.print("[line_box #{d} fragments={d}]", .{ index, line_box.fragments.items.len });
+    try writer.print("[line_box #{d} fragments={d} size={{{any}}}]", .{ index, line_box.fragments.items.len, line_box.size });
 
     try writer.writeByte('\n');
 

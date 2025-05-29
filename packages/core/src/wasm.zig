@@ -584,11 +584,12 @@ test {
     _ = @import("./tree/NodeIterator.zig");
     _ = @import("./layout/v2/mod.zig");
     _ = @import("./uni/LineBreakStream.zig");
-    _ = @import("./layout/v2/text/LineBuilder.zig");
     _ = @import("./renderer/v2/mod.zig");
     _ = @import("./renderer/v2/test_pipeline.zig");
     // New line-builder tests
     _ = @import("./layout/v2/line-builder/Tokenizer.zig");
     _ = @import("./layout/v2/line-builder/WhitespaceRules.zig");
     _ = @import("./layout/v2/line-builder/wrap.zig");
+    _ = @import("./layout/v2/line-builder/TextAlignment.zig");
+    _ = @import("./layout/v2/line-builder/compute.zig");
 }

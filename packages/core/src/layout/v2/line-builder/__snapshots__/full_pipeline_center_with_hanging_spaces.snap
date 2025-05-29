@@ -1,0 +1,9 @@
+// Snapshot from: layout/v2/line-builder/compute.zig:176:9
+// Function: test.full pipeline: center with hanging spaces
+// Description: full pipeline center with hanging spaces
+
+Full pipeline test: collapse_mode=preserve-breaks, wrap_mode=wrap, text_align=center, width=30
+
+Rendered lines:
+  Line 0 [offset=9.0]: Center  this (content_width=12.0)
+  Line 1 [offset=11.0]: Line two (content_width=8.0)

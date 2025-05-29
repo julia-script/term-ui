@@ -6,64 +6,68 @@ const LineBreakStream = @import("../../../uni/LineBreakStream.zig");
 const unicode = @import("../../../uni/codepoint.zig");
 const WhiteSpaceCollapse = @import("../../../styles/white-space.zig").WhiteSpaceCollapse;
 
-pub fn tokenizeFragments(
-    allocator: std.mem.Allocator,
-    fragments: []const LineBoxFragment,
-    collapse_mode: WhiteSpaceCollapse,
-) !std.ArrayList(Token) {
-    var tokens = std.ArrayList(Token).init(allocator);
-    var linebreak_iter = LineBreakStream.init(allocator);
-    defer linebreak_iter.deinit();
+// pub fn tokenizeFragments(
+//     allocator: std.mem.Allocator,
+//     fragments: []const LineBoxFragment,
+//     collapse_mode: WhiteSpaceCollapse,
+// ) !std.ArrayList(Token) {
+//     var tokens = std.ArrayList(Token).init(allocator);
+//     var linebreak_iter = LineBreakStream.init(allocator);
+//     defer linebreak_iter.deinit();
 
-    for (fragments) |fragment| {
-        if (fragment.is_atomic) {
-            // Atomic elements become single tokens with pre-computed size
-            try tokens.append(.{
-                .l_node_id = fragment.l_node_id,
-                .dom_range = .{ .start = fragment.dom_range.start, .end = fragment.dom_range.end },
-                .text = fragment.text,
-                .kind = .atomic,
-                .break_after = .allowed,
-                .size = fragment.size,
-            });
-            continue;
-        }
+//     for (fragments) |fragment| {
+//         if (fragment.is_atomic) {
+//             // Atomic elements become single tokens with pre-computed size
+//             try tokens.append(.{
+//                 .l_node_id = fragment.l_node_id,
+//                 .dom_range = .{ .start = fragment.dom_range.start, .end = fragment.dom_range.end },
+//                 .text = fragment.text,
+//                 .kind = .atomic,
+//                 .break_after = .allowed,
+//                 .size = fragment.size,
+//             });
+//             continue;
+//         }
 
-        // Use line breaker to find segment boundaries
-        try linebreak_iter.append(fragment.text);
+//         const last_buffer_i = linebreak_iter.i;
+//         // Use line breaker to find segment boundaries
+//         try linebreak_iter.append(fragment.text);
 
-        var last_break: usize = 0;
-        while (linebreak_iter.next()) |linebreak| {
-            const segment = fragment.text[last_break..linebreak.local_i];
+//         var last_break: usize = 0;
+//         while (linebreak_iter.next()) |linebreak| {
+//             const local_i = linebreak.i - last_buffer_i;
+//             const segment = fragment.text[last_break..local_i];
+//             std.debug.print("segment: {any}\n", .{segment});
 
-            try tokenizeAndAppend(
-                &tokens,
-                segment,
-                fragment.l_node_id,
-                .{ .start = @intCast(fragment.dom_range.start + last_break), .end = @intCast(fragment.dom_range.start + linebreak.local_i) },
-                linebreak.mandatory,
-                collapse_mode,
-            );
+//             try tokenizeAndAppend(
+//                 &tokens,
+//                 segment,
+//                 fragment.l_node_id,
+//                 .{ .start = @intCast(fragment.dom_range.start + last_break), .end = @intCast(fragment.dom_range.start + local_i) },
+//                 linebreak.mandatory,
+//                 collapse_mode,
+//             );
 
-            last_break = linebreak.local_i;
-        }
+//             last_break = local_i;
+//         }
 
-        // Handle remaining text after last break
-        if (last_break < fragment.text.len) {
-            const segment = fragment.text[last_break..];
-            try tokenizeAndAppend(
-                &tokens,
-                segment,
-                fragment.l_node_id,
-                .{ .start = @intCast(fragment.dom_range.start + last_break), .end = @intCast(fragment.dom_range.start + fragment.text.len) },
-                false, // No break at end
-                collapse_mode,
-            );
-        }
-    }
+//         // Handle remaining text after last break
+//         if (last_break < fragment.text.len) {
+//             const segment = fragment.text[last_break..];
+//             std.debug.print("segment: {any}\n", .{segment});
+//             try tokenizeAndAppend(
+//                 &tokens,
+//                 segment,
+//                 fragment.l_node_id,
+//                 .{ .start = @intCast(fragment.dom_range.start + last_break), .end = @intCast(fragment.dom_range.start + fragment.text.len) },
+//                 false, // No break at end
+//                 collapse_mode,
+//             );
+//         }
+//     }
 
-    return tokens;
-}
+//     return tokens;
+// }
 pub const Error = error{ OutOfMemory, InvalidUtf8 };
 pub fn tokenizeLayoutNode(
     allocator: std.mem.Allocator,
@@ -106,32 +110,38 @@ pub fn tokenizeLayoutNodeInner(
     linebreak_iter: *LineBreakStream,
 ) Error!void {
     const l_node = context.layout_tree.getNodePtr(l_node_id);
+    std.debug.print("l_node_id: {any}\n", .{l_node_id});
 
     switch (l_node.data) {
         .text_node => |text_node| {
-            _ = text_node; // autofix
-            const doc_node = context.doc_tree.getNode(l_node.ref.doc_node);
-            const text = doc_node.text.slice();
+            // const doc_node = context.doc_tree.getNode(l_node.ref.doc_node);
+            // const text = doc_node.text.slice();
+            const text = text_node.contents.items;
+            std.debug.print("text: '{s}' linebreak_iter.i: {d} len: {d}\n", .{ text, linebreak_iter.i, text.len });
             try linebreak_iter.append(text);
+            const start_i = linebreak_iter.last_buffer_index;
             var last_break: usize = 0;
             while (linebreak_iter.next()) |linebreak| {
-                const segment = text[last_break..linebreak.local_i];
+                const local_i = linebreak.i - start_i;
+                const segment = text[last_break..local_i];
+                std.debug.print("segment: '{s}'  linebreak.i : {d}\n", .{ segment, linebreak.i });
 
                 try tokenizeAndAppend(
                     tokens,
                     segment,
                     l_node_id,
-                    .{ .start = @intCast(last_break), .end = @intCast(linebreak.local_i) },
+                    .{ .start = @intCast(last_break), .end = @intCast(local_i) },
                     linebreak.mandatory,
                     collapse_mode,
                 );
 
-                last_break = linebreak.local_i;
+                last_break = local_i;
             }
 
             // Handle remaining text after last break
             if (last_break < text.len) {
                 const segment = text[last_break..];
+                std.debug.print("segment: {s}\n", .{segment});
                 try tokenizeAndAppend(
                     tokens,
                     segment,
@@ -328,30 +338,30 @@ fn isCollapsible(codepoint: u21, collapse_mode: WhiteSpaceCollapse) bool {
     };
 }
 
-test "tokenize simple text" {
-    const allocator = std.testing.allocator;
+// test "tokenize simple text" {
+//     const allocator = std.testing.allocator;
 
-    const fragments = [_]LineBoxFragment{
-        .{
-            .l_node_id = 1,
-            .text = "hello world",
-            .dom_range = .{ .start = 0, .end = 11 },
-            .is_atomic = false,
-            .start = 0,
-            .length = 11,
-            .size = .{ .x = 0, .y = 0 },
-            .allocator = allocator,
-        },
-    };
+//     const fragments = [_]LineBoxFragment{
+//         .{
+//             .l_node_id = 1,
+//             .text = "hello world",
+//             .dom_range = .{ .start = 0, .end = 11 },
+//             .is_atomic = false,
+//             .start = 0,
+//             .length = 11,
+//             .size = .{ .x = 0, .y = 0 },
+//             .allocator = allocator,
+//         },
+//     };
 
-    const tokens = try tokenizeFragments(allocator, fragments[0..], .collapse);
-    defer tokens.deinit();
+//     // const tokens = try tokenizeFragments(allocator, fragments[0..], .collapse);
+//     // defer tokens.deinit();
 
-    try std.testing.expectEqual(@as(usize, 3), tokens.items.len);
-    try std.testing.expectEqualStrings("hello", tokens.items[0].text);
-    try std.testing.expectEqual(Token.Kind.text, tokens.items[0].kind);
-    try std.testing.expectEqualStrings(" ", tokens.items[1].text);
-    try std.testing.expectEqual(Token.Kind.whitespace, tokens.items[1].kind);
-    try std.testing.expectEqualStrings("world", tokens.items[2].text);
-    try std.testing.expectEqual(Token.Kind.text, tokens.items[2].kind);
-}
+//     try std.testing.expectEqual(@as(usize, 3), tokens.items.len);
+//     try std.testing.expectEqualStrings("hello", tokens.items[0].text);
+//     try std.testing.expectEqual(Token.Kind.text, tokens.items[0].kind);
+//     try std.testing.expectEqualStrings(" ", tokens.items[1].text);
+//     try std.testing.expectEqual(Token.Kind.whitespace, tokens.items[1].kind);
+//     try std.testing.expectEqualStrings("world", tokens.items[2].text);
+//     try std.testing.expectEqual(Token.Kind.text, tokens.items[2].kind);
+// }

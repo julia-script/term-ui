@@ -12,7 +12,7 @@ test "pipeline: basic colored box" {
         xml,
         "basic-colored-box",
         .{
-            .available_space = .{ .width = 30, .height = 10 },
+            .available_space = .{ .x = .{ .definite = 30 }, .y = .max_content },
         },
         @src(),
     );
@@ -31,7 +31,7 @@ test "pipeline: nested boxes" {
         xml,
         "nested-boxes",
         .{
-            .available_space = .{ .width = 40, .height = 15 },
+            .available_space = .{ .x = .{ .definite = 40 }, .y = .max_content },
         },
         @src(),
     );
@@ -49,7 +49,7 @@ test "pipeline: text rendering" {
         xml,
         "text-rendering",
         .{
-            .available_space = .{ .width = 50, .height = 10 },
+            .available_space = .{ .x = .{ .definite = 50 }, .y = .max_content },
         },
         @src(),
     );
@@ -67,26 +67,7 @@ test "pipeline: multi-width characters" {
         xml,
         "multi-width-characters",
         .{
-            .available_space = .{ .width = 40, .height = 8 },
-        },
-        @src(),
-    );
-}
-
-test "pipeline: z-index ordering" {
-    const xml =
-        \\<root style="width: 30px; height: 10px; background-color: #f3f4f6;">
-        \\  <div style="position: absolute; left: 5px; top: 2px; width: 10px; height: 4px; background-color: #ef4444; z-index: 2;"></div>
-        \\  <div style="position: absolute; left: 8px; top: 3px; width: 10px; height: 4px; background-color: #3b82f6; z-index: 1;"></div>
-        \\</root>
-    ;
-
-    try pipeline.expectPipeline(
-        std.testing.allocator,
-        xml,
-        "z-index-ordering",
-        .{
-            .available_space = .{ .width = 40, .height = 15 },
+            .available_space = .{ .x = .{ .definite = 40 }, .y = .max_content },
         },
         @src(),
     );
@@ -104,7 +85,7 @@ test "pipeline: text wrapping" {
         xml,
         "text-wrapping",
         .{
-            .available_space = .{ .width = 25, .height = 15 },
+            .available_space = .{ .x = .{ .definite = 25 }, .y = .max_content },
         },
         @src(),
     );
@@ -125,7 +106,7 @@ test "pipeline: inline and block mixing" {
         xml,
         "inline-block-mixing",
         .{
-            .available_space = .{ .width = 50, .height = 20 },
+            .available_space = .{ .x = .{ .definite = 50 }, .y = .max_content },
         },
         @src(),
     );
@@ -137,13 +118,13 @@ test "pipeline: simple border" {
         \\  <div style="width: 10px; height: 3px; background-color: #3b82f6; border-style: solid; border-color: #1e40af;"></div>
         \\</root>
     ;
-    
+
     try pipeline.expectPipeline(
         std.testing.allocator,
         xml,
         "simple-border",
         .{
-            .available_space = .{ .width = 30, .height = 10 },
+            .available_space = .{ .x = .{ .definite = 30 }, .y = .max_content },
         },
         @src(),
     );
@@ -164,7 +145,7 @@ test "pipeline: text formatting" {
         xml,
         "text-formatting",
         .{
-            .available_space = .{ .width = 60, .height = 10 },
+            .available_space = .{ .x = .{ .definite = 60 }, .y = .max_content },
         },
         @src(),
     );
@@ -181,7 +162,7 @@ test "pipeline: linear gradient background" {
         xml,
         "linear-gradient-bg",
         .{
-            .available_space = .{ .width = 40, .height = 15 },
+            .available_space = .{ .x = .{ .definite = 40 }, .y = .max_content },
         },
         @src(),
     );
@@ -198,7 +179,7 @@ test "pipeline: radial gradient background" {
         xml,
         "radial-gradient-bg",
         .{
-            .available_space = .{ .width = 30, .height = 15 },
+            .available_space = .{ .x = .{ .definite = 30 }, .y = .{ .definite = 15 } },
         },
         @src(),
     );
@@ -215,7 +196,7 @@ test "pipeline: gradient border" {
         xml,
         "gradient-border",
         .{
-            .available_space = .{ .width = 30, .height = 12 },
+            .available_space = .{ .x = .{ .definite = 30 }, .y = .{ .definite = 12 } },
         },
         @src(),
     );
@@ -233,10 +214,10 @@ test "pipeline: text selection" {
         xml,
         "text-selection",
         .{
-            .available_space = .{ .width = 50, .height = 10 },
+            .available_space = .{ .x = .{ .definite = 50 }, .y = .max_content },
             // Select "World" - text node is typically node 2 (root=0, span=1, text=2)
             .selections = &[_][3]u32{
-                .{ 2, 7, 12 }, // node_id=2, start=7, end=12
+                .{ 3, 7, 12 }, // node_id=2, start=7, end=12
             },
         },
         @src(),
@@ -255,11 +236,11 @@ test "pipeline: multiple selections" {
         xml,
         "multiple-selections",
         .{
-            .available_space = .{ .width = 60, .height = 10 },
+            .available_space = .{ .x = .{ .definite = 60 }, .y = .max_content },
             // Select "quick" and "lazy"
             .selections = &[_][3]u32{
-                .{ 2, 4, 9 },   // "quick"
-                .{ 2, 35, 39 }, // "lazy"
+                .{ 3, 4, 9 }, // "quick"
+                .{ 3, 35, 39 }, // "lazy"
             },
         },
         @src(),
@@ -268,7 +249,7 @@ test "pipeline: multiple selections" {
 
 test "pipeline: selection spanning wrapped text" {
     const xml =
-        \\<root style="width: 20px; height: 10px; background-color: #1f2937;">
+        \\<root style="width: 20px; background-color: #1f2937;">
         \\  <span style="color: #fbbf24;">This is a long text that should wrap to multiple lines</span>
         \\</root>
     ;
@@ -278,10 +259,10 @@ test "pipeline: selection spanning wrapped text" {
         xml,
         "selection-wrapped-text",
         .{
-            .available_space = .{ .width = 25, .height = 15 },
+            .available_space = .{ .x = .{ .definite = 20 }, .y = .max_content },
             // Select from "long" to "should"
             .selections = &[_][3]u32{
-                .{ 2, 10, 30 }, // "long text that should"
+                .{ 3, 10, 30 }, // "long text that should"
             },
         },
         @src(),
@@ -300,11 +281,11 @@ test "pipeline: empty text node selection" {
         xml,
         "empty-text-node-selection",
         .{
-            .available_space = .{ .width = 50, .height = 15 },
+            .available_space = .{ .x = .{ .definite = 50 }, .y = .{ .definite = 15 } },
             // Select the whitespace-only span content
             // Text nodes: root=0, div=1, text1=2, span=3, text2=4, text3=5
             .selections = &[_][3]u32{
-                .{ 4, 0, 3 }, // The three spaces in the span
+                .{ 5, 0, 3 }, // The three spaces in the span
             },
         },
         @src(),

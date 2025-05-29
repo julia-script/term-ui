@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:659:97
+// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:660:97
 // Function: test.Tokenizer groups collapsible whitespace with newlines
 // Description: tokenizer groups whitespace with newlines
 

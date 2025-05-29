@@ -30,7 +30,7 @@ const Self = @This();
 pub const Break = struct {
     mandatory: bool,
     i: usize,
-    local_i: usize,
+    // local_i: usize,
     slice: []const u8,
 };
 pub fn append(self: *Self, data: []const u8) !void {
@@ -42,6 +42,7 @@ pub fn append(self: *Self, data: []const u8) !void {
 }
 
 pub fn getLocalIndex(self: *Self) usize {
+    std.debug.print("getLocalIndex: {d} {d}\n", .{ self.i, self.last_buffer_index });
     return self.i - self.last_buffer_index;
 }
 
@@ -94,7 +95,7 @@ pub fn next(self: *Self) ?Break {
                 return Break{
                     .mandatory = true,
                     .i = self.i,
-                    .local_i = self.getLocalIndex(),
+                    // .local_i = self.getLocalIndex(),
                     .slice = self.buffer.items[self.prev_break_index..self.i],
                 };
             }
@@ -114,7 +115,7 @@ pub fn next(self: *Self) ?Break {
             return Break{
                 .mandatory = mandatory,
                 .i = self.i,
-                .local_i = self.getLocalIndex(),
+                // .local_i = self.getLocalIndex(),
                 .slice = self.buffer.items[self.prev_break_index..self.i],
             };
         }

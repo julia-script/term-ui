@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:520:76
+// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:521:76
 // Function: test.All modes: Remove spaces around segment breaks
 // Description: remove spaces around segment breaks
 

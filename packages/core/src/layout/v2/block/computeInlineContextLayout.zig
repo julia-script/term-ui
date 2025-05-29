@@ -179,59 +179,28 @@ pub fn computeInlineContextLayout(context: *LayoutContext, inputs: ContainerCont
 fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: LayoutNode.Id) (mod.ComputeLayoutError || error{InvalidUtf8})!mod.LayoutResult {
     const allocator = context.layout_tree.allocator;
 
-    // Initialize LineBuilder with available space from layout constraints
-    const whitespace = switch (context.getStyleValue(css_types.WhiteSpace, l_node_id, .white_space)) {
-        .inherit => css_types.WhiteSpace.normal, // TODO: should be resolved by this point
-        else => context.getStyleValue(css_types.WhiteSpace, l_node_id, .white_space),
-    };
-    const whitespace_longhand = whitespace.toLonghand(); // TODO: should be resolved by this point
+    // Get individual white-space properties directly from style
+    const white_space_collapse = context.getStyleValue(css_types.WhiteSpaceCollapse, l_node_id, .white_space_collapse);
+    const text_wrap_mode = context.getStyleValue(css_types.TextWrapMode, l_node_id, .text_wrap_mode);
+    const text_align = context.getStyleValue(css_types.TextAlign, l_node_id, .text_align);
 
-    const available_width = inputs.available_space.x;
-    var lines_builder = mod.LineBuilder.init(
-        allocator,
-        available_width,
-        context,
-        whitespace_longhand.wrap_mode,
-        whitespace_longhand.collapse,
-    );
-    defer lines_builder.deinit();
-
-    // The style system should resolve shorthands and inherit values during cascade/computation.
-    // Recursively process all child nodes to collect text content
-    // try processNodeRecursively(context, &lines_builder, l_node_id, whitespace);
-    try mod.compute(
+    std.debug.print("white_space_collapse: {}, text_wrap_mode: {}\n", .{ white_space_collapse, text_wrap_mode });
+    // Process all text through the line-builder pipeline
+    const line_boxes = try mod.compute(
         context,
         allocator,
         inputs,
         l_node_id,
-        whitespace_longhand.collapse,
-        whitespace_longhand.wrap_mode,
+        white_space_collapse,
+        text_wrap_mode,
+        text_align,
     );
 
-    // Build lines using the multi-pass system
-    // try lines_builder.runPhase1CollapseAndTransformation();
-    // try lines_builder.runLineWrapping();
-
-    // // Apply text alignment if container has definite width
-    // const text_align = context.getStyleValue(css_types.TextAlign, l_node_id, .text_align);
-    // if (text_align != .inherit) {
-    //     switch (available_width) {
-    //         .definite => |width| {
-    //             lines_builder.applyTextAlignment(text_align, width);
-    //         },
-    //         .min_content, .max_content => {
-    //             // No alignment for content-based sizing
-    //         },
-    //     }
-    // }
-
-    // Calculate content size from LineBuilder's measured line dimensions
+    // Calculate content size from line boxes
     var content_width: f32 = 0;
     var content_height: f32 = 0;
 
-    // Position text nodes based on LineBox/LineBoxFragment layout
-
-    for (lines_builder.lines.items()) |*line| {
+    for (line_boxes.list.items) |*line| {
         // Track the maximum width across all lines
         content_width = @max(content_width, line.size.x);
         line.location.y = content_height;
@@ -289,7 +258,7 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
     return .{
         .size = final_size,
         .content_size = .{ .x = content_width, .y = content_height },
-        .line_boxes = try lines_builder.toOwnedLineBoxes(context.allocator),
+        .line_boxes = line_boxes,
         .resolved_margin = resolved_margin,
         .resolved_padding = resolved_padding,
         .resolved_border = resolved_border,

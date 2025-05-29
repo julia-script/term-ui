@@ -91,7 +91,10 @@ flex_shrink: f32 = 1,
 background_color: ?styles.background.Background = null,
 foreground_color: ?styles.color.Color = null,
 text_align: styles.text_align.TextAlign = .inherit,
-white_space: styles.white_space.WhiteSpace = .inherit,
+// White space properties (longhand only)
+white_space_collapse: styles.white_space.WhiteSpaceCollapse = .inherit,
+text_wrap_mode: styles.white_space.TextWrapMode = .inherit,
+white_space_trim: styles.white_space.Trim = .none,
 tab_size: styles.white_space.TabSize = styles.white_space.TabSize.DEFAULT,
 
 // Text formatting styles

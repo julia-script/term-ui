@@ -35,9 +35,8 @@ pub const CSSMaybeLine = @import("../line.zig").CSSMaybeLine;
 pub const LineOf = @import("../line.zig").Of;
 pub const Line = @import("../line.zig").Line;
 
-pub const LineBuilder = @import("./text/LineBuilder.zig");
-pub const LineBox = @import("./text/LineBox.zig");
-pub const LineBoxFragment = @import("./text/LineBoxFragment.zig");
+pub const LineBox = @import("./line-builder/LineBox.zig");
+pub const LineBoxFragment = @import("./line-builder/LineBoxFragment.zig");
 pub const LineBoxList = LineBox.LineBoxList;
 
 pub const RenderList = @import("./RenderList.zig");

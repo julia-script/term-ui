@@ -28,12 +28,48 @@
       white-space: pre-wrap;
       tab-size: 8;
     }
+
+    .boc {
+      width: 30ch;
+      background-color: lightblue;
+      text-align: center;
+      white-space: normal;
+      resize: both;
+      
+    }
   </style>
 </head>
 
 <body>
 
-  <div style="width: 30ch; background-color: lightblue" contenteditable>a&#9;bb&#9;c&#9;d</div>
+  <div class="boc">Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quos.</div>
+  <input type="number" id="width" value="30" onchange="updateWidth(this.value)">
+  <select id="white-space" onchange="updateWhiteSpace(this.value)">
+    <option value="normal">normal</option>
+    <option value="nowrap">nowrap</option>
+    <option value="pre">pre</option>
+    <option value="pre-wrap">pre-wrap</option>
+    <option value="pre-line">pre-line</option>
+    <option value="break-spaces">break-spaces</option>
+  </select>
+  <select id="text-align" onchange="updateTextAlign(this.value)">
+    <option value="left">left</option>
+    <option value="center">center</option>
+    <option value="right">right</option>
+    <option value="justify">justify</option>
+  </select>
+  <script>  
+
+    function updateWidth(value) {
+      document.querySelector('.boc').style.width = value + 'ch';
+    }
+    function updateWhiteSpace(value) {
+      document.querySelector('.boc').style.whiteSpace = value;
+    }
+    function updateTextAlign(value) {
+      document.querySelector('.boc').style.textAlign = value;
+    }
+  </script>
 
 </body>
 

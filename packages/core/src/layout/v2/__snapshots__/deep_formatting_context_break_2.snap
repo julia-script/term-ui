@@ -1,45 +1,43 @@
-// Snapshot from: layout/v2/LayoutTree.zig:594:7
+// Snapshot from: layout/v2/LayoutTree.zig:668:7
 // Function: test.deep formatting context break
 // Description: deep formatting context break 2
 
 DocTree:
 [node#0 block flow_root]
-    [text #1] "  Italic only"
-    [text #2] "  "
-    [node#3 inline flow]
-        [text #4] "  italic and bold"
-        [text #5] "    "
-        [node#6 block flow_root]
-            [text #7] "Wow, a block!"
-        [node#8 inline flow]
+    [text #1] "\n  Italic only\n  "
+    [node#2 inline flow]
+        [text #3] "\n  italic and bold\n    "
+        [node#4 block flow_root]
+            [text #5] "Wow, a block!"
+        [text #6] "\n    "
+        [node#7 inline flow]
+            [text #8] "\n      "
             [node#9 block flow_root]
                 [text #10] "Wow, another block!"
-            [text #11] "      More italic and bold text"
-            [text #12] "    "
-    [text #13] " "
-    [text #14] "  More italic text"
+            [text #11] "\n      More italic and bold text\n    "
+        [text #12] "\n  "
+    [text #13] " \n  More italic text\n"
 LayoutTree:
 [block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
 └── [block_container_node #1 ref={doc#0} children={5} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-    ├── [inline_container_node #3 ref={anon} children={3} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-    │   ├── [text_node #2] "  Italic only"
-    │   ├── [text_node #4] "  "
-    │   └── [inline_node #5 continuation={#13} ref={doc#3} children={2} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-    │       ├── [text_node #6] "  italic and bold"
-    │       └── [text_node #7] "    "
-    ├── [block_container_node #8 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-    │   └── [inline_container_node #9 ref={doc#6} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-    │       └── [text_node #10] "Wow, a block!"
-    ├── [inline_container_node #12 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-    │   └── [inline_node #13 continuationOf={#5} continuation={#19} ref={doc#3} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-    │       └── [inline_node #11 continuation={#20} ref={doc#8} children={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    ├── [inline_container_node #3 ref={anon} children={2} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │   ├── [text_node #2] "\n  Italic only\n  "
+    │   └── [inline_node #4 continuation={#11} ref={doc#2} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │       └── [text_node #5] "\n  italic and bold\n    "
+    ├── [block_container_node #6 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │   └── [inline_container_node #7 ref={doc#4} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │       └── [text_node #8] "Wow, a block!"
+    ├── [inline_container_node #10 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │   └── [inline_node #11 continuationOf={#4} continuation={#19} ref={doc#2} children={2} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │       ├── [text_node #9] "\n    "
+    │       └── [inline_node #12 continuation={#20} ref={doc#7} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+    │           └── [text_node #13] "\n      "
     ├── [block_container_node #14 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
     │   └── [inline_container_node #15 ref={doc#9} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
     │       └── [text_node #16] "Wow, another block!"
-    └── [inline_container_node #18 ref={anon} children={3} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        ├── [inline_node #19 continuationOf={#13} ref={doc#3} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        │   └── [inline_node #20 continuationOf={#11} ref={doc#8} children={2} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        │       ├── [text_node #17] "      More italic and bold text"
-        │       └── [text_node #21] "    "
-        ├── [text_node #22] " "
-        └── [text_node #23] "  More italic text"
+    └── [inline_container_node #18 ref={anon} children={2} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        ├── [inline_node #19 continuationOf={#11} ref={doc#2} children={2} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        │   ├── [inline_node #20 continuationOf={#12} ref={doc#7} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
+        │   │   └── [text_node #17] "\n      More italic and bold text\n    "
+        │   └── [text_node #21] "\n  "
+        └── [text_node #22] " \n  More italic text\n"

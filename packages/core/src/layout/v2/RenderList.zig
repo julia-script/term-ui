@@ -139,7 +139,7 @@ pub const SelectionOverlayItem = struct {
     /// Bounding box for the selection overlay
     bounds: Rect,
     /// Semi-transparent color for the selection
-    color: styles.color.Color = styles.color.Color.rgba(0.0, 123.0/255.0, 1.0, 0.3),
+    color: styles.color.Color = styles.color.Color.rgba(0.0, 123.0 / 255.0, 1.0, 0.3),
     /// Selection ID to identify which selection this belongs to
     selection_id: u32,
 };
@@ -183,7 +183,7 @@ pub fn print(self: *Self, writer: std.io.AnyWriter) !void {
         try writer.print("  [{d}] ", .{i});
         switch (item) {
             .box => |box| {
-                try writer.print("Box #{d} bounds=({d:.1},{d:.1} {d:.1}x{d:.1}) z={d}", .{
+                try writer.print("Box #{d} bounds=[pos:({d:.1},{d:.1}) size:({d:.1}x{d:.1})] z={d}", .{
                     box.node_id,
                     box.bounds.x,
                     box.bounds.y,
@@ -199,7 +199,7 @@ pub fn print(self: *Self, writer: std.io.AnyWriter) !void {
                 }
             },
             .text_fragment => |text| {
-                try writer.print("TextFragment #{d} bounds=({d:.1},{d:.1} {d:.1}x{d:.1}) z={d} text=\"{s}\"", .{
+                try writer.print("TextFragment #{d} bounds=[pos:({d:.1},{d:.1}) size:({d:.1}x{d:.1})] z={d} text=\"{s}\"", .{
                     text.node_id,
                     text.bounds.x,
                     text.bounds.y,

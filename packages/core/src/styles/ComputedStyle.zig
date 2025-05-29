@@ -25,7 +25,8 @@ pub const ComputedStyleCache = struct {
         s.font_weight = .normal;
         s.font_style = .normal;
         s.text_align = .left;
-        s.white_space = .normal;
+        s.white_space_collapse = .collapse;
+        s.text_wrap_mode = .wrap;
         break :blk s;
     };
 
@@ -39,6 +40,9 @@ pub const ComputedStyleCache = struct {
 
     pub fn deinit(self: *ComputedStyleCache) void {
         self.styles.deinit();
+    }
+    pub fn computeRootStyle(self: *ComputedStyleCache, tree: *Tree) StyleError!void {
+        try self.computeStyle(tree, 0, ROOT_STYLE);
     }
 
     pub fn computeStyle(self: *ComputedStyleCache, tree: *Tree, node_id: NodeId, parent_style: Style) StyleError!void {
@@ -125,10 +129,17 @@ pub const ComputedStyleCache = struct {
         if (style.text_align == .inherit) {
             new_style.text_align = parent_style.text_align;
         }
+        if (style.foreground_color == null) {
+            new_style.foreground_color = parent_style.foreground_color;
+        }
+        
 
         // Apply white_space inheritance
-        if (style.white_space == .inherit) {
-            new_style.white_space = parent_style.white_space;
+        if (style.white_space_collapse == .inherit) {
+            new_style.white_space_collapse = parent_style.white_space_collapse;
+        }
+        if (style.text_wrap_mode == .inherit) {
+            new_style.text_wrap_mode = parent_style.text_wrap_mode;
         }
 
         // Apply tab_size inheritance

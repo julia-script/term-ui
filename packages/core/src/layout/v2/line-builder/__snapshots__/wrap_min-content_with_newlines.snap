@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/wrap.zig:636:9
+// Snapshot from: layout/v2/line-builder/wrap.zig:656:9
 // Function: test.wrap min-content with newlines
 // Description: wrap min-content with newlines
 

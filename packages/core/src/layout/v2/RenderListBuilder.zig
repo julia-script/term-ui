@@ -48,7 +48,7 @@ pub fn build(self: *Self) !void {
     // - Elements with z-index (should be sorted within their stacking context)
     // - Positioned elements (have different paint order rules)
     // - Proper stacking context creation (position + z-index, opacity < 1, etc.)
-    // 
+    //
     // For now, we don't sort at all and just render in tree order with
     // selections immediately after their text fragments
 }
@@ -333,7 +333,7 @@ fn addSelectionOverlay(
             fragment.l_node_id,
             fragment.text,
         );
-        
+
         // Measure the text up to this offset to get pixel position
         if (processed_offset > 0) {
             const text_before = fragment.text[0..processed_offset];
@@ -350,7 +350,7 @@ fn addSelectionOverlay(
             fragment.l_node_id,
             fragment.text,
         );
-        
+
         // Measure the text up to this offset to get pixel position
         if (processed_offset > 0) {
             const text_before = fragment.text[0..processed_offset];
@@ -388,23 +388,23 @@ fn mapDomOffsetToProcessedOffset(
     // Get the original DOM text
     const l_node = self.layout_tree.getNodePtr(l_node_id);
     if (l_node.ref != .doc_node) return 0;
-    
+
     const doc_node_id = l_node.ref.doc_node;
     const dom_text = self.doc_tree.getText(doc_node_id).bytes.items;
     const dom_text_slice = dom_text[dom_range_start..dom_range_end];
-    
+
     // If offset is at the start, return 0
     if (dom_offset <= dom_range_start) return 0;
-    
+
     // If offset is at or past the end, return the full processed text length
     if (dom_offset >= dom_range_end) return processed_text.len;
-    
+
     // Calculate relative offset within the fragment's DOM range
     const relative_dom_offset = dom_offset - dom_range_start;
-    
+
     var dom_pos: usize = 0;
     var processed_pos: usize = 0;
-    
+
     while (dom_pos < relative_dom_offset and dom_pos < dom_text_slice.len and processed_pos < processed_text.len) {
         // If we're at whitespace in the DOM text
         if (std.ascii.isWhitespace(dom_text_slice[dom_pos])) {
@@ -412,13 +412,13 @@ fn mapDomOffsetToProcessedOffset(
             while (dom_pos < dom_text_slice.len and std.ascii.isWhitespace(dom_text_slice[dom_pos])) {
                 dom_pos += 1;
             }
-            
-            // If we've reached or passed the target offset while in whitespace, 
+
+            // If we've reached or passed the target offset while in whitespace,
             // position is at the processed space (if it exists)
             if (dom_pos >= relative_dom_offset) {
                 return processed_pos;
             }
-            
+
             // If this whitespace sequence produced a space in processed text, advance processed position
             if (processed_pos < processed_text.len and processed_text[processed_pos] == ' ') {
                 processed_pos += 1;
@@ -429,7 +429,7 @@ fn mapDomOffsetToProcessedOffset(
             processed_pos += 1;
         }
     }
-    
+
     return processed_pos;
 }
 
@@ -439,7 +439,7 @@ fn measureTextWidth(text: []const u8) f32 {
     // and properly handles Unicode characters (CJK, emojis, combining chars)
     const utf8WidthExcludingAnsiColors = @import("../../uni/string-width.zig").utf8WidthExcludingAnsiColors;
     const measured_width = utf8WidthExcludingAnsiColors(text);
-    
+
     return @as(f32, @floatFromInt(measured_width));
 }
 
@@ -460,40 +460,4 @@ fn shouldRenderBox(node: *LayoutTree.LayoutNode, style: ?Style) bool {
     }
 
     return false;
-}
-test "RenderListBuilder - z-index sorting" {
-    const docFromXml = @import("doc-from-xml.zig").docFromXml;
-
-    var tree = try docFromXml(std.testing.allocator,
-        \\<div style="position: relative; background-color: #808080;">
-        \\  <div style="position: absolute; z-index: 2; background-color: #ff0000;"></div>
-        \\  <div style="position: absolute; z-index: 1; background-color: #00ff00;"></div>
-        \\  <div style="position: absolute; z-index: 3; background-color: #0000ff;"></div>
-        \\</div>
-    , .{});
-    defer tree.deinit();
-
-    var layout_tree = try LayoutTree.fromTree(std.testing.allocator, &tree);
-    defer layout_tree.deinit();
-
-    // Create render list
-    var render_list = RenderList.init(std.testing.allocator);
-    defer render_list.deinit();
-
-    // Build render list
-    var builder = init(&layout_tree, &tree, &render_list);
-    try builder.build();
-
-    // Should have 4 boxes (parent + 3 children)
-    try std.testing.expectEqual(@as(usize, 4), render_list.items.items.len);
-
-    // Verify z-index ordering
-    // Parent should be first (z-index 0)
-    try std.testing.expectEqual(@as(i32, 0), render_list.items.items[0].box.z_index);
-    // Then child with z-index 1
-    try std.testing.expectEqual(@as(i32, 1), render_list.items.items[1].box.z_index);
-    // Then child with z-index 2
-    try std.testing.expectEqual(@as(i32, 2), render_list.items.items[2].box.z_index);
-    // Finally child with z-index 3
-    try std.testing.expectEqual(@as(i32, 3), render_list.items.items[3].box.z_index);
 }

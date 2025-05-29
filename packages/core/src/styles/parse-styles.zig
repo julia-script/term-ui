@@ -255,11 +255,33 @@ pub fn parseStyleProperty(tree: *Tree, node_id: Node.NodeId, _key: []const u8, _
         };
         tree.getNode(node_id).styles.text_align = parsed.value;
     } else if (std.mem.eql(u8, key, "white-space")) {
+        // Handle white-space shorthand by setting individual longhand properties
         const parsed = parsers.white_space.parse(value, 0) catch {
             logger.warn("Invalid white-space value: '{s}'\n", .{value});
             return;
         };
-        tree.getNode(node_id).styles.white_space = parsed.value;
+        const longhand = parsed.value.toLonghand();
+        tree.getNode(node_id).styles.white_space_collapse = longhand.collapse;
+        tree.getNode(node_id).styles.text_wrap_mode = longhand.wrap_mode;
+        tree.getNode(node_id).styles.white_space_trim = longhand.trim;
+    } else if (std.mem.eql(u8, key, "white-space-collapse")) {
+        // Handle white-space-collapse longhand property
+        const parsed = parsers.white_space.parseCollapse(value, 0) catch {
+            logger.warn("Invalid white-space-collapse value: '{s}'\n", .{value});
+            return;
+        };
+        tree.getNode(node_id).styles.white_space_collapse = parsed.value;
+    } else if (std.mem.eql(u8, key, "text-wrap-mode")) {
+        // Handle text-wrap-mode longhand property
+        const parsed = parsers.white_space.parseWrapMode(value, 0) catch {
+            logger.warn("Invalid text-wrap-mode value: '{s}'\n", .{value});
+            return;
+        };
+        tree.getNode(node_id).styles.text_wrap_mode = parsed.value;
+    } else if (std.mem.eql(u8, key, "white-space-trim")) {
+        // Handle white-space-trim longhand property
+        // TODO: Implement trim parsing when needed
+        logger.warn("white-space-trim parsing not yet implemented: '{s}'\n", .{value});
     } else if (std.mem.eql(u8, key, "tab-size")) {
         const parsed = parsers.white_space.parseTabSize(value, 0) catch {
             logger.warn("Invalid tab-size value: '{s}'\n", .{value});

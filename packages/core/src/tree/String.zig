@@ -27,7 +27,9 @@ pub fn iterCodepoints(self: *Self) std.unicode.Utf8Iterator {
 }
 
 pub fn append(self: *Self, allocator: std.mem.Allocator, bytes: []const u8) !void {
+    try std.unicode.utf8ValidateSlice(bytes);
     try self.bytes.ensureUnusedCapacity(allocator, bytes.len);
+
     // To normalize newlines in a string, replace every U+000D CR U+000A LF code point pair with a single U+000A LF code point, and then replace every remaining U+000D CR code point with a U+000A LF code point.
     var i: usize = 0;
     while (i < bytes.len) : (i += 1) {

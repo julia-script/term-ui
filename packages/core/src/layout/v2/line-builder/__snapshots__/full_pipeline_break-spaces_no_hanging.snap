@@ -1,0 +1,8 @@
+// Snapshot from: layout/v2/line-builder/compute.zig:228:9
+// Function: test.full pipeline: break-spaces no hanging
+// Description: full pipeline break-spaces no hanging
+
+Full pipeline test: collapse_mode=break-spaces, wrap_mode=wrap, text_align=center, width=30
+
+Rendered lines:
+  Line 0 [offset=8.0]: Break   spaces (content_width=14.0)
