@@ -7,7 +7,11 @@
       "Bash(find:*)",
       "Bash(rg:*)",
       "Bash(zig test:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(UPDATE_SNAPSHOTS=true zig build debugbuild -Dtest-filter=\"wrap.zig\")",
+      "Bash(ls:*)",
+      "Bash(UPDATE_SNAPSHOTS=true zig test src/layout/v2/line-builder/wrap.zig --test-filter \"hanging\" -femit-bin=zig-out/bin/test)",
+      "Bash(UPDATE_SNAPSHOTS=true zig build debugbuild -Dtest-filter=\"hanging spaces\")"
     ],
     "deny": []
   }

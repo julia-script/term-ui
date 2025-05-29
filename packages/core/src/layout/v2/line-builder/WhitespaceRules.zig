@@ -152,6 +152,100 @@ fn convertTabsAndSegmentBreaksToSpaces(tokens: []Token) void {
     }
 }
 
+/// Phase II: Apply trimming and positioning rules after line breaking
+pub fn applyPhase2Rules(tokens: []Token, collapse_mode: WhiteSpaceCollapse) void {
+    // Process each line
+    var current_line: ?usize = null;
+    var line_start: usize = 0;
+    var i: usize = 0;
+    
+    while (i < tokens.len) : (i += 1) {
+        const token = &tokens[i];
+        
+        // Detect line change
+        if (current_line == null or token.line_index != current_line.?) {
+            // Process end of previous line if exists
+            if (current_line != null and i > 0) {
+                processEndOfLine(tokens[line_start..i], collapse_mode);
+            }
+            
+            // Start new line
+            current_line = token.line_index;
+            line_start = i;
+            
+            // Process beginning of new line
+            processBeginningOfLine(tokens[i..], collapse_mode);
+        }
+    }
+    
+    // Process end of last line
+    if (current_line != null and tokens.len > 0) {
+        processEndOfLine(tokens[line_start..], collapse_mode);
+    }
+}
+
+/// Process beginning of line: trim if needed
+fn processBeginningOfLine(line_tokens: []Token, collapse_mode: WhiteSpaceCollapse) void {
+    const should_trim = switch (collapse_mode) {
+        .collapse, .@"preserve-breaks" => true,
+        .preserve, .@"preserve-spaces", .@"break-spaces" => false,
+        .inherit => unreachable,
+    };
+    
+    if (!should_trim) return;
+    
+    for (line_tokens) |*token| {
+        if (token.kind == .whitespace) {
+            // Remove leading whitespace
+            TokenOps.collapseToEmpty(token);
+        } else if (token.kind != .segment_break) {
+            // Stop at first non-whitespace, non-segment-break
+            break;
+        }
+    }
+}
+
+/// Process end of line: trim and/or mark hanging
+fn processEndOfLine(line_tokens: []Token, collapse_mode: WhiteSpaceCollapse) void {
+    const should_trim = switch (collapse_mode) {
+        .collapse, .@"preserve-breaks" => true,
+        .preserve, .@"preserve-spaces", .@"break-spaces" => false,
+        .inherit => unreachable,
+    };
+    
+    const should_hang = switch (collapse_mode) {
+        .collapse, .@"preserve-breaks" => true, // Always hang
+        .preserve, .@"preserve-spaces" => true, // Hang (conditional for preserve with forced break)
+        .@"break-spaces" => false, // Never hang
+        .inherit => unreachable,
+    };
+    
+    // Work backwards from end of line
+    var i = line_tokens.len;
+    while (i > 0) {
+        i -= 1;
+        const token = &line_tokens[i];
+        
+        if (token.kind == .whitespace) {
+            if (should_trim) {
+                // Remove trailing whitespace
+                TokenOps.collapseToEmpty(token);
+            } else if (should_hang) {
+                // Mark as hanging
+                token.is_hanging = true;
+            }
+        } else if (token.kind != .segment_break) {
+            // Also check for OGHAM SPACE MARK (U+1680)
+            if (should_trim and token.kind == .text and std.mem.eql(u8, token.text, "\u{1680}")) {
+                TokenOps.collapseToEmpty(token);
+            } else {
+                // Stop at first non-whitespace, non-segment-break
+                break;
+            }
+        }
+    }
+}
+
 // Test utilities
 pub const TestHelper = struct {
     allocator: std.mem.Allocator,
@@ -749,4 +843,83 @@ test "Measure tokens with empty content" {
         "measure tokens empty",
         output.items,
     );
+}
+
+test "Phase 2: Trim beginning and end of lines" {
+    var helper = TestHelper.init(std.testing.allocator);
+    defer helper.deinit();
+
+    const nodes = [_]TestHelper.TestNode{
+        .{ .id = 1, .text = "  " },
+        .{ .id = 2, .text = "First" },
+        .{ .id = 3, .text = "  " },
+        .{ .id = 4, .text = "\n" },
+        .{ .id = 5, .text = "  " },
+        .{ .id = 6, .text = "Second" },
+        .{ .id = 7, .text = "  " },
+    };
+
+    var tokens = try helper.tokenizeTestNodes(&nodes, .@"preserve-breaks");
+    defer tokens.deinit();
+
+    // Apply Phase 1
+    applyPhase1Rules(tokens.items, .@"preserve-breaks");
+    measureTokens(tokens.items);
+    
+    // Simulate line breaking - put newline on line 0, rest on line 1
+    tokens.items[0].line_index = 0; // leading space
+    tokens.items[1].line_index = 0; // "First"
+    tokens.items[2].line_index = 0; // trailing space
+    tokens.items[3].line_index = 0; // newline
+    tokens.items[4].line_index = 1; // leading space
+    tokens.items[5].line_index = 1; // "Second"
+    tokens.items[6].line_index = 1; // trailing space
+    
+    // Apply Phase 2
+    applyPhase2Rules(tokens.items, .@"preserve-breaks");
+    
+    // Check that leading/trailing spaces are removed
+    try std.testing.expectEqualStrings("", tokens.items[0].text); // Leading space line 0
+    try std.testing.expectEqualStrings("First", tokens.items[1].text);
+    try std.testing.expectEqualStrings("", tokens.items[2].text); // Trailing space line 0
+    try std.testing.expectEqualStrings("", tokens.items[4].text); // Leading space line 1
+    try std.testing.expectEqualStrings("Second", tokens.items[5].text);
+    try std.testing.expectEqualStrings("", tokens.items[6].text); // Trailing space line 1
+}
+
+test "Phase 2: Mark hanging spaces" {
+    var helper = TestHelper.init(std.testing.allocator);
+    defer helper.deinit();
+
+    const nodes = [_]TestHelper.TestNode{
+        .{ .id = 1, .text = "Text" },
+        .{ .id = 2, .text = "   " }, // Trailing spaces
+        .{ .id = 3, .text = "\n" },
+        .{ .id = 4, .text = "More" },
+        .{ .id = 5, .text = "  " }, // Trailing spaces
+    };
+
+    var tokens = try helper.tokenizeTestNodes(&nodes, .preserve);
+    defer tokens.deinit();
+
+    // Apply Phase 1
+    applyPhase1Rules(tokens.items, .preserve);
+    measureTokens(tokens.items);
+    
+    // Simulate line breaking
+    tokens.items[0].line_index = 0; // "Text"
+    tokens.items[1].line_index = 0; // trailing spaces
+    tokens.items[2].line_index = 0; // newline
+    tokens.items[3].line_index = 1; // "More"
+    tokens.items[4].line_index = 1; // trailing spaces
+    
+    // Apply Phase 2
+    applyPhase2Rules(tokens.items, .preserve);
+    
+    // Check that trailing spaces are marked as hanging
+    try std.testing.expect(!tokens.items[0].is_hanging); // Text - not hanging
+    try std.testing.expect(tokens.items[1].is_hanging); // Trailing spaces - hanging
+    try std.testing.expect(!tokens.items[2].is_hanging); // Newline - not hanging
+    try std.testing.expect(!tokens.items[3].is_hanging); // More - not hanging
+    try std.testing.expect(tokens.items[4].is_hanging); // Trailing spaces - hanging
 }
