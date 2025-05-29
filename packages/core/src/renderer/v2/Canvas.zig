@@ -330,8 +330,8 @@ pub fn paintFromRenderList(self: *Self, render_list: *const RenderList) !void {
                 // Skip if outside clip rect
                 if (!sel.bounds.intersectsWith(self.clip_rect)) continue;
 
-                // Draw semi-transparent selection overlay
-                try self.fillRect(sel.bounds, .{ .solid = sel.color });
+                // Draw semi-transparent selection overlay without clearing text
+                try self.fillRectPreserveText(sel.bounds, sel.color);
             },
             .push_clip => |clip| {
                 try self.pushClip(clip.rect);
@@ -353,6 +353,33 @@ fn pushClip(self: *Self, rect: Rect) !void {
 fn popClip(self: *Self) void {
     if (self.clip_stack.pop()) |rect| {
         self.clip_rect = rect;
+    }
+}
+
+/// Fill a rectangle with a color, preserving any text content
+fn fillRectPreserveText(self: *Self, rect: Rect, color: Color) !void {
+    // Convert to integer coordinates
+    const x_start = @max(0, @as(i32, @intFromFloat(@floor(rect.x))));
+    const y_start = @max(0, @as(i32, @intFromFloat(@floor(rect.y))));
+    const x_end = @min(@as(i32, @intFromFloat(@ceil(self.size.x))), @as(i32, @intFromFloat(@ceil(rect.x + rect.width))));
+    const y_end = @min(@as(i32, @intFromFloat(@ceil(self.size.y))), @as(i32, @intFromFloat(@ceil(rect.y + rect.height))));
+
+    // Fill cells with color without clearing text
+    var y: i32 = y_start;
+    while (y < y_end) : (y += 1) {
+        var x: i32 = x_start;
+        while (x < x_end) : (x += 1) {
+            // Check if within clip rect
+            if (!self.clip_rect.contains(@floatFromInt(x), @floatFromInt(y))) continue;
+
+            const x_u32 = @as(u32, @intCast(x));
+            const y_u32 = @as(u32, @intCast(y));
+            
+            if (self.getCell(x_u32, y_u32)) |cell| {
+                // Only change background, preserve text content
+                cell.setBg(color);
+            }
+        }
     }
 }
 

@@ -182,7 +182,6 @@ pub fn wrapDefiniteWidth(tokens: []Token, width: f32, white_space_collapse: css_
                     if (tok.break_after != .prohibited) break;
                 }
 
-                std.debug.print("  Group [{d}..{d}]: width={d}, line_width={d}\n", .{ start_index, j - 1, group_width, line_width });
 
                 // For hanging calculation, we need to check if adding this group would overflow
                 // const effective_line_width = if (should_hang) line_width_without_trailing_spaces else line_width;
@@ -190,7 +189,6 @@ pub fn wrapDefiniteWidth(tokens: []Token, width: f32, white_space_collapse: css_
 
                 if (line_width + group_width - hanging_width > width and line_width > 0) {
                     // Wrap to next line
-                    std.debug.print("  Wrapping: line_width={d} + group_width={d} > {d}\n", .{ line_width, group_width, width });
                     line_index += 1;
                     line_width = 0;
                     // line_width_without_trailing_spaces = 0;

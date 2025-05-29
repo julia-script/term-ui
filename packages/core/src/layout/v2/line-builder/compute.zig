@@ -34,7 +34,6 @@ pub fn compute(
 
     // Line breaking
     const resolved_width = wrap.resolveLineWidth(tokens.items, inputs.available_space.x);
-    std.debug.print("\n=== Wrapping with width={d} ===\n", .{resolved_width});
     wrap.wrapTokens(tokens.items, resolved_width, wrap_mode, collapse_mode);
 
     // Phase II: Trimming and positioning (mark hanging spaces)
@@ -42,7 +41,6 @@ pub fn compute(
 
     // Text alignment (if we have a definite width)
     TextAlignment.applyTextAlignment(tokens.items, resolved_width, text_align, collapse_mode);
-    WhitespaceRules.TestHelper.printTokens(tokens.items, std.io.getStdErr().writer().any()) catch {};
 
     // Convert tokens to line boxes and fragments
     const line_boxes = try tokensToLineBoxes(allocator, tokens.items, resolved_width);
@@ -240,23 +238,6 @@ fn tokensToLineBoxes(allocator: std.mem.Allocator, tokens: []const Token, width:
         return line_boxes;
     }
 
-    // Debug: Log all incoming tokens
-    std.debug.print("\n=== tokensToLineBoxes Debug ===\n", .{});
-    std.debug.print("Available width: {d}\n", .{width});
-    std.debug.print("Incoming tokens ({d} total):\n", .{tokens.len});
-    for (tokens, 0..) |token, idx| {
-        std.debug.print("  [{d}] line={d} node={d} text=\"{s}\" size={d} pos={d} hanging={} kind={s}\n", .{
-            idx,
-            token.line_index,
-            token.l_node_id,
-            token.text,
-            token.size.x,
-            token.position_in_line,
-            token.is_hanging,
-            @tagName(token.kind),
-        });
-    }
-
     var accumulated_text = std.ArrayList(u8).init(allocator);
     defer accumulated_text.deinit();
 
@@ -322,8 +303,6 @@ fn tokensToLineBoxes(allocator: std.mem.Allocator, tokens: []const Token, width:
         const dom_start = token.dom_range.start;
         var dom_end = token.dom_range.end;
 
-        const group_start_idx = i;
-
         // Group consecutive tokens from same node and line
         while (i < tokens.len - 1) {
             const next_token = tokens[i + 1];
@@ -359,14 +338,6 @@ fn tokensToLineBoxes(allocator: std.mem.Allocator, tokens: []const Token, width:
             .dom_range = .{ .start = dom_start, .end = dom_end },
         };
 
-        std.debug.print("  Creating fragment: grouped tokens [{d}..{d}] -> text=\"{s}\" size={d} pos={d}\n", .{
-            group_start_idx,
-            i,
-            fragment.text,
-            fragment.size.x,
-            fragment.position.x,
-        });
-
         try line_boxes.appendFragmentToLastLine(fragment);
     }
 
@@ -376,22 +347,6 @@ fn tokensToLineBoxes(allocator: std.mem.Allocator, tokens: []const Token, width:
             fragment.position.y = line.size.y - fragment.size.y;
         }
     }
-
-    // Debug: Log final line boxes
-    std.debug.print("\nFinal line boxes ({d} lines):\n", .{line_boxes.list.items.len});
-    for (line_boxes.list.items, 0..) |line, line_idx| {
-        std.debug.print("  Line {d}: {d} fragments, width={d}\n", .{ line_idx, line.fragments.items.len, line.available_width });
-        for (line.fragments.items, 0..) |fragment, frag_idx| {
-            std.debug.print("    Fragment {d}: text=\"{s}\" size={d} pos=({d},{d})\n", .{
-                frag_idx,
-                fragment.text,
-                fragment.size.x,
-                fragment.position.x,
-                fragment.position.y,
-            });
-        }
-    }
-    std.debug.print("=== End tokensToLineBoxes Debug ===\n\n", .{});
 
     return line_boxes;
 }
