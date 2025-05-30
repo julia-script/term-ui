@@ -110,21 +110,18 @@ pub fn tokenizeLayoutNodeInner(
     linebreak_iter: *LineBreakStream,
 ) Error!void {
     const l_node = context.layout_tree.getNodePtr(l_node_id);
-    std.debug.print("l_node_id: {any}\n", .{l_node_id});
 
     switch (l_node.data) {
         .text_node => |text_node| {
             // const doc_node = context.doc_tree.getNode(l_node.ref.doc_node);
             // const text = doc_node.text.slice();
             const text = text_node.contents.items;
-            std.debug.print("text: '{s}' linebreak_iter.i: {d} len: {d}\n", .{ text, linebreak_iter.i, text.len });
             try linebreak_iter.append(text);
             const start_i = linebreak_iter.last_buffer_index;
             var last_break: usize = 0;
             while (linebreak_iter.next()) |linebreak| {
                 const local_i = linebreak.i - start_i;
                 const segment = text[last_break..local_i];
-                std.debug.print("segment: '{s}'  linebreak.i : {d}\n", .{ segment, linebreak.i });
 
                 try tokenizeAndAppend(
                     tokens,
@@ -141,7 +138,6 @@ pub fn tokenizeLayoutNodeInner(
             // Handle remaining text after last break
             if (last_break < text.len) {
                 const segment = text[last_break..];
-                std.debug.print("segment: {s}\n", .{segment});
                 try tokenizeAndAppend(
                     tokens,
                     segment,

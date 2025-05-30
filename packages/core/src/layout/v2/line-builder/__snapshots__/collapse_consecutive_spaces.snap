@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:543:68
+// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:542:68
 // Function: test.All modes: Collapse consecutive spaces
 // Description: collapse consecutive spaces
 

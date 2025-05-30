@@ -42,7 +42,6 @@ pub fn append(self: *Self, data: []const u8) !void {
 }
 
 pub fn getLocalIndex(self: *Self) usize {
-    std.debug.print("getLocalIndex: {d} {d}\n", .{ self.i, self.last_buffer_index });
     return self.i - self.last_buffer_index;
 }
 
@@ -671,6 +670,6 @@ test "line break stream" {
 
     try stream.append("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.");
     while (stream.next()) |break_point| {
-        std.debug.print("break_point: {any}\n", .{break_point});
+        _ = break_point;
     }
 }

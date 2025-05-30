@@ -1093,7 +1093,6 @@ test "computeBlockLayout" {
         &context,
         .{ .x = .{ .definite = 100 }, .y = .max_content },
     );
-    try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
 }
 
 // test "margin auto centering" {
@@ -1120,7 +1119,6 @@ test "computeBlockLayout" {
 //     );
 
 //     // Print the layout to see the results
-//     try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
 
 //     // Check the tree structure first
 //     std.debug.print("\nAnalyzing tree structure:\n", .{});

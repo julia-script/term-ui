@@ -601,7 +601,6 @@ fn build(self: *Self, tree: *DocTree, node_id: DocNodeId) BuildError!LayoutNode.
 }
 pub fn buildInsideBlock(self: *Self, tree: *DocTree, node_id: DocNodeId) !LayoutNode.Id {
     const children = tree.getNodeChildren(node_id);
-    std.debug.print("node: {d} children: {any}\n", .{ node_id, children });
     var only_inline_children = true;
     for (children) |child| {
         if (isDisplayNone(tree, child)) continue;
@@ -609,7 +608,6 @@ pub fn buildInsideBlock(self: *Self, tree: *DocTree, node_id: DocNodeId) !Layout
             only_inline_children = false;
         }
     }
-    std.debug.print("only_inline_children: {any}\n", .{only_inline_children});
     if (only_inline_children) {
         const inline_container_id = try self.createNodeWithDocTree(.{ .inline_container_node = .{
             .line_boxes = .{

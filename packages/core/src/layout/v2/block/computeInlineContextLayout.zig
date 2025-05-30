@@ -184,7 +184,6 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
     const text_wrap_mode = context.getStyleValue(css_types.TextWrapMode, l_node_id, .text_wrap_mode);
     const text_align = context.getStyleValue(css_types.TextAlign, l_node_id, .text_align);
 
-    std.debug.print("white_space_collapse: {}, text_wrap_mode: {}\n", .{ white_space_collapse, text_wrap_mode });
     // Process all text through the line-builder pipeline
     const line_boxes = try mod.compute(
         context,
@@ -289,7 +288,6 @@ test "computeInlineContextLayout" {
         &context,
         .{ .x = .{ .definite = 100 }, .y = .max_content },
     );
-    try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
 }
 
 test "computeInlineContextLayout with forced breaks" {
@@ -312,12 +310,10 @@ test "computeInlineContextLayout with forced breaks" {
         .doc_tree = &tree,
         .allocator = allocator,
     };
-    std.debug.print("\n=== Testing with forced breaks ===\n", .{});
     try mod.computeLayout(
         &context,
         .{ .x = .min_content, .y = .max_content },
     );
-    try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
 }
 
 test "computeInlineContextLayout single line" {
@@ -338,12 +334,10 @@ test "computeInlineContextLayout single line" {
         .doc_tree = &tree,
         .allocator = allocator,
     };
-    std.debug.print("\n=== Testing single line text ===\n", .{});
     try mod.computeLayout(
         &context,
         .{ .x = .{ .definite = 100 }, .y = .max_content },
     );
-    try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
 }
 
 test "computeInlineContextLayout multiple fragments one line" {
@@ -364,12 +358,10 @@ test "computeInlineContextLayout multiple fragments one line" {
         .doc_tree = &tree,
         .allocator = allocator,
     };
-    std.debug.print("\n=== Testing multiple nodes on single line ===\n", .{});
     try mod.computeLayout(
         &context,
         .{ .x = .{ .definite = 100 }, .y = .max_content },
     );
-    try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
 }
 
 test "computeInlineContextLayout long text wrapping" {
@@ -390,12 +382,10 @@ test "computeInlineContextLayout long text wrapping" {
         .doc_tree = &tree,
         .allocator = allocator,
     };
-    std.debug.print("\n=== Testing long text wrapping ===\n", .{});
     try mod.computeLayout(
         &context,
         .{ .x = .{ .definite = 20 }, .y = .max_content },
     );
-    try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
 }
 
 test "computeInlineContextLayout real forced breaks" {
@@ -411,12 +401,10 @@ test "computeInlineContextLayout real forced breaks" {
         .doc_tree = &tree,
         .allocator = allocator,
     };
-    std.debug.print("\n=== Testing real embedded newlines ===\n", .{});
     try mod.computeLayout(
         &context,
         .{ .x = .min_content, .y = .max_content },
     );
-    try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
 }
 
 test "computeInlineContextLayout text alignment" {
@@ -435,12 +423,10 @@ test "computeInlineContextLayout text alignment" {
             .doc_tree = &tree,
             .allocator = allocator,
         };
-        std.debug.print("\n=== Testing left text alignment ===\n", .{});
         try mod.computeLayout(
             &context,
             .{ .x = .{ .definite = 50 }, .y = .max_content },
         );
-        try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
     }
 
     // Test center alignment
@@ -456,12 +442,10 @@ test "computeInlineContextLayout text alignment" {
             .doc_tree = &tree,
             .allocator = allocator,
         };
-        std.debug.print("\n=== Testing center text alignment ===\n", .{});
         try mod.computeLayout(
             &context,
             .{ .x = .{ .definite = 50 }, .y = .max_content },
         );
-        try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
     }
 
     // Test right alignment
@@ -477,12 +461,10 @@ test "computeInlineContextLayout text alignment" {
             .doc_tree = &tree,
             .allocator = allocator,
         };
-        std.debug.print("\n=== Testing right text alignment ===\n", .{});
         try mod.computeLayout(
             &context,
             .{ .x = .{ .definite = 50 }, .y = .max_content },
         );
-        try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
     }
 
     // Test alignment with multiple lines
@@ -498,11 +480,9 @@ test "computeInlineContextLayout text alignment" {
             .doc_tree = &tree,
             .allocator = allocator,
         };
-        std.debug.print("\n=== Testing center alignment with wrapping ===\n", .{});
         try mod.computeLayout(
             &context,
             .{ .x = .{ .definite = 20 }, .y = .max_content },
         );
-        try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
     }
 }

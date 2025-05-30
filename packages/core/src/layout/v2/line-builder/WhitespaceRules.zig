@@ -46,7 +46,6 @@ pub fn measureTokens(tokens: []Token) void {
         switch (token.kind) {
             .text, .whitespace, .segment_break => {
                 // Measure text width using utf8WidthExcludingAnsiColors
-                std.debug.print("token.text: {s}\n", .{token.text});
                 const width = utf8WidthExcludingAnsiColors(token.text);
                 token.size.x = @floatFromInt(width);
 

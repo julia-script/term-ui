@@ -868,7 +868,6 @@ fn ensurePreInsertValidity(self: *Self, node: Node.NodeId, parent: Node.NodeId, 
 
     // 1. If parent is not a Document, DocumentFragment, or Element node, throw "HierarchyRequestError"
     if (parent_node.kind != .node) {
-        std.debug.print("Parent {?d} is not a Document, DocumentFragment, or Element node\n", .{parent});
         // Adjust as needed if you add document or document fragment support
         return error.HierarchyRequestError;
     }
@@ -1503,30 +1502,6 @@ pub inline fn parseTree(allocator: std.mem.Allocator, tree_string: []const u8) !
 
     return tree;
 }
-fn printFunctionErrors(comptime func: anytype) void {
-    const type_info: std.builtin.Type = @typeInfo(@TypeOf(func));
-    switch (type_info) {
-        .@"fn" => |func_info| {
-            const ReturnType = func_info.return_type orelse @compileError("No return type");
-            const ret_type_info: std.builtin.Type = @typeInfo(ReturnType);
-            switch (ret_type_info) {
-                .error_union => |error_union_info| {
-                    const error_type: std.builtin.Type = @typeInfo(error_union_info.error_set);
-                    switch (error_type) {
-                        .error_set => |error_set_info| {
-                            inline for (error_set_info.?) |field| {
-                                std.debug.print("{s}\n", .{field.name});
-                            }
-                        },
-                        else => @compileError("No error type"),
-                    }
-                },
-                else => @compileError("No error type"),
-            }
-        },
-        else => unreachable,
-    }
-}
 const PrintTreeError = error{
     OutOfMemory,
     NotFound,
@@ -1594,7 +1569,7 @@ inline fn textNodeFromXmlElement(
                 // _ = try tree.appendChild(node_id, child_id);
             },
             else => {
-                std.debug.print("unknown content {s}\n", .{@tagName(content.*)});
+                // Unknown content type - skip silently
             },
         }
     }

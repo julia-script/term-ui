@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:554:65
+// Snapshot from: layout/v2/line-builder/WhitespaceRules.zig:553:65
 // Function: test.All modes: Tab and newline handling
 // Description: tab and newline handling
 

@@ -340,5 +340,4 @@ test "computeFlexLayout" {
         &context,
         .{ .x = .{ .definite = 100 }, .y = .max_content },
     );
-    try context.layout_tree.printRoot(std.io.getStdErr().writer().any());
 }

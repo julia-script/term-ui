@@ -7,27 +7,39 @@ const docFromXml = mod.docFromXml;
 
 const std = @import("std");
 
+// Scoped logger for layout debugging
+const log = std.log.scoped(.layout);
+
 layout_tree: *LayoutTree,
 doc_tree: *DocTree,
 allocator: std.mem.Allocator,
 
 pub fn info(self: *Self, l_node_id: mod.LayoutNode.Id, comptime format: []const u8, args: anytype) void {
-    const writer = std.io.getStdErr().writer().any();
-    var current = l_node_id;
-    while (true) {
-        if (self.layout_tree.getNodePtr(current).parent) |parent_id| {
-            current = parent_id;
-        } else {
-            break;
+    // Use scoped logger instead of direct printing
+    // This allows controlling output via log level
+    if (@import("builtin").mode == .Debug) {
+        var buf: [1024]u8 = undefined;
+        var fbs = std.io.fixedBufferStream(&buf);
+        const writer = fbs.writer();
+        
+        // Build indentation
+        var current = l_node_id;
+        while (true) {
+            if (self.layout_tree.getNodePtr(current).parent) |parent_id| {
+                current = parent_id;
+            } else {
+                break;
+            }
+            writer.writeAll("  ") catch {};
         }
-        writer.writeAll("  ") catch @panic("failed to write");
+        
+        // Build the message
+        writer.print("[{s}#{d}] ", .{ @tagName(self.layout_tree.getNodePtr(l_node_id).data), l_node_id }) catch {};
+        writer.print(format, args) catch {};
+        
+        // Use debug log level so it can be filtered
+        log.debug("{s}", .{fbs.getWritten()});
     }
-
-    writer.print("\x1b[38;5;{d}m", .{1 + l_node_id % 14}) catch @panic("failed to print");
-    writer.print("[{s}#{d}] ", .{ @tagName(self.layout_tree.getNodePtr(l_node_id).data), l_node_id }) catch @panic("failed to print");
-    writer.print("\x1b[0m", .{}) catch @panic("failed to print");
-    writer.print(format, args) catch @panic("failed to print");
-    writer.writeAll("\n") catch @panic("failed to write");
 }
 
 pub fn setBox(self: *Self, l_node_id: mod.LayoutNode.Id, box: mod.Box, line_boxes: ?mod.LineBox.LineBoxList) void {

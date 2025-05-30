@@ -42,7 +42,6 @@ pub fn expectPipeline(
     defer doc_tree.deinit();
 
     try doc_tree.print(writer.any());
-    try doc_tree.print(std.io.getStdErr().writer().any());
     try writer.writeAll("\n");
 
     // Create selections if specified
