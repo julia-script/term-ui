@@ -1,0 +1,6 @@
+// Snapshot from: tree/invalidation_test.zig:24:38
+// Function: test.style invalidation - color change
+// Description: color_change_invalidation.snap
+
+[node#0 block flow_root CG]
+    [node#1 block flow_root R]

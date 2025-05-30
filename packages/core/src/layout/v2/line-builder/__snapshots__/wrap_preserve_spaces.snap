@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/wrap.zig:454:9
+// Snapshot from: layout/v2/line-builder/wrap.zig:450:9
 // Function: test.wrap preserve spaces
 // Description: wrap preserve spaces
 
@@ -10,7 +10,8 @@ Tokens after wrapping:
   [2] Line 0: whitespace "  " (width=2.0)
   [3] Line 0: text "world" (width=5.0)
   [4] Line 0: whitespace "  " (width=2.0)
-  [5] Line 0: text "test" (width=4.0)
+  [5] Line 1: text "test" (width=4.0)
 
 Rendered lines:
-  Line 0: Hello    world  test (width=20.0)
+  Line 0: Hello    world   (width=16.0)
+  Line 1: test (width=4.0)

@@ -1,0 +1,18 @@
+// Snapshot from: tree/invalidation_test.zig:226:38
+// Function: test.element IDs and getElementById
+// Description: element_ids.snap
+
+[node#0 id="main" block flow_root CG]
+    [text #1 C] "\n  "
+    [node#2 id="new-header" block flow_root CG]
+        [text #3 C] "Header"
+    [text #4 C] "\n  "
+    [node#5 id="content" block flow_root CG]
+        [text #6 C] "\n    "
+        [node#7 id="title" inline flow CG]
+            [text #8 C] "Title"
+        [text #9 C] "\n    "
+        [node#10 inline flow CG]
+            [text #11 C] "No ID"
+        [text #12 C] "\n  "
+    [text #13 C] "\n"

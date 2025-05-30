@@ -1,0 +1,6 @@
+// Snapshot from: tree/invalidation_test.zig:113:38
+// Function: test.style invalidation - text change
+// Description: text_change_invalidation.snap
+
+[node#0 block flow_root CG]
+    [text #1 C] "Hello World!"

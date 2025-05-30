@@ -1,0 +1,7 @@
+// Snapshot from: tree/invalidation_test.zig:92:38
+// Function: test.style invalidation - DOM manipulation
+// Description: dom_appendChild_invalidation.snap
+
+[node#0 block flow_root CG]
+    [node#1 block flow_root -]
+    [node#2 block flow_root -]

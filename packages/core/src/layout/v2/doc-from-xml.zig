@@ -138,6 +138,10 @@ fn nodeFromXmlElement(tree: *Tree, element: *xml.Element, options: Options) Tree
             }
             continue;
         }
+        if (std.mem.eql(u8, attr.name, "id")) {
+            try tree.setElementId(node_id, attr.value);
+            continue;
+        }
     }
     return node_id;
 }

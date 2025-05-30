@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/wrap.zig:786:9
+// Snapshot from: layout/v2/line-builder/wrap.zig:782:9
 // Function: test.no hanging with break-spaces
 // Description: no hanging with break-spaces
 

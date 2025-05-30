@@ -1,22 +1,22 @@
-// Snapshot from: layout/v2/LayoutTree.zig:679:7
+// Snapshot from: layout/v2/LayoutTree.zig:885:7
 // Function: test.inline and block mixing
 // Description: inline and block mixing
 
 DocTree:
-[node#0 block flow_root]
-    [text #1] "\n  "
-    [node#2 block flow_root]
-        [text #3] "Block 1"
-    [text #4] "\n  "
-    [node#5 inline flow]
-        [text #6] "Inline text"
-    [text #7] "\n  "
-    [node#8 inline flow]
-        [text #9] " with more text"
-    [text #10] "\n  "
-    [node#11 block flow_root]
-        [text #12] "Block 2"
-    [text #13] "\n"
+[node#0 block flow_root -]
+    [text #1 -] "\n  "
+    [node#2 block flow_root -]
+        [text #3 -] "Block 1"
+    [text #4 -] "\n  "
+    [node#5 inline flow -]
+        [text #6 -] "Inline text"
+    [text #7 -] "\n  "
+    [node#8 inline flow -]
+        [text #9 -] " with more text"
+    [text #10 -] "\n  "
+    [node#11 block flow_root -]
+        [text #12 -] "Block 2"
+    [text #13 -] "\n"
 LayoutTree:
 [block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
 └── [block_container_node #1 ref={doc#0} children={5} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]

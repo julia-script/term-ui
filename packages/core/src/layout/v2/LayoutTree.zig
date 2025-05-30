@@ -195,7 +195,28 @@ pub fn fromTree(allocator: std.mem.Allocator, tree: *DocTree) !Self {
     // Build the document tree and append it as a child of the viewport
     const doc_root_id = try self.build(tree, DocTree.ROOT_NODE_ID);
     try self.appendNode(viewport_id, doc_root_id);
+    
+    // Clear all invalidation flags after building
+    tree.clearAllInvalidationFlags(DocTree.ROOT_NODE_ID);
 
+    return self;
+}
+
+pub fn fromTreeIncremental(allocator: std.mem.Allocator, tree: *DocTree, existing: ?*Self) !Self {
+    // If no existing tree or root needs full regeneration, build from scratch
+    if (existing == null or tree.getNode(DocTree.ROOT_NODE_ID).needs_regenerate) {
+        return fromTree(allocator, tree);
+    }
+    
+    var self = Self.init(allocator);
+    
+    // Create an anonymous viewport node as the actual root
+    const viewport_id = try self.createNode(.{ .block_container_node = .{} }, .anonymous);
+    
+    // Build incrementally, reusing existing nodes where possible
+    const doc_root_id = try self.buildIncremental(tree, DocTree.ROOT_NODE_ID, existing.?);
+    try self.appendNode(viewport_id, doc_root_id);
+    
     return self;
 }
 
@@ -365,6 +386,191 @@ const MixedContextBuilder = struct {
     }
 };
 /// Recursively convert the DOM starting at `node_id` into layout nodes.
+fn findExistingLayoutNode(existing_tree: *Self, doc_node_id: DocNodeId) ?LayoutNode.Id {
+    // Search through existing tree for a node with matching doc reference
+    var it = existing_tree.nodes.iterator();
+    while (it.next()) |entry| {
+        const node = entry.value_ptr;
+        switch (node.ref) {
+            .doc_node => |id| {
+                if (id == doc_node_id) return node.id;
+            },
+            .anonymous => {},
+        }
+    }
+    return null;
+}
+
+fn buildIncremental(self: *Self, tree: *DocTree, node_id: DocNodeId, existing: *Self) BuildError!LayoutNode.Id {
+    const doc_node = tree.getNode(node_id);
+    
+    // If this node needs regeneration, build fresh subtree and clear flags
+    if (doc_node.needs_regenerate) {
+        const result = try self.build(tree, node_id);
+        // Clear all flags since we rebuilt the entire subtree
+        tree.clearInvalidationFlags(node_id);
+        return result;
+    }
+    
+    // If no invalidation flags are set, we can potentially reuse the entire subtree
+    if (!doc_node.needs_recompute and !doc_node.needs_repaint) {
+        // Try to find and reuse existing layout subtree
+        if (findExistingLayoutNode(existing, node_id)) |existing_layout_id| {
+            return self.cloneSubtree(existing, existing_layout_id, tree);
+        }
+    }
+    
+    // Try to find existing layout node for partial reuse
+    if (findExistingLayoutNode(existing, node_id)) |existing_layout_id| {
+        const existing_node = existing.getNodePtr(existing_layout_id);
+        
+        // Clone the existing node structure
+        const new_id = try self.cloneNode(existing_node, tree);
+        
+        // If needs recompute, clear the cache
+        if (doc_node.needs_recompute) {
+            const new_node = self.getNodePtr(new_id);
+            new_node.cache.clear();
+        }
+        
+        // Clear the flags we've processed
+        doc_node.needs_recompute = false;
+        doc_node.needs_repaint = false;
+        
+        // Process children incrementally
+        switch (existing_node.data) {
+            .inline_node => |*n| {
+                for (n.children.items) |child_id| {
+                    const child_node = existing.getNodePtr(child_id);
+                    if (child_node.ref == .doc_node) {
+                        const child_doc_id = child_node.ref.doc_node;
+                        const new_child_id = try self.buildIncremental(tree, child_doc_id, existing);
+                        try self.appendNode(new_id, new_child_id);
+                    }
+                }
+            },
+            .block_container_node => |*n| {
+                for (n.children.items) |child_id| {
+                    const child_node = existing.getNodePtr(child_id);
+                    if (child_node.ref == .doc_node) {
+                        const child_doc_id = child_node.ref.doc_node;
+                        const new_child_id = try self.buildIncremental(tree, child_doc_id, existing);
+                        try self.appendNode(new_id, new_child_id);
+                    }
+                }
+            },
+            .inline_container_node => |*n| {
+                for (n.children.items) |child_id| {
+                    const child_node = existing.getNodePtr(child_id);
+                    if (child_node.ref == .doc_node) {
+                        const child_doc_id = child_node.ref.doc_node;
+                        const new_child_id = try self.buildIncremental(tree, child_doc_id, existing);
+                        try self.appendNode(new_id, new_child_id);
+                    }
+                }
+            },
+            .text_node => {
+                // Text nodes are leaf nodes, no children to process
+            },
+        }
+        
+        return new_id;
+    }
+    
+    // No existing node found, build fresh and clear flags
+    const result = try self.build(tree, node_id);
+    tree.clearInvalidationFlags(node_id);
+    return result;
+}
+
+fn cloneSubtree(self: *Self, existing_tree: *Self, existing_id: LayoutNode.Id, tree: *DocTree) !LayoutNode.Id {
+    const existing_node = existing_tree.getNodePtr(existing_id);
+    
+    // Clone the node
+    const new_id = try self.cloneNode(existing_node, tree);
+    
+    // Clone all children recursively
+    switch (existing_node.data) {
+        .inline_node => |*n| {
+            for (n.children.items) |child_id| {
+                const new_child_id = try self.cloneSubtree(existing_tree, child_id, tree);
+                try self.appendNode(new_id, new_child_id);
+            }
+        },
+        .block_container_node => |*n| {
+            for (n.children.items) |child_id| {
+                const new_child_id = try self.cloneSubtree(existing_tree, child_id, tree);
+                try self.appendNode(new_id, new_child_id);
+            }
+        },
+        .inline_container_node => |*n| {
+            for (n.children.items) |child_id| {
+                const new_child_id = try self.cloneSubtree(existing_tree, child_id, tree);
+                try self.appendNode(new_id, new_child_id);
+            }
+        },
+        .text_node => {
+            // Text nodes have no children
+        },
+    }
+    
+    return new_id;
+}
+
+fn cloneNode(self: *Self, existing: *LayoutNode, tree: *DocTree) !LayoutNode.Id {
+    // Create a new node with the same data structure
+    const new_id = self.node_count;
+    var new_node = LayoutNode{
+        .id = new_id,
+        .data = undefined,
+        .ref = existing.ref,
+        .parent = null,
+        .style = existing.style,
+        .cache = .{},
+    };
+    
+    // Clone the data based on type
+    switch (existing.data) {
+        .text_node => |*tn| {
+            new_node.data = .{ .text_node = .{} };
+            // For text nodes, get fresh text from the DOM tree
+            switch (existing.ref) {
+                .doc_node => |doc_id| {
+                    const text = tree.getText(doc_id).bytes.items;
+                    try new_node.data.text_node.contents.appendSlice(self.allocator, text);
+                },
+                .anonymous => {
+                    // Anonymous text nodes shouldn't exist, but if they do, copy existing
+                    try new_node.data.text_node.contents.appendSlice(self.allocator, tn.contents.items);
+                },
+            }
+        },
+        .inline_node => {
+            new_node.data = .{ .inline_node = .{} };
+        },
+        .block_container_node => {
+            new_node.data = .{ .block_container_node = .{} };
+        },
+        .inline_container_node => {
+            new_node.data = .{ .inline_container_node = .{
+                .line_boxes = .{ .allocator = self.allocator },
+            } };
+        },
+    }
+    
+    // Update style from doc tree if this is a doc node
+    switch (existing.ref) {
+        .doc_node => |doc_id| {
+            new_node.style = tree.getComputedStyle(doc_id);
+        },
+        .anonymous => {},
+    }
+    
+    try self.nodes.put(self.allocator, new_id, new_node);
+    self.node_count += 1;
+    return new_id;
+}
+
 /// Returns the id of the created layout node or `null` if the DOM node should
 /// not produce a layout representation.
 fn build(self: *Self, tree: *DocTree, node_id: DocNodeId) BuildError!LayoutNode.Id {

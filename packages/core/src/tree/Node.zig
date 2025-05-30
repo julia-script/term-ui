@@ -34,6 +34,14 @@ text_root_id: ?NodeId = null,
 content_editable: ContentEditable = .false,
 tabindex: i32 = -1,
 
+// Element ID for getElementById lookups
+element_id: []const u8 = "",
+
+// Invalidation tracking
+needs_repaint: bool = false,
+needs_recompute: bool = false,
+needs_regenerate: bool = false,
+
 const Self = @This();
 pub const NodeId = usize;
 pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
@@ -42,6 +50,10 @@ pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
 
     if (self.computed_text) |*computed_text| {
         computed_text.deinit();
+    }
+
+    if (self.element_id.len > 0) {
+        allocator.free(self.element_id);
     }
 }
 pub fn length(self: *Self) usize {

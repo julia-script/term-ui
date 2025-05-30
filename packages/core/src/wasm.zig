@@ -592,4 +592,6 @@ test {
     _ = @import("./layout/v2/line-builder/wrap.zig");
     _ = @import("./layout/v2/line-builder/TextAlignment.zig");
     _ = @import("./layout/v2/line-builder/compute.zig");
+    // Tree invalidation tests
+    _ = @import("./tree/invalidation_test.zig");
 }

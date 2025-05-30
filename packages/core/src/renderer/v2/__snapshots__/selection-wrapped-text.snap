@@ -10,11 +10,11 @@
 </root>
 
 --- DOM Tree ---
-[node#0 block flow_root]
-    [text #1] "\n  "
-    [node#2 inline flow]
-        [text #3] "This is a long text that should wrap to multiple lines"
-    [text #4] "\n"
+[node#0 block flow_root CG]
+    [text #1 C] "\n  "
+    [node#2 inline flow CG]
+        [text #3 C] "This is a long text that should wrap to multiple lines"
+    [text #4 C] "\n"
 
 --- Selections ---
 Selection 0: node=3, range=[10,30), id=0

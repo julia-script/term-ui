@@ -10,11 +10,11 @@
 </root>
 
 --- DOM Tree ---
-[node#0 block flow_root]
-    [text #1] "\n  "
-    [node#2 inline flow]
-        [text #3] "Hi 👋 World!"
-    [text #4] "\n"
+[node#0 block flow_root CG]
+    [text #1 C] "\n  "
+    [node#2 inline flow CG]
+        [text #3 C] "Hi 👋 World!"
+    [text #4 C] "\n"
 
 --- Layout Tree (before computation) ---
 [block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
@@ -30,7 +30,7 @@ Available space: [definite: 40] x [max_content]
 --- Layout Tree (after computation) ---
 [block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (40.00, 5.00) content: (40.00, 5.00)]}]
 └── [inline_container_node #1 ref={doc#0} children={3} lines={1} box={[loc: (0.00, 0.00) size: (30.00, 5.00) content: (40.00, 1.00)]}]
-    ├── [line_box #0 fragments=3]
+    ├── [line_box #0 fragments=3 size={(12.00, 1.00)}]
     │   ├── [fragment node={#2} range=0-3 pos={(0.00, 1.00)} size={(0.00, 0.00)} text=""]
     │   ├── [fragment node={#4} range=0-14 pos={(0.00, 0.00)} size={(12.00, 1.00)} text="Hi 👋 World!"]
     │   └── [fragment node={#5} range=0-1 pos={(12.00, 1.00)} size={(0.00, 0.00)} text=""]
@@ -41,10 +41,10 @@ Available space: [definite: 40] x [max_content]
 
 --- Render List ---
 RenderList (4 items):
-  [0] Box #1 bounds=(0.0,0.0 30.0x5.0) z=0 bg=#1e293bff
-  [1] TextFragment #2 bounds=(0.0,1.0 0.0x0.0) z=0 text=""
-  [2] TextFragment #4 bounds=(0.0,0.0 12.0x1.0) z=0 text="Hi 👋 World!"
-  [3] TextFragment #5 bounds=(12.0,1.0 0.0x0.0) z=0 text=""
+  [0] Box #1 bounds=[pos:(0.0,0.0) size:(30.0x5.0)] z=0 bg=#1e293bff
+  [1] TextFragment #2 bounds=[pos:(0.0,1.0) size:(0.0x0.0)] z=0 text=""
+  [2] TextFragment #4 bounds=[pos:(0.0,0.0) size:(12.0x1.0)] z=0 text="Hi 👋 World!"
+  [3] TextFragment #5 bounds=[pos:(12.0,1.0) size:(0.0x0.0)] z=0 text=""
 
 --- Rendered Output ---
 Raw (escape sequences as \E):

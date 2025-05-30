@@ -1,4 +1,4 @@
-// Snapshot from: layout/v2/line-builder/wrap.zig:493:9
+// Snapshot from: layout/v2/line-builder/wrap.zig:489:9
 // Function: test.wrap fragment boundaries
 // Description: wrap fragment boundaries
 
@@ -8,7 +8,8 @@ Tokens after wrapping:
   [0] Line 0: text "Fragment" (width=8.0)
   [1] Line 0: text "boundary" (width=8.0)
   [2] Line 0: whitespace " " (width=1.0)
-  [3] Line 0: text "test" (width=4.0)
+  [3] Line 1: text "test" (width=4.0)
 
 Rendered lines:
-  Line 0: Fragmentboundary test (width=21.0)
+  Line 0: Fragmentboundary  (width=17.0)
+  Line 1: test (width=4.0)

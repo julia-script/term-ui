@@ -1,13 +1,13 @@
-// Snapshot from: layout/v2/LayoutTree.zig:620:7
+// Snapshot from: layout/v2/LayoutTree.zig:826:7
 // Function: test.LayoutTree
 // Description: inline only
 
 DocTree:
-[node#0 block flow_root]
-    [text #1] "\n  "
-    [node#2 inline flow]
-        [text #3] "\n    abc\n    def\n  "
-    [text #4] "\n  zzz\n"
+[node#0 block flow_root -]
+    [text #1 -] "\n  "
+    [node#2 inline flow -]
+        [text #3 -] "\n    abc\n    def\n  "
+    [text #4 -] "\n  zzz\n"
 LayoutTree:
 [block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
 └── [inline_container_node #1 ref={doc#0} children={3} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]

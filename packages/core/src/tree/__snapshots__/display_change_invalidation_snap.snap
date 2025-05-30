@@ -1,0 +1,7 @@
+// Snapshot from: tree/invalidation_test.zig:70:38
+// Function: test.style invalidation - display change
+// Description: display_change_invalidation.snap
+
+[node#0 block flow_root CG]
+    [node#1 inline flow -]
+    [node#2 block flow_root -]

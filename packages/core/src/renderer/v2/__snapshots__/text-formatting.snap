@@ -13,20 +13,20 @@
 </root>
 
 --- DOM Tree ---
-[node#0 block flow_root]
-    [text #1] "\n  "
-    [node#2 inline flow]
-        [text #3] "Bold text"
-    [text #4] "\n  "
-    [node#5 inline flow]
-        [text #6] " Italic"
-    [text #7] "\n  "
-    [node#8 inline flow]
-        [text #9] " Underline"
-    [text #10] "\n  "
-    [node#11 inline flow]
-        [text #12] " Strike"
-    [text #13] "\n"
+[node#0 block flow_root CG]
+    [text #1 C] "\n  "
+    [node#2 inline flow CG]
+        [text #3 C] "Bold text"
+    [text #4 C] "\n  "
+    [node#5 inline flow CG]
+        [text #6 C] " Italic"
+    [text #7 C] "\n  "
+    [node#8 inline flow CG]
+        [text #9 C] " Underline"
+    [text #10 C] "\n  "
+    [node#11 inline flow CG]
+        [text #12 C] " Strike"
+    [text #13 C] "\n"
 
 --- Layout Tree (before computation) ---
 [block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
@@ -51,7 +51,7 @@ Available space: [definite: 60] x [max_content]
 --- Layout Tree (after computation) ---
 [block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (60.00, 8.00) content: (60.00, 8.00)]}]
 └── [inline_container_node #1 ref={doc#0} children={9} lines={1} box={[loc: (0.00, 0.00) size: (50.00, 8.00) content: (60.00, 1.00)]}]
-    ├── [line_box #0 fragments=9]
+    ├── [line_box #0 fragments=9 size={(39.00, 1.00)}]
     │   ├── [fragment node={#2} range=0-3 pos={(0.00, 1.00)} size={(0.00, 0.00)} text=""]
     │   ├── [fragment node={#4} range=0-9 pos={(0.00, 0.00)} size={(9.00, 1.00)} text="Bold text"]
     │   ├── [fragment node={#5} range=0-3 pos={(9.00, 0.00)} size={(2.00, 1.00)} text="  "]
@@ -77,16 +77,16 @@ Available space: [definite: 60] x [max_content]
 
 --- Render List ---
 RenderList (10 items):
-  [0] Box #1 bounds=(0.0,0.0 50.0x8.0) z=0 bg=#1e293bff
-  [1] TextFragment #2 bounds=(0.0,1.0 0.0x0.0) z=0 text=""
-  [2] TextFragment #4 bounds=(0.0,0.0 9.0x1.0) z=0 text="Bold text" format=[bold]
-  [3] TextFragment #5 bounds=(9.0,0.0 2.0x1.0) z=0 text="  "
-  [4] TextFragment #7 bounds=(11.0,0.0 7.0x1.0) z=0 text=" Italic" format=[italic]
-  [5] TextFragment #8 bounds=(18.0,0.0 2.0x1.0) z=0 text="  "
-  [6] TextFragment #10 bounds=(20.0,0.0 10.0x1.0) z=0 text=" Underline" format=[underline]
-  [7] TextFragment #11 bounds=(30.0,0.0 2.0x1.0) z=0 text="  "
-  [8] TextFragment #13 bounds=(32.0,0.0 7.0x1.0) z=0 text=" Strike" format=[line_through]
-  [9] TextFragment #14 bounds=(39.0,1.0 0.0x0.0) z=0 text=""
+  [0] Box #1 bounds=[pos:(0.0,0.0) size:(50.0x8.0)] z=0 bg=#1e293bff
+  [1] TextFragment #2 bounds=[pos:(0.0,1.0) size:(0.0x0.0)] z=0 text=""
+  [2] TextFragment #4 bounds=[pos:(0.0,0.0) size:(9.0x1.0)] z=0 text="Bold text" format=[bold]
+  [3] TextFragment #5 bounds=[pos:(9.0,0.0) size:(2.0x1.0)] z=0 text="  "
+  [4] TextFragment #7 bounds=[pos:(11.0,0.0) size:(7.0x1.0)] z=0 text=" Italic" format=[italic]
+  [5] TextFragment #8 bounds=[pos:(18.0,0.0) size:(2.0x1.0)] z=0 text="  "
+  [6] TextFragment #10 bounds=[pos:(20.0,0.0) size:(10.0x1.0)] z=0 text=" Underline" format=[underline]
+  [7] TextFragment #11 bounds=[pos:(30.0,0.0) size:(2.0x1.0)] z=0 text="  "
+  [8] TextFragment #13 bounds=[pos:(32.0,0.0) size:(7.0x1.0)] z=0 text=" Strike" format=[line_through]
+  [9] TextFragment #14 bounds=[pos:(39.0,1.0) size:(0.0x0.0)] z=0 text=""
 
 --- Rendered Output ---
 Raw (escape sequences as \E):

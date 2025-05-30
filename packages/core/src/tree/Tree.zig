@@ -34,6 +34,9 @@ input_manager: ?InputManager = null,
 node_id_counter: Node.NodeId = 0,
 selections: std.AutoHashMapUnmanaged(Selection.Id, Selection) = .{},
 
+// Map from element IDs to node IDs for fast lookups
+id_map: std.StringHashMapUnmanaged(Node.NodeId) = .{},
+
 live_ranges: std.AutoHashMapUnmanaged(u32, Range) = .{},
 live_range_counter: u32 = 0,
 
@@ -202,12 +205,9 @@ pub fn setText(self: *Self, id: Node.NodeId, text: []const u8) !void {
     var node = self.getNode(id);
 
     try node.text.replace(self.allocator, 0, node.text.length(), text);
-    var dirty_node = id;
-    while (self.getStyle(dirty_node).display.isInlineFlow() == false) {
-        self.markDirty(dirty_node);
-        dirty_node = self.getParent(dirty_node) orelse break;
-    }
-    self.markDirty(dirty_node);
+
+    // Text change requires recompute but not regeneration
+    self.requestNodeAndAncestorsInvalidation(id, .recompute);
 }
 
 pub fn setParent(self: *Self, id: Node.NodeId, parent: ?Node.NodeId) !void {
@@ -283,8 +283,493 @@ pub fn markDirty(self: *Self, id: Node.NodeId) void {
     }
 }
 
+// Invalidation types for different kinds of changes
+pub const InvalidationType = enum {
+    repaint, // Visual only (color, background, opacity)
+    recompute, // Layout computation (width, height, margin, padding)
+    regenerate, // Tree structure (display, position, float)
+};
+
+// Style property types with invalidation information
+pub const StyleProperty = union(enum) {
+    // Repaint only properties
+    color: Color,
+    background_color: Color,
+    opacity: f32,
+    border_color: Rect(s.background.Background),
+    border_color_top: s.background.Background,
+    border_color_right: s.background.Background,
+    border_color_bottom: s.background.Background,
+    border_color_left: s.background.Background,
+    text_decoration: s.text_decoration.TextDecoration,
+    font_weight: s.font_weight.FontWeight,
+    font_style: s.font_style.FontStyle,
+
+    // Recompute layout properties
+    width: s.length_percentage_auto.LengthPercentageAuto,
+    height: s.length_percentage_auto.LengthPercentageAuto,
+    min_width: s.length_percentage_auto.LengthPercentageAuto,
+    min_height: s.length_percentage_auto.LengthPercentageAuto,
+    max_width: s.length_percentage_auto.LengthPercentageAuto,
+    max_height: s.length_percentage_auto.LengthPercentageAuto,
+    margin: Rect(s.length_percentage_auto.LengthPercentageAuto),
+    margin_top: s.length_percentage_auto.LengthPercentageAuto,
+    margin_right: s.length_percentage_auto.LengthPercentageAuto,
+    margin_bottom: s.length_percentage_auto.LengthPercentageAuto,
+    margin_left: s.length_percentage_auto.LengthPercentageAuto,
+    padding: Rect(s.length_percentage.LengthPercentage),
+    padding_top: s.length_percentage.LengthPercentage,
+    padding_right: s.length_percentage.LengthPercentage,
+    padding_bottom: s.length_percentage.LengthPercentage,
+    padding_left: s.length_percentage.LengthPercentage,
+    border: Rect(s.length_percentage.LengthPercentage),
+    border_top: s.length_percentage.LengthPercentage,
+    border_right: s.length_percentage.LengthPercentage,
+    border_bottom: s.length_percentage.LengthPercentage,
+    border_left: s.length_percentage.LengthPercentage,
+    gap: Point(s.length_percentage.LengthPercentage),
+    gap_row: s.length_percentage.LengthPercentage,
+    gap_column: s.length_percentage.LengthPercentage,
+    flex_basis: s.length_percentage_auto.LengthPercentageAuto,
+    flex_grow: f32,
+    flex_shrink: f32,
+    aspect_ratio: ?f32,
+    line_height: f32,
+    inset: Rect(s.length_percentage_auto.LengthPercentageAuto),
+    top: s.length_percentage_auto.LengthPercentageAuto,
+    right: s.length_percentage_auto.LengthPercentageAuto,
+    bottom: s.length_percentage_auto.LengthPercentageAuto,
+    left: s.length_percentage_auto.LengthPercentageAuto,
+    text_align: s.text_align.TextAlign,
+    align_items: ?Style.AlignItems,
+    align_self: ?Style.AlignSelf,
+    justify_items: ?Style.JustifyItems,
+    justify_self: ?Style.JustifySelf,
+    align_content: ?Style.AlignContent,
+    justify_content: ?Style.JustifyContent,
+
+    // Regenerate tree properties
+    display: s.display.Display,
+    position: s.position.Position,
+    overflow: Point(s.overflow.Overflow),
+    overflow_x: s.overflow.Overflow,
+    overflow_y: s.overflow.Overflow,
+    flex_direction: s.flex_direction.FlexDirection,
+    flex_wrap: s.flex_wrap.FlexWrap,
+    white_space_collapse: s.white_space.WhiteSpaceCollapse,
+    text_wrap_mode: s.white_space.TextWrapMode,
+    white_space_trim: s.white_space.Trim,
+    tab_size: s.white_space.TabSize,
+
+    pub fn getInvalidationType(self: StyleProperty) InvalidationType {
+        return switch (self) {
+            // Repaint only
+            .color, .background_color, .opacity, .border_color, .border_color_top, .border_color_right, .border_color_bottom, .border_color_left, .text_decoration, .font_weight, .font_style => .repaint,
+
+            // Recompute layout
+            .width, .height, .min_width, .min_height, .max_width, .max_height, .margin, .margin_top, .margin_right, .margin_bottom, .margin_left, .padding, .padding_top, .padding_right, .padding_bottom, .padding_left, .border, .border_top, .border_right, .border_bottom, .border_left, .gap, .gap_row, .gap_column, .flex_basis, .flex_grow, .flex_shrink, .aspect_ratio, .line_height, .inset, .top, .right, .bottom, .left, .text_align, .align_items, .align_self, .justify_items, .justify_self, .align_content, .justify_content => .recompute,
+
+            // Regenerate tree
+            .display, .position, .overflow, .overflow_x, .overflow_y, .flex_direction, .flex_wrap, .white_space_collapse, .text_wrap_mode, .white_space_trim, .tab_size => .regenerate,
+        };
+    }
+};
+
+// Helper methods for invalidation
+fn requestNodeInvalidation(self: *Self, node_id: Node.NodeId, invalidation: InvalidationType) void {
+    const node = self.getNode(node_id);
+    switch (invalidation) {
+        .repaint => node.needs_repaint = true,
+        .recompute => node.needs_recompute = true,
+        .regenerate => node.needs_regenerate = true,
+    }
+}
+
+fn requestNodeAndAncestorsInvalidation(self: *Self, node_id: Node.NodeId, invalidation: InvalidationType) void {
+    self.requestNodeInvalidation(node_id, invalidation);
+
+    var current_id = node_id;
+    while (self.getParent(current_id)) |parent_id| {
+        self.requestNodeInvalidation(parent_id, .recompute);
+        current_id = parent_id;
+    }
+}
+
+// Main setStyleProperty method - single entry point for individual style property changes
+pub fn setStyleProperty(self: *Self, node_id: Node.NodeId, property: StyleProperty) !void {
+    const node = self.getNode(node_id);
+    const style = &node.styles;
+
+    switch (property) {
+        // Repaint only properties
+        .color => |c| {
+            style.foreground_color = c;
+            self.requestNodeInvalidation(node_id, .repaint);
+        },
+        .background_color => |c| {
+            style.background_color = .{ .solid = c };
+            self.requestNodeInvalidation(node_id, .repaint);
+        },
+        .opacity => |o| {
+            // TODO: Add opacity to Style.zig when needed
+            _ = o;
+            self.requestNodeInvalidation(node_id, .repaint);
+        },
+        .border_color => |bc| {
+            style.border_color = bc;
+            self.requestNodeInvalidation(node_id, .repaint);
+        },
+        .border_color_top => |bc| {
+            style.border_color.top = bc;
+            self.requestNodeInvalidation(node_id, .repaint);
+        },
+        .border_color_right => |bc| {
+            style.border_color.right = bc;
+            self.requestNodeInvalidation(node_id, .repaint);
+        },
+        .border_color_bottom => |bc| {
+            style.border_color.bottom = bc;
+            self.requestNodeInvalidation(node_id, .repaint);
+        },
+        .border_color_left => |bc| {
+            style.border_color.left = bc;
+            self.requestNodeInvalidation(node_id, .repaint);
+        },
+        .text_decoration => |td| {
+            style.text_decoration = td;
+            self.requestNodeInvalidation(node_id, .repaint);
+        },
+        .font_weight => |fw| {
+            style.font_weight = fw;
+            self.requestNodeInvalidation(node_id, .repaint);
+        },
+        .font_style => |fs| {
+            style.font_style = fs;
+            self.requestNodeInvalidation(node_id, .repaint);
+        },
+
+        // Recompute properties - sizes
+        .width => |w| {
+            style.size.x = w;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .height => |h| {
+            style.size.y = h;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .min_width => |mw| {
+            style.min_size.x = mw;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .min_height => |mh| {
+            style.min_size.y = mh;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .max_width => |mw| {
+            style.max_size.x = mw;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .max_height => |mh| {
+            style.max_size.y = mh;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+
+        // Recompute properties - margin shorthand
+        .margin => |m| {
+            style.margin = m;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        // Recompute properties - margin longhands
+        .margin_top => |m| {
+            style.margin.top = m;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .margin_right => |m| {
+            style.margin.right = m;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .margin_bottom => |m| {
+            style.margin.bottom = m;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .margin_left => |m| {
+            style.margin.left = m;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+
+        // Recompute properties - padding shorthand
+        .padding => |p| {
+            style.padding = p;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        // Recompute properties - padding longhands
+        .padding_top => |p| {
+            style.padding.top = p;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .padding_right => |p| {
+            style.padding.right = p;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .padding_bottom => |p| {
+            style.padding.bottom = p;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .padding_left => |p| {
+            style.padding.left = p;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+
+        // Border width properties
+        .border => |b| {
+            style.border = b;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .border_top => |b| {
+            style.border.top = b;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .border_right => |b| {
+            style.border.right = b;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .border_bottom => |b| {
+            style.border.bottom = b;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .border_left => |b| {
+            style.border.left = b;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+
+        // Gap properties
+        .gap => |g| {
+            style.gap = g;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .gap_row => |g| {
+            style.gap.y = g;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .gap_column => |g| {
+            style.gap.x = g;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+
+        // Flexbox properties
+        .flex_basis => |fb| {
+            style.flex_basis = fb;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .flex_grow => |fg| {
+            style.flex_grow = fg;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .flex_shrink => |fs| {
+            style.flex_shrink = fs;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+
+        // Other layout properties
+        .aspect_ratio => |ar| {
+            style.aspect_ratio = ar;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .line_height => |lh| {
+            style.line_height = lh;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+
+        // Position properties
+        .inset => |i| {
+            style.inset = i;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .top => |t| {
+            style.inset.top = t;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .right => |r| {
+            style.inset.right = r;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .bottom => |b| {
+            style.inset.bottom = b;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .left => |l| {
+            style.inset.left = l;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+
+        // Text alignment
+        .text_align => |ta| {
+            style.text_align = ta;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+
+        // Alignment properties
+        .align_items => |ai| {
+            style.align_items = ai;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .align_self => |as| {
+            style.align_self = as;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .justify_items => |ji| {
+            style.justify_items = ji;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .justify_self => |js| {
+            style.justify_self = js;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .align_content => |ac| {
+            style.align_content = ac;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .justify_content => |jc| {
+            style.justify_content = jc;
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+
+        // Regenerate properties
+        .display => |d| {
+            style.display = d;
+            // For display changes, mark parent for regeneration
+            if (self.getParent(node_id)) |parent_id| {
+                self.requestNodeInvalidation(parent_id, .regenerate);
+                self.requestNodeAndAncestorsInvalidation(parent_id, .recompute);
+            }
+        },
+        .position => |p| {
+            style.position = p;
+            // Position changes affect parent's layout context
+            if (self.getParent(node_id)) |parent_id| {
+                self.requestNodeInvalidation(parent_id, .regenerate);
+                self.requestNodeAndAncestorsInvalidation(parent_id, .recompute);
+            }
+        },
+        .overflow => |o| {
+            style.overflow = o;
+            self.requestNodeInvalidation(node_id, .regenerate);
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .overflow_x => |o| {
+            style.overflow.x = o;
+            self.requestNodeInvalidation(node_id, .regenerate);
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .overflow_y => |o| {
+            style.overflow.y = o;
+            self.requestNodeInvalidation(node_id, .regenerate);
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .flex_direction => |fd| {
+            style.flex_direction = fd;
+            self.requestNodeInvalidation(node_id, .regenerate);
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .flex_wrap => |fw| {
+            style.flex_wrap = fw;
+            self.requestNodeInvalidation(node_id, .regenerate);
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .white_space_collapse => |wsc| {
+            style.white_space_collapse = wsc;
+            self.requestNodeInvalidation(node_id, .regenerate);
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .text_wrap_mode => |twm| {
+            style.text_wrap_mode = twm;
+            self.requestNodeInvalidation(node_id, .regenerate);
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .white_space_trim => |wst| {
+            style.white_space_trim = wst;
+            self.requestNodeInvalidation(node_id, .regenerate);
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+        .tab_size => |ts| {
+            style.tab_size = ts;
+            self.requestNodeInvalidation(node_id, .regenerate);
+            self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
+        },
+    }
+}
+
+// Clear invalidation flags after processing
+pub fn clearInvalidationFlags(self: *Self, node_id: Node.NodeId) void {
+    const node = self.getNode(node_id);
+    node.needs_repaint = false;
+    node.needs_recompute = false;
+    node.needs_regenerate = false;
+}
+
+// Recursively clear invalidation flags for entire tree
+pub fn clearAllInvalidationFlags(self: *Self, node_id: Node.NodeId) void {
+    self.clearInvalidationFlags(node_id);
+
+    const children = self.getChildren(node_id);
+    for (children.items) |child_id| {
+        self.clearAllInvalidationFlags(child_id);
+    }
+}
+
+pub fn clearNodeId(self: *Self, node_id: Node.NodeId) void {
+    const node = self.getNode(node_id);
+    if (node.element_id.len > 0) {
+        // _ = self.id_map.remove(node.element_id);
+        if (self.id_map.get(node.element_id)) |existing_node_id| {
+            if (existing_node_id == node_id) {
+                _ = self.id_map.remove(node.element_id);
+            }
+        }
+        self.allocator.free(node.element_id);
+    }
+    node.element_id = "";
+}
+
+// Set element ID for a node and update the ID map
+pub fn setElementId(self: *Self, node_id: Node.NodeId, id: []const u8) !void {
+    // FIXME: check how w3c handles multiple elements with the same id
+    self.clearNodeId(node_id);
+    // Set new ID
+    if (id.len > 0) {
+        // Allocate separate copies for the map key and node field
+
+        // Check if another node already has this ID
+        if (self.id_map.contains(id)) {
+            return;
+        }
+        var node = self.getNode(node_id);
+        node.element_id = try self.allocator.dupe(u8, id);
+        try self.id_map.put(self.allocator, node.element_id, node_id);
+    } else {
+        var node = self.getNode(node_id);
+        node.element_id = "";
+    }
+}
+
+// Get node by element ID
+pub fn getElementById(self: *Self, id: []const u8) ?Node.NodeId {
+    return self.id_map.get(id);
+}
+
 pub fn destroyNode(self: *Self, id: Node.NodeId) !void {
     const node = self.getNode(id);
+
+    // Remove from ID map if it has an ID and the map points to this node
+    if (node.element_id.len > 0) {
+        if (self.id_map.get(node.element_id)) |existing_node_id| {
+            if (existing_node_id == id) {
+                _ = self.id_map.remove(node.element_id);
+            }
+        }
+        self.allocator.free(node.element_id);
+    }
+
     for (node.children.items) |child_id| {
         var child = self.getNode(child_id);
         child.parent = null;
@@ -300,6 +785,17 @@ pub fn destroyNodeRecursive(self: *Self, id: Node.NodeId) !void {
 }
 fn destroyNodeRecursiveInner(self: *Self, id: Node.NodeId) !void {
     const node = self.getNode(id);
+
+    // Remove from ID map if it has an ID and the map points to this node
+    if (node.element_id.len > 0) {
+        if (self.id_map.get(node.element_id)) |existing_node_id| {
+            if (existing_node_id == id) {
+                _ = self.id_map.remove(node.element_id);
+            }
+        }
+        self.allocator.free(node.element_id);
+    }
+
     for (node.children.items) |child_id| {
         try self.destroyNodeRecursiveInner(child_id);
     }
@@ -359,11 +855,11 @@ pub fn appendChildAtIndex(self: *Self, parent_id: Node.NodeId, child_id: Node.No
 }
 
 pub fn appendChild(self: *Self, parent_id: Node.NodeId, child_id: Node.NodeId) !Node.NodeId {
-    // self.setParent(child_id, parent_id);
-    // var parent = self.getNode(parent_id);
-    // try parent.children.append(self.allocator, child_id);
-    // self.markDirty(parent_id);
-    return try self.preInsert(parent_id, child_id, null);
+    const result = try self.preInsert(parent_id, child_id, null);
+    // DOM structure changed - parent needs regeneration
+    self.requestNodeInvalidation(parent_id, .regenerate);
+    self.requestNodeAndAncestorsInvalidation(parent_id, .recompute);
+    return result;
 }
 // Helper function to implement ensure pre-insert validity
 fn ensurePreInsertValidity(self: *Self, node: Node.NodeId, parent: Node.NodeId, child: ?Node.NodeId) !void {
@@ -635,6 +1131,9 @@ fn removeChildChecked(self: *Self, node_id: Node.NodeId) RemoveError!void {
 }
 pub fn removeChild(self: *Self, parent_id: Node.NodeId, child_id: Node.NodeId) !void {
     try self.preRemove(parent_id, child_id);
+    // DOM structure changed - parent needs regeneration
+    self.requestNodeInvalidation(parent_id, .regenerate);
+    self.requestNodeAndAncestorsInvalidation(parent_id, .recompute);
 }
 
 pub fn replaceChild(self: *Self, new_node_id: Node.NodeId, old_child_id: Node.NodeId) !Node.NodeId {
@@ -756,7 +1255,9 @@ pub fn removeChildren(self: *Self, parent_id: Node.NodeId) void {
         self.getNode(child_id).parent = null;
     }
     node.children.clearRetainingCapacity();
-    self.markDirty(parent_id);
+    // DOM structure changed - needs regeneration
+    self.requestNodeInvalidation(parent_id, .regenerate);
+    self.requestNodeAndAncestorsInvalidation(parent_id, .recompute);
 }
 pub fn normalize(self: *Self, node_id: Node.NodeId) !void {
     // Process each child node
@@ -910,6 +1411,10 @@ pub fn deinit(self: *Self) void {
     }
     self.node_map.deinit(self.allocator);
 
+    // Clean up id_map - keys are allocated strings
+
+    self.id_map.deinit(self.allocator);
+
     self.live_ranges.deinit(self.allocator);
     self.selections.deinit(self.allocator);
     // Clean up style system
@@ -925,11 +1430,25 @@ fn printNode(self: *Self, writer: std.io.AnyWriter, node_id: Node.NodeId, indent
     const layout = self.getLayout(node_id);
     _ = layout; // autofix
     const kind = self.getNodeKind(node_id);
+    // Build invalidation flags string
+    const node = self.getNode(node_id);
+    var flags_buf: [32]u8 = undefined;
+    var flags_stream = std.io.fixedBufferStream(&flags_buf);
+    const flags_writer = flags_stream.writer();
+
+    if (node.needs_repaint) try flags_writer.writeAll("R");
+    if (node.needs_recompute) try flags_writer.writeAll("C");
+    if (node.needs_regenerate) try flags_writer.writeAll("G");
+
+    const flags = flags_stream.getWritten();
+    const flags_str = if (flags.len > 0) flags else "-";
+
     if (kind == .text) {
         const text = self.getText(node_id).bytes.items;
-        try writer.print("[{s} #{d}] \"", .{
+        try writer.print("[{s} #{d} {s}] \"", .{
             @tagName(kind),
             node_id,
+            flags_str,
         });
         for (text) |c| {
             switch (c) {
@@ -943,12 +1462,25 @@ fn printNode(self: *Self, writer: std.io.AnyWriter, node_id: Node.NodeId, indent
     } else {
         const display = self.getStyle(node_id).display;
 
-        try writer.print("[{s}#{d} {s} {s}]\n", .{
-            @tagName(kind),
-            node_id,
-            @tagName(display.outside),
-            @tagName(display.inside),
-        });
+        // Include element ID if present
+        if (node.element_id.len > 0) {
+            try writer.print("[{s}#{d} id=\"{s}\" {s} {s} {s}]\n", .{
+                @tagName(kind),
+                node_id,
+                node.element_id,
+                @tagName(display.outside),
+                @tagName(display.inside),
+                flags_str,
+            });
+        } else {
+            try writer.print("[{s}#{d} {s} {s} {s}]\n", .{
+                @tagName(kind),
+                node_id,
+                @tagName(display.outside),
+                @tagName(display.inside),
+                flags_str,
+            });
+        }
     }
 
     for (self.getChildren(node_id).items) |child_id| {

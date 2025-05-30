@@ -10,11 +10,11 @@
 </root>
 
 --- DOM Tree ---
-[node#0 block flow_root]
-    [text #1] "\n  "
-    [node#2 inline flow]
-        [text #3] "Hello, World!"
-    [text #4] "\n"
+[node#0 block flow_root CG]
+    [text #1 C] "\n  "
+    [node#2 inline flow CG]
+        [text #3 C] "Hello, World!"
+    [text #4 C] "\n"
 
 --- Selections ---
 Selection 0: node=3, range=[7,12), id=0
@@ -33,7 +33,7 @@ Available space: [definite: 50] x [max_content]
 --- Layout Tree (after computation) ---
 [block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 5.00) content: (50.00, 5.00)]}]
 └── [inline_container_node #1 ref={doc#0} children={3} lines={1} box={[loc: (0.00, 0.00) size: (40.00, 5.00) content: (50.00, 1.00)]}]
-    ├── [line_box #0 fragments=3]
+    ├── [line_box #0 fragments=3 size={(13.00, 1.00)}]
     │   ├── [fragment node={#2} range=0-3 pos={(0.00, 1.00)} size={(0.00, 0.00)} text=""]
     │   ├── [fragment node={#4} range=0-13 pos={(0.00, 0.00)} size={(13.00, 1.00)} text="Hello, World!"]
     │   └── [fragment node={#5} range=0-1 pos={(13.00, 1.00)} size={(0.00, 0.00)} text=""]
@@ -44,15 +44,15 @@ Available space: [definite: 50] x [max_content]
 
 --- Render List ---
 RenderList (5 items):
-  [0] Box #1 bounds=(0.0,0.0 40.0x5.0) z=0 bg=#1e293bff
-  [1] TextFragment #2 bounds=(0.0,1.0 0.0x0.0) z=0 text=""
-  [2] TextFragment #4 bounds=(0.0,0.0 13.0x1.0) z=0 text="Hello, World!"
+  [0] Box #1 bounds=[pos:(0.0,0.0) size:(40.0x5.0)] z=0 bg=#1e293bff
+  [1] TextFragment #2 bounds=[pos:(0.0,1.0) size:(0.0x0.0)] z=0 text=""
+  [2] TextFragment #4 bounds=[pos:(0.0,0.0) size:(13.0x1.0)] z=0 text="Hello, World!"
   [3] SelectionOverlay #0 bounds=(6.0,0.0 6.0x1.0) color=#007bff4c
-  [4] TextFragment #5 bounds=(13.0,1.0 0.0x0.0) z=0 text=""
+  [4] TextFragment #5 bounds=[pos:(13.0,1.0) size:(0.0x0.0)] z=0 text=""
 
 --- Rendered Output ---
 Raw (escape sequences as \E):
-\E[48;2;30;41;59m\E[38;2;245;158;11mHello,\E[48;2;21;66;118m      \E[48;2;30;41;59m!\E[38;2;255;255;255m                           \E[0m\n
+\E[48;2;30;41;59m\E[38;2;245;158;11mHello,\E[48;2;21;66;118m World\E[48;2;30;41;59m!\E[38;2;255;255;255m                           \E[0m\n
 \E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m\n
 \E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m\n
 \E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m\n
@@ -60,7 +60,7 @@ Raw (escape sequences as \E):
 
 
 Visual:
-\E[48;2;30;41;59m\E[38;2;245;158;11mHello,\E[48;2;21;66;118m      \E[48;2;30;41;59m!\E[38;2;255;255;255m                           \E[0m
+\E[48;2;30;41;59m\E[38;2;245;158;11mHello,\E[48;2;21;66;118m World\E[48;2;30;41;59m!\E[38;2;255;255;255m                           \E[0m
 \E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m
 \E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m
 \E[48;2;30;41;59m\E[38;2;255;255;255m                                        \E[0m

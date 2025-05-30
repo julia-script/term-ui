@@ -1,22 +1,22 @@
-// Snapshot from: layout/v2/LayoutTree.zig:668:7
+// Snapshot from: layout/v2/LayoutTree.zig:874:7
 // Function: test.deep formatting context break
 // Description: deep formatting context break 2
 
 DocTree:
-[node#0 block flow_root]
-    [text #1] "\n  Italic only\n  "
-    [node#2 inline flow]
-        [text #3] "\n  italic and bold\n    "
-        [node#4 block flow_root]
-            [text #5] "Wow, a block!"
-        [text #6] "\n    "
-        [node#7 inline flow]
-            [text #8] "\n      "
-            [node#9 block flow_root]
-                [text #10] "Wow, another block!"
-            [text #11] "\n      More italic and bold text\n    "
-        [text #12] "\n  "
-    [text #13] " \n  More italic text\n"
+[node#0 block flow_root -]
+    [text #1 -] "\n  Italic only\n  "
+    [node#2 inline flow -]
+        [text #3 -] "\n  italic and bold\n    "
+        [node#4 block flow_root -]
+            [text #5 -] "Wow, a block!"
+        [text #6 -] "\n    "
+        [node#7 inline flow -]
+            [text #8 -] "\n      "
+            [node#9 block flow_root -]
+                [text #10 -] "Wow, another block!"
+            [text #11 -] "\n      More italic and bold text\n    "
+        [text #12 -] "\n  "
+    [text #13 -] " \n  More italic text\n"
 LayoutTree:
 [block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
 └── [block_container_node #1 ref={doc#0} children={5} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
