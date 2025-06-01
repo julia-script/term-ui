@@ -41,7 +41,7 @@ pub fn build(self: *Self) !void {
     try self.preprocessSelections();
 
     // Start from the root node (0)
-    try self.buildNode(0);
+    try self.buildNode(self.layout_tree.root_id);
 
     // TODO: Implement proper CSS stacking context handling
     // Currently we just traverse in tree order which is incorrect for:
@@ -148,6 +148,7 @@ fn buildNode(self: *Self, node_id: LayoutTree.LayoutNode.Id) !void {
                 },
                 .z_index = z_index,
                 .node_id = node_id,
+                .is_clickable = isElementClickable(node_style),
             },
         });
     }
@@ -211,10 +212,41 @@ fn buildNode(self: *Self, node_id: LayoutTree.LayoutNode.Id) !void {
 
 /// Build render items for line boxes
 fn buildLineBoxes(self: *Self, container: *LayoutTree.InlineContainerNode, container_id: LayoutTree.LayoutNode.Id, abs_pos: mod.CSSPoint, z_index: i32) !void {
-    _ = container_id;
-
+    _ = container_id; // TODO: Remove when line boxes are re-enabled
     for (container.line_boxes.items()) |line_box| {
-        for (line_box.fragments.items) |fragment| {
+        // First, add the line box item for hit testing
+        const line_abs_pos = mod.CSSPoint{
+            .x = abs_pos.x + line_box.location.x,
+            .y = abs_pos.y + line_box.location.y,
+        };
+        _ = line_abs_pos; // TODO: Remove when line boxes are re-enabled
+
+        // Collect fragment indices for this line box
+        var fragment_indices = std.ArrayList(usize).init(self.layout_tree.allocator);
+
+        // TODO: Temporarily commenting out line box addition to debug renderer issue
+        // We'll fill in the indices after we add the fragments
+        // const line_box_index = self.render_list.items.items.len;
+        // try self.render_list.addItem(.{
+        //     .line_box = .{
+        //         .bounds = .{
+        //             .x = line_abs_pos.x,
+        //             .y = line_abs_pos.y,
+        //             .width = line_box.size.x,
+        //             .height = line_box.size.y,
+        //         },
+        //         .fragment_indices = &[_]usize{}, // Will be updated after fragments
+        //         .node_id = container_id,
+        //         .allocator = self.layout_tree.allocator,
+        //     },
+        // });
+
+        for (line_box.fragments.items, 0..) |fragment, fragment_idx| {
+            _ = fragment_idx;
+            // Remember this fragment's index in the render list
+            const fragment_render_index = self.render_list.items.items.len;
+            try fragment_indices.append(fragment_render_index);
+
             // Calculate absolute position for fragment
             // Fragment position is relative to the line box, which is relative to the container
             const frag_abs_pos = mod.CSSPoint{
@@ -235,6 +267,7 @@ fn buildLineBoxes(self: *Self, container: *LayoutTree.InlineContainerNode, conta
             const layout_node = self.layout_tree.getNodePtr(fragment.l_node_id);
             var text_color = Color.tw.white;
             var text_format = RenderList.TextFormat{};
+            var parent_style: ?Style = null;
 
             // The fragment's l_node_id points to a text node. We need its parent inline node for styling.
             if (layout_node.parent) |parent_id| {
@@ -242,6 +275,7 @@ fn buildLineBoxes(self: *Self, container: *LayoutTree.InlineContainerNode, conta
                 if (parent_node.ref == .doc_node) {
                     const doc_node_id = parent_node.ref.doc_node;
                     const style = self.doc_tree.getComputedStyle(doc_node_id);
+                    parent_style = style;
 
                     // Extract text color
                     if (style.foreground_color) |color| {
@@ -266,6 +300,8 @@ fn buildLineBoxes(self: *Self, container: *LayoutTree.InlineContainerNode, conta
                     .format = text_format,
                     .node_id = fragment.l_node_id,
                     .z_index = z_index,
+                    .dom_range = fragment.dom_range,
+                    .is_clickable = isElementClickable(parent_style),
                 },
             });
 
@@ -281,6 +317,15 @@ fn buildLineBoxes(self: *Self, container: *LayoutTree.InlineContainerNode, conta
                 }
             }
         }
+
+        // TODO: Temporarily commenting out line box update to debug renderer issue
+        // Update the line box with the collected fragment indices
+        // if (self.render_list.items.items[line_box_index] == .line_box) {
+        //     self.render_list.items.items[line_box_index].line_box.fragment_indices = try fragment_indices.toOwnedSlice();
+        // }
+
+        // Clean up fragment indices since we're not using them
+        fragment_indices.deinit();
     }
 }
 
@@ -443,6 +488,21 @@ fn measureTextWidth(text: []const u8) f32 {
     return @as(f32, @floatFromInt(measured_width));
 }
 
+/// Check if an element should be clickable based on CSS properties
+fn isElementClickable(style: ?Style) bool {
+    if (style) |s| {
+        // Element is not clickable if pointer-events is 'none'
+        if (s.pointer_events == .none) return false;
+
+        // Note: Elements with display: none should not be in the render list at all,
+        // so we don't need to check for that here. If they somehow make it here,
+        // they should still be clickable so the hit testing works correctly.
+    }
+
+    // Default to clickable if no style or auto pointer events
+    return true;
+}
+
 /// Check if a box should be rendered (has background or borders)
 fn shouldRenderBox(node: *LayoutTree.LayoutNode, style: ?Style) bool {
     _ = node;
@@ -460,4 +520,38 @@ fn shouldRenderBox(node: *LayoutTree.LayoutNode, style: ?Style) bool {
     }
 
     return false;
+}
+
+test "isElementClickable logic" {
+    // Test with null style (should default to clickable)
+    try std.testing.expect(isElementClickable(null) == true);
+
+    // Test with default style (should be clickable)
+    const default_style = Style{};
+    try std.testing.expect(isElementClickable(default_style) == true);
+
+    // Test with pointer-events: none (should not be clickable)
+    const no_pointer_style = Style{
+        .pointer_events = .none,
+    };
+    try std.testing.expect(isElementClickable(no_pointer_style) == false);
+
+    // Test with pointer-events: auto (should be clickable)
+    const auto_pointer_style = Style{
+        .pointer_events = .auto,
+    };
+    try std.testing.expect(isElementClickable(auto_pointer_style) == true);
+
+    // Test with different display types (should all be clickable since display
+    // doesn't affect clickability - elements with display: none shouldn't be rendered)
+    const styles_mod = @import("../../styles/styles.zig");
+    const block_display_style = Style{
+        .display = styles_mod.display.Display.BLOCK,
+    };
+    try std.testing.expect(isElementClickable(block_display_style) == true);
+
+    const inline_display_style = Style{
+        .display = styles_mod.display.Display.INLINE,
+    };
+    try std.testing.expect(isElementClickable(inline_display_style) == true);
 }

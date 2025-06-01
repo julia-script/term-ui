@@ -21,7 +21,7 @@ pub fn info(self: *Self, l_node_id: mod.LayoutNode.Id, comptime format: []const 
         var buf: [1024]u8 = undefined;
         var fbs = std.io.fixedBufferStream(&buf);
         const writer = fbs.writer();
-        
+
         // Build indentation
         var current = l_node_id;
         while (true) {
@@ -32,11 +32,11 @@ pub fn info(self: *Self, l_node_id: mod.LayoutNode.Id, comptime format: []const 
             }
             writer.writeAll("  ") catch {};
         }
-        
+
         // Build the message
         writer.print("[{s}#{d}] ", .{ @tagName(self.layout_tree.getNodePtr(l_node_id).data), l_node_id }) catch {};
         writer.print(format, args) catch {};
-        
+
         // Use debug log level so it can be filtered
         log.debug("{s}", .{fbs.getWritten()});
     }
@@ -78,128 +78,89 @@ pub const StyleProperty = enum {
 };
 const styles = @import("../../styles/styles.zig");
 const Styles = @import("../../tree/Style.zig");
-fn getLayoutNodeStyles(self: *Self, l_node_id: mod.LayoutNode.Id) ?*Styles {
-    const l_node = self.layout_tree.getNodePtr(l_node_id);
-    return &l_node.style;
-}
 
 pub fn getChildren(self: *Self, l_node_id: mod.LayoutNode.Id) []const mod.LayoutNode.Id {
     return self.layout_tree.getChildren(l_node_id);
 }
 
 pub fn getStyleValue(self: *Self, T: type, l_node_id: mod.LayoutNode.Id, comptime property: StyleProperty) T {
-    const maybe_node_styles = self.getLayoutNodeStyles(l_node_id);
+    const node_styles = self.layout_tree.getNodeStyle(self.doc_tree, l_node_id);
 
     switch (comptime property) {
         .margin => {
-            return if (maybe_node_styles) |node_styles| node_styles.margin else css_types.LengthPercentageAutoRect{
-                .top = .{ .length = 0 },
-                .right = .{ .length = 0 },
-                .bottom = .{ .length = 0 },
-                .left = .{ .length = 0 },
-            };
+            return node_styles.margin;
         },
         .padding => {
-            return if (maybe_node_styles) |node_styles| node_styles.padding else css_types.LengthPercentageRect{
-                .top = .{ .length = 0 },
-                .right = .{ .length = 0 },
-                .bottom = .{ .length = 0 },
-                .left = .{ .length = 0 },
-            };
+            return node_styles.padding;
         },
         .border_width => {
-            return if (maybe_node_styles) |node_styles| node_styles.border else css_types.LengthPercentageRect{
-                .top = .{ .length = 0 },
-                .right = .{ .length = 0 },
-                .bottom = .{ .length = 0 },
-                .left = .{ .length = 0 },
-            };
+            return node_styles.border;
         },
         .inset => {
-            return if (maybe_node_styles) |node_styles| node_styles.inset else css_types.LengthPercentageAutoRect{
-                .top = .auto,
-                .right = .auto,
-                .bottom = .auto,
-                .left = .auto,
-            };
+            return node_styles.inset;
         },
         .size => {
-            return if (maybe_node_styles) |node_styles| node_styles.size else css_types.LengthPercentageAutoPoint{
-                .x = .auto,
-                .y = .auto,
-            };
+            return node_styles.size;
         },
         .max_size => {
-            return if (maybe_node_styles) |node_styles| node_styles.max_size else css_types.LengthPercentageAutoPoint{
-                .x = .auto,
-                .y = .auto,
-            };
+            return node_styles.max_size;
         },
         .min_size => {
-            return if (maybe_node_styles) |node_styles| node_styles.min_size else css_types.LengthPercentageAutoPoint{
-                .x = .auto,
-                .y = .auto,
-            };
+            return node_styles.min_size;
         },
         .position => {
-            return if (maybe_node_styles) |node_styles| node_styles.position else styles.position.Position.DEFAULT;
+            return node_styles.position;
         },
         .display => {
-            return if (maybe_node_styles) |node_styles| node_styles.display else styles.display.Display.BLOCK;
+            return node_styles.display;
         },
         .overflow => {
-            return if (maybe_node_styles) |node_styles| node_styles.overflow else css_types.OverflowPoint{
-                .x = .visible,
-                .y = .visible,
-            };
+            return node_styles.overflow;
         },
         .aspect_ratio => {
-            return if (maybe_node_styles) |node_styles| node_styles.aspect_ratio else @as(?f32, null);
+            return node_styles.aspect_ratio;
         },
         .scrollbar_width => {
-            return if (maybe_node_styles) |node_styles| node_styles.scrollbar_width else @as(f32, 0);
+            return node_styles.scrollbar_width;
         },
         .flex_direction => {
-            return if (maybe_node_styles) |node_styles| node_styles.flex_direction else styles.flex_direction.FlexDirection.row;
+            return node_styles.flex_direction;
         },
         .flex_wrap => {
-            return if (maybe_node_styles) |node_styles| node_styles.flex_wrap else styles.flex_wrap.FlexWrap.no_wrap;
+            return node_styles.flex_wrap;
         },
         .flex_basis => {
-            return if (maybe_node_styles) |node_styles| node_styles.flex_basis else styles.length_percentage_auto.LengthPercentageAuto.auto;
+            return node_styles.flex_basis;
         },
         .flex_grow => {
-            return if (maybe_node_styles) |node_styles| node_styles.flex_grow else @as(f32, 0);
+            return node_styles.flex_grow;
         },
         .flex_shrink => {
-            return if (maybe_node_styles) |node_styles| node_styles.flex_shrink else @as(f32, 1);
+            return node_styles.flex_shrink;
         },
         .align_items => {
-            return if (maybe_node_styles) |node_styles| node_styles.align_items orelse .stretch else .stretch;
+            return node_styles.align_items orelse .stretch;
         },
         .align_self => {
-            return if (maybe_node_styles) |node_styles| node_styles.align_self orelse .auto else .auto;
+            return node_styles.align_self orelse .auto;
         },
         .justify_content => {
-            return if (maybe_node_styles) |node_styles| node_styles.justify_content orelse .flex_start else .flex_start;
+            return node_styles.justify_content orelse .flex_start;
         },
         .align_content => {
-            return if (maybe_node_styles) |node_styles| node_styles.align_content orelse .stretch else .stretch;
+            return node_styles.align_content orelse .stretch;
         },
         .gap => {
-            return if (maybe_node_styles) |node_styles| node_styles.gap else css_types.LengthPercentagePoint{
-                .x = .{ .length = 0 },
-                .y = .{ .length = 0 },
-            };
+            return node_styles.gap;
         },
         .text_align => {
-            return if (maybe_node_styles) |node_styles| node_styles.text_align else .left;
+            return node_styles.text_align;
         },
         .white_space_collapse => {
-            return if (maybe_node_styles) |node_styles| node_styles.white_space_collapse else .collapse;
+            return node_styles.white_space_collapse;
         },
         .text_wrap_mode => {
-            return if (maybe_node_styles) |node_styles| node_styles.text_wrap_mode else .wrap;
+            return node_styles.text_wrap_mode;
         },
     }
 }

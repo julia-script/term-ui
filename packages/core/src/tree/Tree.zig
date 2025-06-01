@@ -25,6 +25,9 @@ const traversal = @import("./traversal.zig");
 const Canvas = @import("../renderer/Canvas.zig");
 const GraphemeIterator = @import("../uni/GraphemeBreak.zig").Iterator;
 const visible = @import("../uni/string-width.zig").visible;
+const LayoutTree = @import("../layout/v2/LayoutTree.zig");
+const layout_mod = @import("../layout/v2/mod.zig");
+pub const Renderer = @import("../renderer/v2/Renderer.zig");
 
 node_map: std.AutoHashMapUnmanaged(Node.NodeId, Node) = .{},
 allocator: std.mem.Allocator,
@@ -40,6 +43,12 @@ id_map: std.StringHashMapUnmanaged(Node.NodeId) = .{},
 live_ranges: std.AutoHashMapUnmanaged(u32, Range) = .{},
 live_range_counter: u32 = 0,
 
+// Current render list for hit testing (rebuilt on each paint)
+render_list: @import("../layout/v2/RenderList.zig"),
+
+// Layout tree for v2 layout engine
+layout_tree: LayoutTree,
+
 const Self = @This();
 
 usingnamespace @import("../layout/compute/compute_layout.zig");
@@ -50,6 +59,8 @@ pub fn init(allocator: std.mem.Allocator) !Self {
         .allocator = allocator,
         .style_manager = try StyleManager.init(allocator),
         .computed_style_cache = try ComputedStyleCache.init(allocator),
+        .render_list = @import("../layout/v2/RenderList.zig").init(allocator),
+        .layout_tree = LayoutTree.init(allocator),
         // .selection = .{
         //     .allocator = allocator,
         // },
@@ -96,7 +107,6 @@ pub fn removeSelection(self: *Self, selection_id: Selection.Id) void {
 pub fn createNodeIterator(self: *Self, root: Node.NodeId) NodeIterator {
     return NodeIterator{
         .reference_node = root,
-
         .tree = self,
     };
 }
@@ -159,10 +169,16 @@ pub inline fn getParent(self: *Self, id: Node.NodeId) ?Node.NodeId {
     return self.getNode(id).parent;
 }
 pub inline fn getUnroundedLayout(self: *Self, id: Node.NodeId) *Layout {
-    return &self.getNode(id).unrounded_layout;
+    _ = self; // autofix
+    _ = id; // autofix
+    @panic("unimplemented");
+    // return &self.getNode(id).unrounded_layout;
 }
 pub inline fn getLayout(self: *Self, id: Node.NodeId) *Layout {
-    return &self.getNode(id).layout;
+    _ = self; // autofix
+    _ = id; // autofix
+    @panic("unimplemented");
+    // return &self.getNode(id).layout;
 }
 pub inline fn getCache(self: *Self, id: Node.NodeId) *Cache {
     return &self.getNode(id).cache;
@@ -226,7 +242,10 @@ pub fn removeNode(self: *Self, id: Node.NodeId) !void {
     try self.removeChild(parent_id, id);
 }
 pub fn setUnroundedLayout(self: *Self, id: Node.NodeId, unrounded_layout: Layout) void {
-    self.getNode(id).unrounded_layout = unrounded_layout;
+    _ = self; // autofix
+    _ = id; // autofix
+    _ = unrounded_layout; // autofix
+    // self.getNode(id).unrounded_layout = unrounded_layout;
 }
 pub fn setLayout(self: *Self, id: Node.NodeId, layout: Layout) void {
     self.getNode(id).layout = layout;
@@ -285,9 +304,9 @@ pub fn markDirty(self: *Self, id: Node.NodeId) void {
 
 // Invalidation types for different kinds of changes
 pub const InvalidationType = enum {
-    repaint, // Visual only (color, background, opacity)
-    recompute, // Layout computation (width, height, margin, padding)
-    regenerate, // Tree structure (display, position, float)
+    repaint, // Visual only (color, background, opacity), can go straight to repaint
+    regenerate, // Tree structure (display, position, float), needs to regenerate the layout tree
+    recompute, // Layout computation (width, height, margin, padding), layout tree structure is not affected, need to recompute layout only
 };
 
 // Style property types with invalidation information
@@ -379,9 +398,9 @@ pub const StyleProperty = union(enum) {
 fn requestNodeInvalidation(self: *Self, node_id: Node.NodeId, invalidation: InvalidationType) void {
     const node = self.getNode(node_id);
     switch (invalidation) {
-        .repaint => node.needs_repaint = true,
-        .recompute => node.needs_recompute = true,
-        .regenerate => node.needs_regenerate = true,
+        .repaint => node.setRegenerateLevel(.repaint),
+        .recompute => node.setRegenerateLevel(.recompute),
+        .regenerate => node.setRegenerateLevel(.regenerate),
     }
 }
 
@@ -399,6 +418,7 @@ fn requestNodeAndAncestorsInvalidation(self: *Self, node_id: Node.NodeId, invali
 pub fn setStyleProperty(self: *Self, node_id: Node.NodeId, property: StyleProperty) !void {
     const node = self.getNode(node_id);
     const style = &node.styles;
+    // FIXME: check if properties actually changed before requesting invalidation
 
     switch (property) {
         // Repaint only properties
@@ -581,6 +601,7 @@ pub fn setStyleProperty(self: *Self, node_id: Node.NodeId, property: StyleProper
         },
 
         // Position properties
+        // FIXME: I think these could be computed when generating the render list..if that's the case, we can only request a repaint
         .inset => |i| {
             style.inset = i;
             self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
@@ -666,6 +687,8 @@ pub fn setStyleProperty(self: *Self, node_id: Node.NodeId, property: StyleProper
             self.requestNodeInvalidation(node_id, .regenerate);
             self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
         },
+        // FIXME: there are missing flex properties here
+        // and also, we may want to check if display-inside is flex, otherwise these properties have no effect
         .flex_direction => |fd| {
             style.flex_direction = fd;
             self.requestNodeInvalidation(node_id, .regenerate);
@@ -678,22 +701,18 @@ pub fn setStyleProperty(self: *Self, node_id: Node.NodeId, property: StyleProper
         },
         .white_space_collapse => |wsc| {
             style.white_space_collapse = wsc;
-            self.requestNodeInvalidation(node_id, .regenerate);
             self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
         },
         .text_wrap_mode => |twm| {
             style.text_wrap_mode = twm;
-            self.requestNodeInvalidation(node_id, .regenerate);
             self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
         },
         .white_space_trim => |wst| {
             style.white_space_trim = wst;
-            self.requestNodeInvalidation(node_id, .regenerate);
             self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
         },
         .tab_size => |ts| {
             style.tab_size = ts;
-            self.requestNodeInvalidation(node_id, .regenerate);
             self.requestNodeAndAncestorsInvalidation(node_id, .recompute);
         },
     }
@@ -755,6 +774,19 @@ pub fn setElementId(self: *Self, node_id: Node.NodeId, id: []const u8) !void {
 // Get node by element ID
 pub fn getElementById(self: *Self, id: []const u8) ?Node.NodeId {
     return self.id_map.get(id);
+}
+
+const RenderList = @import("../layout/v2/RenderList.zig");
+
+// Hit testing using the current render list
+// Returns the layout node ID that contains the given point
+pub fn hitTest(self: *const Self, point: @import("../layout/v2/mod.zig").CSSPoint, options: RenderList.HitTestOptions) ?RenderList.HitTestResult {
+    return self.render_list.hitTest(point, options);
+}
+
+// Get all hits at a point (for debugging)
+pub fn hitTestAll(self: *const Self, allocator: std.mem.Allocator, point: @import("../layout/v2/mod.zig").CSSPoint, options: RenderList.HitTestOptions) !std.ArrayList(RenderList.HitTestResult) {
+    return self.render_list.hitTestAll(allocator, point, options);
 }
 
 pub fn destroyNode(self: *Self, id: Node.NodeId) !void {
@@ -1416,6 +1448,10 @@ pub fn deinit(self: *Self) void {
 
     self.live_ranges.deinit(self.allocator);
     self.selections.deinit(self.allocator);
+    // Clean up render list
+    self.render_list.deinit();
+    // Clean up layout tree
+    self.layout_tree.deinit();
     // Clean up style system
     self.style_manager.deinit();
     self.computed_style_cache.deinit();
@@ -1426,8 +1462,6 @@ pub fn getNodeCount(self: *Self) usize {
 fn printNode(self: *Self, writer: std.io.AnyWriter, node_id: Node.NodeId, indent: usize) !void {
     // const node = self.getNode(node_id);
     try writer.writeByteNTimes(' ', indent * 4);
-    const layout = self.getLayout(node_id);
-    _ = layout; // autofix
     const kind = self.getNodeKind(node_id);
     // Build invalidation flags string
     const node = self.getNode(node_id);
@@ -1435,10 +1469,11 @@ fn printNode(self: *Self, writer: std.io.AnyWriter, node_id: Node.NodeId, indent
     var flags_stream = std.io.fixedBufferStream(&flags_buf);
     const flags_writer = flags_stream.writer();
 
-    if (node.needs_repaint) try flags_writer.writeAll("R");
-    if (node.needs_recompute) try flags_writer.writeAll("C");
-    if (node.needs_regenerate) try flags_writer.writeAll("G");
-
+    switch (node.regenerate_level) {
+        .repaint => try flags_writer.writeAll("Repaint"),
+        .recompute => try flags_writer.writeAll("Recompute"),
+        .regenerate => try flags_writer.writeAll("Regenerate"),
+    }
     const flags = flags_stream.getWritten();
     const flags_str = if (flags.len > 0) flags else "-";
 
@@ -2235,17 +2270,265 @@ pub fn dumpNodes(tree: *Self, node_id: Node.NodeId, writer: std.io.AnyWriter, ma
     }
 }
 
-pub fn caretPositionFromPoint(self: *Self, viewport_size: Point(f32), position: Point(f32)) ?BoundaryPoint {
-    const maybe_hit = hitTest(self, viewport_size, position, .{});
-    if (maybe_hit) |hit| {
-        // TODO: for now, we only return if the caret is exactly on a text node
-        // we will handle a more flexible model once we introduce the render tree
+pub fn caretPositionFromPoint(self: *const Self, point: @import("../layout/v2/mod.zig").CSSPoint) ?BoundaryPoint {
+    // No render tree means document is not laid out
+    if (self.render_list.items.items.len == 0) return null;
 
-        if (self.getNode(hit.node_id).kind == .text) {
-            return hit;
+    // Try hit testing for text fragments and line boxes
+    // Text fragments will have priority since they're on top
+    const hit_result = self.render_list.hitTest(point, .{
+        .include_text = true,
+        .include_boxes = false,
+        .include_selections = false,
+        .include_line_boxes = true,
+    });
+
+    if (hit_result) |hit| {
+        switch (hit.item_type) {
+            .text_fragment => {
+                // Direct hit on text - calculate exact character position
+                return self.getCharacterPositionInFragment(hit.item_index, point.x);
+            },
+            .line_box => {
+                // Hit empty space in a line box - find closest fragment
+                const line_box = self.render_list.items.items[hit.item_index].line_box;
+                if (self.closestFragmentForHorizontalPosition(line_box.fragment_indices, point.x)) |fragment_index| {
+                    return self.getCharacterPositionInFragment(fragment_index, point.x);
+                }
+            },
+            else => {},
         }
     }
-    return null;
+
+    // Fallback: find first/last line box based on y position
+    return self.findFallbackPosition(point.y);
+}
+
+// Find fallback position when no direct hit
+fn findFallbackPosition(self: *const Self, y: f32) ?BoundaryPoint {
+    // Collect all line boxes
+    var line_boxes = std.ArrayList(usize).init(self.allocator);
+    defer line_boxes.deinit();
+
+    for (self.render_list.items.items, 0..) |item, i| {
+        if (item == .line_box) {
+            line_boxes.append(i) catch continue;
+        }
+    }
+
+    if (line_boxes.items.len == 0) {
+        // No line boxes at all - return position 0 in root
+        return BoundaryPoint{ .node_id = 1, .offset = 0 };
+    }
+
+    // Find first and last line boxes by y position
+    var first_line_idx: usize = line_boxes.items[0];
+    var last_line_idx: usize = line_boxes.items[0];
+    var min_y: f32 = self.render_list.items.items[first_line_idx].line_box.bounds.y;
+    var max_y: f32 = min_y;
+
+    for (line_boxes.items) |idx| {
+        const line_y = self.render_list.items.items[idx].line_box.bounds.y;
+        if (line_y < min_y) {
+            min_y = line_y;
+            first_line_idx = idx;
+        }
+        if (line_y > max_y) {
+            max_y = line_y;
+            last_line_idx = idx;
+        }
+    }
+
+    // if clicking above all content, return start of first line
+    if (y < min_y) {
+        const first_line = self.render_list.items.items[first_line_idx].line_box;
+        if (first_line.fragment_indices.len > 0) {
+            return self.getPositionFromTextFragment(first_line.fragment_indices[0]);
+        }
+    }
+
+    // if clicking below all content, return end of last line
+    const last_line = self.render_list.items.items[last_line_idx].line_box;
+    if (last_line.fragment_indices.len > 0) {
+        const last_fragment_idx = last_line.fragment_indices[last_line.fragment_indices.len - 1];
+        const last_fragment = self.render_list.items.items[last_fragment_idx].text_fragment;
+        // Return the END of the last fragment
+        const dom_node_id: Node.NodeId = @intCast(last_fragment.node_id);
+        return BoundaryPoint{
+            .node_id = dom_node_id,
+            .offset = last_fragment.dom_range.end,
+        };
+    }
+
+    return BoundaryPoint{ .node_id = 1, .offset = 0 };
+}
+
+// Find the closest text fragment on a line for the given x-coordinate
+fn closestFragmentForHorizontalPosition(self: *const Self, fragment_indices: []const usize, x: f32) ?usize {
+    if (fragment_indices.len == 0) return null;
+
+    const items = self.render_list.items.items;
+
+    // Single fragment case
+    if (fragment_indices.len == 1) {
+        return fragment_indices[0];
+    }
+
+    // Fragments are already in left-to-right order from line breaking
+    const first_fragment = items[fragment_indices[0]].text_fragment;
+    const last_fragment = items[fragment_indices[fragment_indices.len - 1]].text_fragment;
+
+    // Click before first fragment
+    if (x <= first_fragment.bounds.x) {
+        return fragment_indices[0];
+    }
+
+    // Click after last fragment
+    if (x >= last_fragment.bounds.x + last_fragment.bounds.width) {
+        return fragment_indices[fragment_indices.len - 1];
+    }
+
+    // Find fragment containing x
+    for (fragment_indices) |idx| {
+        const fragment = items[idx].text_fragment;
+        if (x >= fragment.bounds.x and x < fragment.bounds.x + fragment.bounds.width) {
+            return idx;
+        }
+    }
+
+    // Find closest fragment (shouldn't normally reach here)
+    var closest_idx: ?usize = null;
+    var min_distance: f32 = std.math.floatMax(f32);
+
+    for (fragment_indices) |idx| {
+        const fragment = items[idx].text_fragment;
+        const fragment_center = fragment.bounds.x + fragment.bounds.width / 2;
+        const distance = @abs(x - fragment_center);
+        if (distance < min_distance) {
+            min_distance = distance;
+            closest_idx = idx;
+        }
+    }
+
+    return closest_idx;
+}
+
+// Convert a text fragment to a BoundaryPoint
+fn getPositionFromTextFragment(self: *const Self, fragment_index: usize) ?BoundaryPoint {
+    const items = self.render_list.items.items;
+    if (fragment_index >= items.len) return null;
+
+    const item = items[fragment_index];
+    if (item != .text_fragment) return null;
+
+    const fragment = item.text_fragment;
+
+    // TODO: We need to map from layout node ID to DOM node ID
+    // For now, assume they're the same
+    const dom_node_id: Node.NodeId = @intCast(fragment.node_id);
+
+    // Return the start of the fragment's DOM range
+    // TODO: Calculate exact character position within fragment
+    return BoundaryPoint{
+        .node_id = dom_node_id,
+        .offset = fragment.dom_range.start,
+    };
+}
+
+// Calculate character position within a text fragment based on x coordinate
+fn getCharacterPositionInFragment(self: *const Self, fragment_index: usize, x: f32) ?BoundaryPoint {
+    const items = self.render_list.items.items;
+    if (fragment_index >= items.len) return null;
+
+    const item = items[fragment_index];
+    if (item != .text_fragment) return null;
+
+    const fragment = item.text_fragment;
+
+    // Calculate x offset within the fragment
+    const x_offset = x - fragment.bounds.x;
+
+    // If clicking before the fragment, return start position
+    if (x_offset <= 0) {
+        const dom_node_id: Node.NodeId = @intCast(fragment.node_id);
+        return BoundaryPoint{
+            .node_id = dom_node_id,
+            .offset = fragment.dom_range.start,
+        };
+    }
+
+    // If clicking after the fragment, return end position
+    if (x_offset >= fragment.bounds.width) {
+        const dom_node_id: Node.NodeId = @intCast(fragment.node_id);
+        return BoundaryPoint{
+            .node_id = dom_node_id,
+            .offset = fragment.dom_range.end,
+        };
+    }
+
+    // Find character position within the fragment
+    var current_x: f32 = 0;
+    var grapheme_iterator = GraphemeIterator.init(fragment.text);
+    var char_count: u32 = 0;
+
+    while (grapheme_iterator.next()) |grapheme| {
+        const char_width = visible.width.exclude_ansi_colors.utf8(grapheme.bytes(fragment.text));
+        const char_width_f32 = @as(f32, @floatFromInt(char_width));
+
+        // If we've passed the target x position, decide which side of the character
+        if (current_x + char_width_f32 >= x_offset) {
+            // If we're in the left half of the character, place caret before it
+            // If we're in the right half, place caret after it
+            if (x_offset - current_x < char_width_f32 / 2) {
+                const dom_node_id: Node.NodeId = @intCast(fragment.node_id);
+                return BoundaryPoint{
+                    .node_id = dom_node_id,
+                    .offset = fragment.dom_range.start + char_count,
+                };
+            } else {
+                const dom_node_id: Node.NodeId = @intCast(fragment.node_id);
+                return BoundaryPoint{
+                    .node_id = dom_node_id,
+                    .offset = fragment.dom_range.start + char_count + 1,
+                };
+            }
+        }
+
+        current_x += char_width_f32;
+        char_count += 1;
+    }
+
+    // If we reach here, place caret at the end of the fragment
+    const dom_node_id: Node.NodeId = @intCast(fragment.node_id);
+    return BoundaryPoint{
+        .node_id = dom_node_id,
+        .offset = fragment.dom_range.end,
+    };
+}
+pub fn computeStyles(self: *Self) !void {
+    try self.computed_style_cache.computeRootStyle(self);
+}
+
+pub fn computeLayoutTree(self: *Self) !void {
+    try self.layout_tree.computeIncremental(self);
+}
+
+pub fn computeLayout(self: *Self, allocator: std.mem.Allocator, available_space: layout_mod.constants.AvailableSpacePoint) !void {
+    var layout_context = layout_mod.LayoutContext{
+        .allocator = allocator,
+        .doc_tree = self,
+        .layout_tree = &self.layout_tree,
+    };
+
+    try layout_mod.computeLayout(&layout_context, available_space);
+}
+pub fn paint(self: *Self, renderer: *Renderer, writer: std.io.AnyWriter, mode: Renderer.RenderMode) !void {
+    self.render_list.clearRetainingCapacity();
+    var builder = layout_mod.RenderListBuilder.init(&self.layout_tree, self, &self.render_list);
+    defer builder.deinit();
+
+    try builder.build();
+    try renderer.render(&self.render_list, writer, mode);
 }
 
 pub fn expectNodes(tree: *Self, node_id: Node.NodeId, expected: []const u8, range: ?Range) !void {
@@ -2259,11 +2542,11 @@ const HitTestOptions = struct {
     whatToShow: u8 = 0,
     include_margin: bool = true,
 };
-pub fn hitTest(self: *Self, viewport_size: Point(f32), position: Point(f32), comptime options: HitTestOptions) ?BoundaryPoint {
-    return hitTestInner(self, viewport_size, .{ .pos = .{ .x = 0, .y = 0 }, .size = viewport_size }, 0, .{ .x = 0, .y = 0 }, position, options);
+pub fn hitTestLegacy(self: *Self, viewport_size: Point(f32), position: Point(f32), comptime options: HitTestOptions) ?BoundaryPoint {
+    return hitTestLegacyInner(self, viewport_size, .{ .pos = .{ .x = 0, .y = 0 }, .size = viewport_size }, 0, .{ .x = 0, .y = 0 }, position, options);
 }
 
-fn hitTestInner(
+fn hitTestLegacyInner(
     self: *Self,
     viewport_size: Point(f32),
     mask: Canvas.Rect,
@@ -2362,7 +2645,7 @@ fn hitTestInner(
     const children = self.getChildren(node_id);
 
     for (children.items) |child_id| {
-        const child_hit = hitTestInner(
+        const child_hit = hitTestLegacyInner(
             self,
             viewport_size,
             mask,
@@ -2379,4 +2662,46 @@ fn hitTestInner(
 fn getBoundaryEnd(tree: *Self, node_id: Node.NodeId) BoundaryPoint {
     const length = tree.getNode(node_id).length();
     return .{ .node_id = node_id, .offset = length };
+}
+
+test "Tree.caretPositionFromPoint" {
+    // This is a basic test - more comprehensive tests should be added when we have
+    // proper layout/render pipeline integration tests
+    var tree = try init(std.testing.allocator);
+    defer tree.deinit();
+
+    // Test with empty render list - should return null
+    const empty_result = tree.caretPositionFromPoint(.{ .x = 10, .y = 10 });
+    try std.testing.expect(empty_result == null);
+
+    // TODO: Add more comprehensive tests when we can set up a proper render list
+    // with line boxes and text fragments. For now, this just tests the basic API
+    // and edge cases.
+}
+
+pub fn propagateNodeRecomputeStatus(self: *Self) void {
+    const should_recompute = self.propagateNodeRecomputeStatusInner(ROOT_NODE_ID);
+    if (should_recompute) {
+        self.getNode(ROOT_NODE_ID).requestRecompute();
+    }
+}
+pub fn propagateNodeRecomputeStatusInner(self: *Self, node_id: Node.NodeId) bool {
+    var node = self.getNode(node_id);
+    var parent_should_recompute = false;
+    switch (node.regenerate_level) {
+        .regenerate, .recompute => {
+            node.regenerate_level = Node.RegenerateLevel.max(node.regenerate_level, .recompute);
+            self.layout_tree.clearCacheFromDocNodeId(node_id);
+            parent_should_recompute = true;
+        },
+        .repaint => {},
+    }
+
+    for (node.children.items) |child_id| {
+        const child_should_recompute = self.propagateNodeRecomputeStatusInner(child_id);
+        if (child_should_recompute) {
+            parent_should_recompute = true;
+        }
+    }
+    return parent_should_recompute;
 }

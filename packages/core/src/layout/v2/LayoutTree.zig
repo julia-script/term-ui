@@ -6,12 +6,18 @@ const Array = std.ArrayListUnmanaged;
 const HashMap = std.AutoHashMapUnmanaged;
 const mod = @import("mod.zig");
 const Cache = @import("Cache.zig");
+const logger = std.log.scoped(.layout_tree);
 
 const docFromXml = @import("./doc-from-xml.zig").docFromXml;
 
 nodes: HashMap(LayoutNode.Id, LayoutNode) = .{},
+doc_to_layout: HashMap(DocNodeId, LayoutNode.Id) = .{},
 node_count: LayoutNode.Id = 0,
 allocator: std.mem.Allocator,
+root_id: LayoutNode.Id = 0,
+/// this is just for debugging purposes, do not use it for actual computation
+/// recalculation should be based on the doc tree flags
+current_generation: u32 = 0,
 
 const Self = @This();
 
@@ -24,44 +30,26 @@ pub fn deinit(self: *Self) void {
         entry.value_ptr.deinit(self.allocator);
     }
     self.nodes.deinit(self.allocator);
+    self.doc_to_layout.deinit(self.allocator);
 }
 
 pub fn createNode(self: *Self, data: LayoutNode.Data, ref: DocRef) !LayoutNode.Id {
     const id = self.node_count;
-    try self.nodes.put(self.allocator, id, LayoutNode{ .id = id, .data = data, .ref = ref });
+    try self.nodes.put(self.allocator, id, LayoutNode{ .id = id, .data = data, .ref = ref, .generation = self.current_generation });
     self.node_count += 1;
-    return id;
-}
-
-pub fn createNodeWithDocTree(self: *Self, data: LayoutNode.Data, ref: DocRef, doc_tree: *DocTree) !LayoutNode.Id {
-    const id = self.node_count;
-    var node = LayoutNode{ .id = id, .data = data, .ref = ref };
-
-    // Copy styles from doc node if available
     switch (ref) {
         .doc_node => |doc_node_id| {
-            node.style = doc_tree.getComputedStyle(doc_node_id);
+            try self.doc_to_layout.put(self.allocator, doc_node_id, id);
         },
-        .anonymous => {
-            // Anonymous nodes will inherit styles from parent later
-        },
+        .anonymous => {},
     }
 
-    try self.nodes.put(self.allocator, id, node);
-    self.node_count += 1;
     return id;
 }
-pub fn createTextNode(self: *Self, contents: []const u8, ref: DocRef) !LayoutNode.Id {
+pub fn createTextNode(self: *Self, ref: DocRef) !LayoutNode.Id {
     const node_id = try self.createNode(.{ .text_node = .{} }, ref);
-    var node = self.getNodePtr(node_id);
-    try node.data.text_node.contents.appendSlice(self.allocator, contents);
-    return node_id;
-}
-
-pub fn createTextNodeWithDocTree(self: *Self, contents: []const u8, ref: DocRef, doc_tree: *DocTree) !LayoutNode.Id {
-    const node_id = try self.createNodeWithDocTree(.{ .text_node = .{} }, ref, doc_tree);
-    var node = self.getNodePtr(node_id);
-    try node.data.text_node.contents.appendSlice(self.allocator, contents);
+    // var node = self.getNodePtr(node_id);
+    // try node.data.text_node.contents.appendSlice(self.allocator, contents);
     return node_id;
 }
 pub fn appendNode(self: *Self, parent_id: LayoutNode.Id, child_id: LayoutNode.Id) !void {
@@ -74,33 +62,40 @@ pub fn appendNode(self: *Self, parent_id: LayoutNode.Id, child_id: LayoutNode.Id
     };
     try list.append(self.allocator, child_id);
     try self.setParent(child_id, parent_id);
-
-    // Handle style inheritance for anonymous nodes
-    const child = self.getNodePtr(child_id);
-    if (child.ref == .anonymous) {
-        self.inheritStyles(child_id, parent_id);
+}
+pub fn getNodeStyle(self: *Self, doc_tree: *DocTree, node_id: LayoutNode.Id) Styles {
+    switch (self.getNodePtr(node_id).ref) {
+        .doc_node => |doc_node_id| {
+            return doc_tree.getComputedStyle(doc_node_id);
+        },
+        .anonymous => {
+            const maybe_parent_id = self.getNodePtr(node_id).parent;
+            if (maybe_parent_id) |parent_id| {
+                const parent_style = self.getNodeStyle(doc_tree, parent_id);
+                return anonymousInheritStyles(parent_style);
+            }
+            std.debug.panic("Anonymous node {d} has no parent", .{node_id});
+        },
     }
 }
 
 // Inherit specific style properties from parent to child
-fn inheritStyles(self: *Self, child_id: LayoutNode.Id, parent_id: LayoutNode.Id) void {
-    const parent = self.getNodePtr(parent_id);
-    const child = self.getNodePtr(child_id);
+fn anonymousInheritStyles(ancestor_style: Styles) Styles {
+    return .{
+        .text_align = ancestor_style.text_align,
+        .white_space_collapse = ancestor_style.white_space_collapse,
+        .text_wrap_mode = ancestor_style.text_wrap_mode,
+        .white_space_trim = ancestor_style.white_space_trim,
+        .tab_size = ancestor_style.tab_size,
 
-    // Inherit text formatting properties
-    child.style.text_align = parent.style.text_align;
-    child.style.white_space_collapse = parent.style.white_space_collapse;
-    child.style.text_wrap_mode = parent.style.text_wrap_mode;
-    child.style.white_space_trim = parent.style.white_space_trim;
-    child.style.tab_size = parent.style.tab_size;
+        // Inherit font properties
+        .font_weight = ancestor_style.font_weight,
+        .font_style = ancestor_style.font_style,
+        .text_decoration = ancestor_style.text_decoration,
 
-    // Inherit font properties
-    child.style.font_weight = parent.style.font_weight;
-    child.style.font_style = parent.style.font_style;
-    child.style.text_decoration = parent.style.text_decoration;
-
-    // Inherit color
-    child.style.foreground_color = parent.style.foreground_color;
+        // Inherit color
+        .foreground_color = ancestor_style.foreground_color,
+    };
 }
 pub fn setParent(self: *Self, child_id: LayoutNode.Id, parent_id: ?LayoutNode.Id) !void {
     const child = self.getNodePtr(child_id);
@@ -115,6 +110,17 @@ pub inline fn getCache(self: *Self, id: LayoutNode.Id) *Cache {
     return &self.getNodePtr(id).cache;
 }
 
+pub fn getNodeText(self: *Self, tree: *DocTree, id: LayoutNode.Id) []const u8 {
+    const doc_node_id = switch (self.getNodePtr(id).ref) {
+        .doc_node => |doc_node_id| doc_node_id,
+        .anonymous => {
+            std.debug.panic("unreachable: Anonymous node {d} has no doc node", .{id});
+        },
+    };
+    const doc_node = tree.getNode(doc_node_id);
+    return doc_node.text.bytes.items;
+}
+
 pub const LayoutNode = struct {
     id: Id,
     ref: DocRef,
@@ -122,7 +128,10 @@ pub const LayoutNode = struct {
     data: Data,
     box: mod.Box = .{},
     cache: Cache = .{},
-    style: Styles = .{},
+
+    /// this is just for debugging purposes, do not use it for actual computation
+    /// recalculation should be based on the doc tree flags
+    generation: u32,
     pub const Id = u32;
     pub const Data = union(enum) {
         text_node: TextNode,
@@ -138,12 +147,22 @@ pub const LayoutNode = struct {
             .inline_container_node => |*node| node.deinit(allocator),
         }
     }
+    pub fn getChildren(self: *LayoutNode) []LayoutNode.Id {
+        return switch (self.data) {
+            .inline_node => |*n| n.children.items,
+            .block_container_node => |*n| n.children.items,
+            .inline_container_node => |*n| n.children.items,
+            else => &[_]LayoutNode.Id{},
+        };
+    }
 };
 
 pub const TextNode = struct {
-    contents: Array(u8) = .{},
+    // contents: Array(u8) = .{},
     pub fn deinit(self: *TextNode, allocator: std.mem.Allocator) void {
-        self.contents.deinit(allocator);
+        _ = self; // autofix
+        _ = allocator; // autofix
+        // self.contents.deinit(allocator);
     }
 };
 
@@ -195,29 +214,119 @@ pub fn fromTree(allocator: std.mem.Allocator, tree: *DocTree) !Self {
     // Build the document tree and append it as a child of the viewport
     const doc_root_id = try self.build(tree, DocTree.ROOT_NODE_ID);
     try self.appendNode(viewport_id, doc_root_id);
-    
-    // Clear all invalidation flags after building
-    tree.clearAllInvalidationFlags(DocTree.ROOT_NODE_ID);
 
     return self;
 }
+pub fn compute(self: *Self, tree: *DocTree) !void {
+    try self.build(tree, DocTree.ROOT_NODE_ID);
+}
 
-pub fn fromTreeIncremental(allocator: std.mem.Allocator, tree: *DocTree, existing: ?*Self) !Self {
-    // If no existing tree or root needs full regeneration, build from scratch
-    if (existing == null or tree.getNode(DocTree.ROOT_NODE_ID).needs_regenerate) {
-        return fromTree(allocator, tree);
+pub fn clearCacheFromDocNodeId(self: *Self, doc_node_id: DocNodeId) void {
+    const node_id = self.doc_to_layout.get(doc_node_id) orelse {
+        logger.warn("Nothing to clear for DocNode {d}", .{doc_node_id});
+        return;
+    };
+    // TODO: should we clear its anonymous children too?
+    self.clearCache(node_id);
+}
+pub fn clearCache(self: *Self, node_id: LayoutNode.Id) void {
+    var node = self.getNodePtr(node_id);
+    node.cache.clear();
+}
+pub fn computeIncremental(self: *Self, tree: *DocTree) !void {
+    self.current_generation += 1;
+    // self.recursivelyUpdateDomStatus(tree, self.root_id);
+    tree.propagateNodeRecomputeStatus();
+    self.root_id = try self.buildIncremental(tree, DocTree.ROOT_NODE_ID);
+}
+
+pub fn clearSubtree(self: *Self, doc_node_id: DocNodeId) void {
+    const layout_node_id = self.doc_to_layout.get(doc_node_id) orelse {
+        logger.warn("Nothing to clear for DocNode {d}", .{doc_node_id});
+        return;
+    };
+
+    self.clearRecursively(layout_node_id);
+}
+pub fn clearNode(self: *Self, l_node_id: LayoutNode.Id) void {
+    const layout_node = self.getNodePtr(l_node_id);
+    switch (layout_node.ref) {
+        .doc_node => |doc_node_id| {
+            _ = self.doc_to_layout.remove(doc_node_id);
+        },
+        .anonymous => {},
     }
-    
-    var self = Self.init(allocator);
-    
-    // Create an anonymous viewport node as the actual root
-    const viewport_id = try self.createNode(.{ .block_container_node = .{} }, .anonymous);
-    
-    // Build incrementally, reusing existing nodes where possible
-    const doc_root_id = try self.buildIncremental(tree, DocTree.ROOT_NODE_ID, existing.?);
-    try self.appendNode(viewport_id, doc_root_id);
-    
-    return self;
+    layout_node.deinit(self.allocator);
+    _ = self.nodes.remove(l_node_id);
+}
+pub fn clearRecursively(self: *Self, l_node_id: LayoutNode.Id) void {
+    var layout_node = self.getNodePtr(l_node_id);
+    for (layout_node.getChildren()) |child_id| {
+        self.clearRecursively(child_id);
+    }
+    self.clearNode(l_node_id);
+}
+
+/// Get the effective DOM status for a layout node, inheriting from DOM parent for anonymous nodes
+fn getEffectiveDomStatus(self: *Self, tree: *DocTree, layout_node_id: LayoutNode.Id) @import("../../tree/Node.zig").RegenerateLevel {
+    const layout_node = self.getNodePtr(layout_node_id);
+    switch (layout_node.ref) {
+        .doc_node => |doc_id| return tree.getNode(doc_id).regenerate_level,
+        .anonymous => {
+            // Find nearest DOM ancestor
+            var current = layout_node.parent;
+            while (current) |parent_id| {
+                const parent = self.getNodePtr(parent_id);
+                switch (parent.ref) {
+                    .doc_node => |doc_id| return tree.getNode(doc_id).regenerate_level,
+                    .anonymous => current = parent.parent,
+                }
+            }
+            return .recompute; // fallback
+        },
+    }
+}
+
+pub fn buildIncremental(self: *Self, tree: *DocTree, doc_node_id: DocNodeId) !LayoutNode.Id {
+    std.debug.print("Building incremental for doc node {d} {s}\n", .{ doc_node_id, @tagName(tree.getNode(doc_node_id).regenerate_level) });
+
+    // Check if we already have a layout node for this DOM node
+    const existing_layout_node_id = self.doc_to_layout.get(doc_node_id) orelse {
+
+        // No existing layout node - build from scratch
+        return try self.build(tree, doc_node_id);
+    };
+    std.debug.print("Regenerating node {d}\n", .{existing_layout_node_id});
+
+    // Process the existing layout node
+    return try self.buildIncrementalNode(tree, existing_layout_node_id);
+}
+
+/// Recursively process layout nodes based on DOM invalidation status
+fn buildIncrementalNode(self: *Self, tree: *DocTree, layout_node_id: LayoutNode.Id) !LayoutNode.Id {
+    const layout_node = self.getNodePtr(layout_node_id);
+    const dom_status = self.getEffectiveDomStatus(tree, layout_node_id);
+    std.debug.print("Building incremental layout node {d} {s}\n", .{ layout_node_id, @tagName(dom_status) });
+
+    switch (dom_status) {
+        .regenerate => {
+            // Get the DOM node ID before clearing (for rebuilding)
+            const doc_node_id = switch (layout_node.ref) {
+                .doc_node => |doc_id| doc_id,
+                .anonymous => {
+                    std.debug.panic("Cannot regenerate anonymous node {d} - should be handled by parent", .{layout_node_id});
+                },
+            };
+
+            // Delete this subtree and rebuild from scratch
+            self.clearRecursively(layout_node_id);
+            return try self.build(tree, doc_node_id);
+        },
+        .recompute => {},
+        .repaint => {},
+    }
+
+    return layout_node_id;
 }
 
 fn nodeIsInline(tree: *DocTree, node_id: DocNodeId) bool {
@@ -349,8 +458,8 @@ const MixedContextBuilder = struct {
     pub fn buildFromNode(self: *MixedContextBuilder, node_id: DocNodeId) BuildError!void {
         const kind = self.doc_tree.getNodeKind(node_id);
         if (kind == .text) {
-            const text = self.doc_tree.getText(node_id).bytes.items;
-            const id = try self.layout_tree.createTextNodeWithDocTree(text, .{ .doc_node = node_id }, self.doc_tree);
+            // const text = self.doc_tree.getText(node_id).bytes.items;
+            const id = try self.layout_tree.createTextNode(.{ .doc_node = node_id });
             try self.appendNode(id);
 
             // return id;
@@ -362,7 +471,7 @@ const MixedContextBuilder = struct {
             return;
         }
         if (isInlineFlow(self.doc_tree, node_id)) {
-            const id = try self.layout_tree.createNodeWithDocTree(.{ .inline_node = .{} }, .{ .doc_node = node_id }, self.doc_tree);
+            const id = try self.layout_tree.createNode(.{ .inline_node = .{} }, .{ .doc_node = node_id });
             try self.appendNode(id);
             // push to the stack
             try self.stack.append(self.allocator, id);
@@ -377,7 +486,7 @@ const MixedContextBuilder = struct {
 
         // otherwise it's a block
         const block_container_id = if (self.isCurrentContainerInline()) try self.createBlockContainer() else self.current_container_id;
-        const block_node = try self.layout_tree.buildInsideBlock(self.doc_tree, node_id);
+        const block_node = try self.layout_tree.buildIncremental(self.doc_tree, node_id);
         try self.layout_tree.appendNode(block_container_id, block_node);
     }
 
@@ -401,185 +510,18 @@ fn findExistingLayoutNode(existing_tree: *Self, doc_node_id: DocNodeId) ?LayoutN
     return null;
 }
 
-fn buildIncremental(self: *Self, tree: *DocTree, node_id: DocNodeId, existing: *Self) BuildError!LayoutNode.Id {
-    const doc_node = tree.getNode(node_id);
-    
-    // If this node needs regeneration, build fresh subtree and clear flags
-    if (doc_node.needs_regenerate) {
-        const result = try self.build(tree, node_id);
-        // Clear all flags since we rebuilt the entire subtree
-        tree.clearInvalidationFlags(node_id);
-        return result;
-    }
-    
-    // If no invalidation flags are set, we can potentially reuse the entire subtree
-    if (!doc_node.needs_recompute and !doc_node.needs_repaint) {
-        // Try to find and reuse existing layout subtree
-        if (findExistingLayoutNode(existing, node_id)) |existing_layout_id| {
-            return self.cloneSubtree(existing, existing_layout_id, tree);
-        }
-    }
-    
-    // Try to find existing layout node for partial reuse
-    if (findExistingLayoutNode(existing, node_id)) |existing_layout_id| {
-        const existing_node = existing.getNodePtr(existing_layout_id);
-        
-        // Clone the existing node structure
-        const new_id = try self.cloneNode(existing_node, tree);
-        
-        // If needs recompute, clear the cache
-        if (doc_node.needs_recompute) {
-            const new_node = self.getNodePtr(new_id);
-            new_node.cache.clear();
-        }
-        
-        // Clear the flags we've processed
-        doc_node.needs_recompute = false;
-        doc_node.needs_repaint = false;
-        
-        // Process children incrementally
-        switch (existing_node.data) {
-            .inline_node => |*n| {
-                for (n.children.items) |child_id| {
-                    const child_node = existing.getNodePtr(child_id);
-                    if (child_node.ref == .doc_node) {
-                        const child_doc_id = child_node.ref.doc_node;
-                        const new_child_id = try self.buildIncremental(tree, child_doc_id, existing);
-                        try self.appendNode(new_id, new_child_id);
-                    }
-                }
-            },
-            .block_container_node => |*n| {
-                for (n.children.items) |child_id| {
-                    const child_node = existing.getNodePtr(child_id);
-                    if (child_node.ref == .doc_node) {
-                        const child_doc_id = child_node.ref.doc_node;
-                        const new_child_id = try self.buildIncremental(tree, child_doc_id, existing);
-                        try self.appendNode(new_id, new_child_id);
-                    }
-                }
-            },
-            .inline_container_node => |*n| {
-                for (n.children.items) |child_id| {
-                    const child_node = existing.getNodePtr(child_id);
-                    if (child_node.ref == .doc_node) {
-                        const child_doc_id = child_node.ref.doc_node;
-                        const new_child_id = try self.buildIncremental(tree, child_doc_id, existing);
-                        try self.appendNode(new_id, new_child_id);
-                    }
-                }
-            },
-            .text_node => {
-                // Text nodes are leaf nodes, no children to process
-            },
-        }
-        
-        return new_id;
-    }
-    
-    // No existing node found, build fresh and clear flags
-    const result = try self.build(tree, node_id);
-    tree.clearInvalidationFlags(node_id);
-    return result;
-}
-
-fn cloneSubtree(self: *Self, existing_tree: *Self, existing_id: LayoutNode.Id, tree: *DocTree) !LayoutNode.Id {
-    const existing_node = existing_tree.getNodePtr(existing_id);
-    
-    // Clone the node
-    const new_id = try self.cloneNode(existing_node, tree);
-    
-    // Clone all children recursively
-    switch (existing_node.data) {
-        .inline_node => |*n| {
-            for (n.children.items) |child_id| {
-                const new_child_id = try self.cloneSubtree(existing_tree, child_id, tree);
-                try self.appendNode(new_id, new_child_id);
-            }
-        },
-        .block_container_node => |*n| {
-            for (n.children.items) |child_id| {
-                const new_child_id = try self.cloneSubtree(existing_tree, child_id, tree);
-                try self.appendNode(new_id, new_child_id);
-            }
-        },
-        .inline_container_node => |*n| {
-            for (n.children.items) |child_id| {
-                const new_child_id = try self.cloneSubtree(existing_tree, child_id, tree);
-                try self.appendNode(new_id, new_child_id);
-            }
-        },
-        .text_node => {
-            // Text nodes have no children
-        },
-    }
-    
-    return new_id;
-}
-
-fn cloneNode(self: *Self, existing: *LayoutNode, tree: *DocTree) !LayoutNode.Id {
-    // Create a new node with the same data structure
-    const new_id = self.node_count;
-    var new_node = LayoutNode{
-        .id = new_id,
-        .data = undefined,
-        .ref = existing.ref,
-        .parent = null,
-        .style = existing.style,
-        .cache = .{},
-    };
-    
-    // Clone the data based on type
-    switch (existing.data) {
-        .text_node => |*tn| {
-            new_node.data = .{ .text_node = .{} };
-            // For text nodes, get fresh text from the DOM tree
-            switch (existing.ref) {
-                .doc_node => |doc_id| {
-                    const text = tree.getText(doc_id).bytes.items;
-                    try new_node.data.text_node.contents.appendSlice(self.allocator, text);
-                },
-                .anonymous => {
-                    // Anonymous text nodes shouldn't exist, but if they do, copy existing
-                    try new_node.data.text_node.contents.appendSlice(self.allocator, tn.contents.items);
-                },
-            }
-        },
-        .inline_node => {
-            new_node.data = .{ .inline_node = .{} };
-        },
-        .block_container_node => {
-            new_node.data = .{ .block_container_node = .{} };
-        },
-        .inline_container_node => {
-            new_node.data = .{ .inline_container_node = .{
-                .line_boxes = .{ .allocator = self.allocator },
-            } };
-        },
-    }
-    
-    // Update style from doc tree if this is a doc node
-    switch (existing.ref) {
-        .doc_node => |doc_id| {
-            new_node.style = tree.getComputedStyle(doc_id);
-        },
-        .anonymous => {},
-    }
-    
-    try self.nodes.put(self.allocator, new_id, new_node);
-    self.node_count += 1;
-    return new_id;
-}
-
 /// Returns the id of the created layout node or `null` if the DOM node should
 /// not produce a layout representation.
 fn build(self: *Self, tree: *DocTree, node_id: DocNodeId) BuildError!LayoutNode.Id {
     const kind = tree.getNodeKind(node_id);
 
+    std.debug.print("node_id {d}  regen_level {s}\n", .{ node_id, @tagName(tree.getNode(node_id).regenerate_level) });
+
     // 1. Text DOM nodes map directly to layout text nodes.
     if (kind == .text) {
-        const text = tree.getText(node_id).bytes.items;
-        const id = try self.createTextNodeWithDocTree(text, .{ .doc_node = node_id }, tree);
+        // const text = tree.getText(node_id).bytes.items;
+        const id = try self.createTextNode(.{ .doc_node = node_id });
+        // self.markNeedsRecompute(tree, id);
         return id;
     }
     const style = tree.getStyle(node_id);
@@ -589,12 +531,13 @@ fn build(self: *Self, tree: *DocTree, node_id: DocNodeId) BuildError!LayoutNode.
 
     // 2. Atomic inline elements produce an `InlineNode`, right now we dont have other types of atomic inline elements besides inline-block or inline-flex
     if (isInlineFlow(tree, node_id)) {
-        const id = try self.createNodeWithDocTree(.{ .inline_node = .{} }, .{ .doc_node = node_id }, tree);
+        const id = try self.createNode(.{ .inline_node = .{} }, .{ .doc_node = node_id });
         for (tree.getNodeChildren(node_id)) |child| {
             if (isDisplayNone(tree, child)) continue;
-            const child_layout_node_id = try self.build(tree, child);
+            const child_layout_node_id = try self.buildIncremental(tree, child);
             try self.appendNode(id, child_layout_node_id);
         }
+        // self.markNeedsRecompute(tree, id);
         return id;
     }
     unreachable;
@@ -609,20 +552,20 @@ pub fn buildInsideBlock(self: *Self, tree: *DocTree, node_id: DocNodeId) !Layout
         }
     }
     if (only_inline_children) {
-        const inline_container_id = try self.createNodeWithDocTree(.{ .inline_container_node = .{
+        const inline_container_id = try self.createNode(.{ .inline_container_node = .{
             .line_boxes = .{
                 .allocator = self.allocator,
             },
-        } }, .{ .doc_node = node_id }, tree);
+        } }, .{ .doc_node = node_id });
         for (children) |child| {
             if (isDisplayNone(tree, child)) continue;
-            const child_layout_node_id = try self.build(tree, child);
+            const child_layout_node_id = try self.buildIncremental(tree, child);
             try self.appendNode(inline_container_id, child_layout_node_id);
         }
         return inline_container_id;
     }
 
-    const container_id = try self.createNodeWithDocTree(.{ .block_container_node = .{} }, .{ .doc_node = node_id }, tree);
+    const container_id = try self.createNode(.{ .block_container_node = .{} }, .{ .doc_node = node_id });
     var mixed_context_builder = try MixedContextBuilder.init(self.allocator, self, tree, container_id, node_id);
     defer mixed_context_builder.deinit();
     try mixed_context_builder.build();
@@ -659,20 +602,18 @@ fn printNodeInternal(self: *Self, node_id: LayoutNode.Id, writer: std.io.AnyWrit
 
     switch (node.data) {
         .text_node => |text| {
-            if (is_root) {
-                // root has no prefix
-            }
-            try writer.print("[{s} #{d}] \"", .{ @tagName(node.data), node.id });
-            for (text.contents.items) |c| {
-                switch (c) {
-                    '\n' => try writer.writeAll("\\n"),
-                    '\t' => try writer.writeAll("\\t"),
-                    '\r' => try writer.writeAll("\\r"),
-                    else => try writer.writeByte(c),
-                }
-            }
+            _ = text; // autofix
+            try writer.print("[{s} #{d} gen={{{d}}} cache_empty={{{any}}}]", .{ @tagName(node.data), node.id, node.generation, node.cache.isEmpty() });
+            // for (text.contents.items) |c| {
+            //     switch (c) {
+            //         '\n' => try writer.writeAll("\\n"),
+            //         '\t' => try writer.writeAll("\\t"),
+            //         '\r' => try writer.writeAll("\\r"),
+            //         else => try writer.writeByte(c),
+            //     }
+            // }
 
-            try writer.print("\"", .{});
+            // try writer.print("\"", .{});
         },
         .inline_node => |inline_node| {
             try writer.print("[{s} #{d}", .{ @tagName(node.data), node.id });
@@ -688,13 +629,13 @@ fn printNodeInternal(self: *Self, node_id: LayoutNode.Id, writer: std.io.AnyWrit
 
             try writer.print(" ref=", .{});
             try writeDocRef(writer, node.ref);
-            try writer.print(" children={{{d}}} box={{{any}}}]", .{ inline_node.children.items.len, node.box });
+            try writer.print(" children={{{d}}} box={{{any}}} gen={{{d}}} cache_empty={{{any}}}]", .{ inline_node.children.items.len, node.box, node.generation, node.cache.isEmpty() });
         },
         .block_container_node => |block| {
             try writer.print("[{s} #{d} ref=", .{ @tagName(node.data), node.id });
             try writeDocRef(writer, node.ref);
 
-            try writer.print(" children={{{d}}} box={{{any}}}]", .{ block.children.items.len, node.box });
+            try writer.print(" children={{{d}}} box={{{any}}} gen={{{d}}} cache_empty={{{any}}}]", .{ block.children.items.len, node.box, node.generation, node.cache.isEmpty() });
         },
         .inline_container_node => |container| {
             try writer.print("[{s} #{d} ref=", .{ @tagName(node.data), node.id });
@@ -705,7 +646,7 @@ fn printNodeInternal(self: *Self, node_id: LayoutNode.Id, writer: std.io.AnyWrit
             if (container.continuation) |continuation| {
                 try writer.print(" continuation={{#{d}}}", .{continuation});
             }
-            try writer.print(" children={{{d}}} lines={{{d}}} box={{{any}}}]", .{ container.children.items.len, container.line_boxes.len(), node.box });
+            try writer.print(" children={{{d}}} lines={{{d}}} box={{{any}}} gen={{{d}}} cache_empty={{{any}}}]", .{ container.children.items.len, container.line_boxes.len(), node.box, node.generation, node.cache.isEmpty() });
         },
     }
 
@@ -789,7 +730,7 @@ pub fn printNode(self: *Self, node_id: LayoutNode.Id, writer: std.io.AnyWriter) 
     try self.printNodeInternal(node_id, writer, "", true, true);
 }
 pub fn printRoot(self: *Self, writer: std.io.AnyWriter) !void {
-    try self.printNode(0, writer);
+    try self.printNode(self.root_id, writer);
 }
 
 pub fn expectLayoutTree(description: []const u8, docXml: []const u8, comptime loc: std.builtin.SourceLocation) !void {

@@ -3,6 +3,7 @@ const LayoutResult = mod.LayoutResult;
 const RunMode = mod.ContainerContext.RunMode;
 const AvailableSpace = mod.constants.AvailableSpace;
 const Point = @import("../point.zig").Point;
+const std = @import("std");
 
 const Cache = @This();
 
@@ -16,7 +17,7 @@ fn CacheEntry(comptime T: type) type {
 
 const CACHE_SIZE: usize = 9;
 final_layout_entry: ?CacheEntry(LayoutResult) = null,
-measure_entries: [CACHE_SIZE]?CacheEntry(Point(f32)) = [_]?CacheEntry(Point(f32)){null} ** CACHE_SIZE,
+measure_entries: [CACHE_SIZE]?CacheEntry(Point(f32)) = EMPTY_MEASURE_ENTRIES,
 
 pub fn computeCacheSlot(known_dimensions: Point(?f32), available_space: Point(AvailableSpace)) usize {
     const has_known_width = known_dimensions.x != null;
@@ -103,9 +104,10 @@ pub fn store(self: *Cache, known_dimensions: Point(?f32), available_space: Point
     }
 }
 
+const EMPTY_MEASURE_ENTRIES = [_]?CacheEntry(Point(f32)){null} ** CACHE_SIZE;
 pub fn clear(self: *Cache) void {
     self.final_layout_entry = null;
-    self.measure_entries = [_]?CacheEntry(Point(f32)){null} ** CACHE_SIZE;
+    self.measure_entries = EMPTY_MEASURE_ENTRIES;
 }
 
 pub fn isEmpty(self: *Cache) bool {
@@ -119,4 +121,3 @@ pub fn isEmpty(self: *Cache) bool {
     }
     return true;
 }
-

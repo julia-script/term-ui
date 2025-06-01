@@ -19,7 +19,7 @@ allocator: std.mem.Allocator,
 /// Position of this fragment within its line (set by text alignment)
 position: mod.CSSPoint = .{ .x = 0, .y = 0 },
 /// Range in the original DOM text node (for selection mapping)
-dom_range: struct { start: u32, end: u32 } = .{ .start = 0, .end = 0 },
+dom_range: @import("../RenderList.zig").DomRange = .{ .start = 0, .end = 0 },
 
 const Self = @This();
 

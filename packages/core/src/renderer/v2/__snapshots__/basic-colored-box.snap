@@ -9,7 +9,7 @@
 </root>
 
 --- DOM Tree ---
-[node#0 block flow_root CG]
+[node#0 block flow_root RCG]
     [text #1 C] "\n"
 
 --- Layout Tree (before computation) ---
@@ -28,9 +28,10 @@ Available space: [definite: 30] x [max_content]
     └── [text_node #2] "\n"
 
 --- Render List ---
-RenderList (2 items):
+RenderList (3 items):
   [0] Box #1 bounds=[pos:(0.0,0.0) size:(20.0x5.0)] z=0 bg=#3b82f6ff
-  [1] TextFragment #2 bounds=[pos:(0.0,0.0) size:(0.0x0.0)] z=0 text=""
+  [1] LineBox #1 bounds=(0.0,0.0 0.0x0.0) fragments=[2]
+  [2] TextFragment #2 bounds=[pos:(0.0,0.0) size:(0.0x0.0)] z=0 text=""
 
 --- Rendered Output ---
 Raw (escape sequences as \E):

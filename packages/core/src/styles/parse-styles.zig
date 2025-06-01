@@ -12,13 +12,77 @@ pub fn parseStyleProperty(tree: *Tree, node_id: Node.NodeId, _key: []const u8, _
     const key = trim(_key);
     const value = trim(_value);
 
-    if (std.mem.eql(u8, key, "display")) {
+    // Try to use the new StyleProperty API with proper invalidation for supported properties
+    // Most common properties first for performance
+    if (std.mem.eql(u8, key, "color")) {
+        const parsed = parsers.color.parse(value, 0) catch {
+            logger.warn("Invalid color value: '{s}'\n", .{value});
+            return;
+        };
+        tree.setStyleProperty(node_id, Tree.StyleProperty{ .color = parsed.value }) catch |err| {
+            logger.warn("Error setting color property: {s}\n", .{@errorName(err)});
+        };
+        return;
+    } else if (std.mem.eql(u8, key, "background-color")) {
+        const parsed = parsers.color.parse(value, 0) catch {
+            logger.warn("Invalid background-color value: '{s}'\n", .{value});
+            return;
+        };
+        tree.setStyleProperty(node_id, Tree.StyleProperty{ .background_color = parsed.value }) catch |err| {
+            logger.warn("Error setting background-color property: {s}\n", .{@errorName(err)});
+        };
+        return;
+    } else if (std.mem.eql(u8, key, "display")) {
         const parsed = parsers.display.parse(value, 0) catch {
             logger.warn("Invalid display value: '{s}'\n", .{value});
             return;
         };
-        tree.getNode(node_id).styles.display = parsed.value;
+        tree.setStyleProperty(node_id, Tree.StyleProperty{ .display = parsed.value }) catch |err| {
+            logger.warn("Error setting display property: {s}\n", .{@errorName(err)});
+        };
+        return;
     } else if (std.mem.eql(u8, key, "position")) {
+        const parsed = parsers.position.parse(value, 0) catch {
+            logger.warn("Invalid position value: '{s}'\n", .{value});
+            return;
+        };
+        tree.setStyleProperty(node_id, Tree.StyleProperty{ .position = parsed.value }) catch |err| {
+            logger.warn("Error setting position property: {s}\n", .{@errorName(err)});
+        };
+        return;
+    } else if (std.mem.eql(u8, key, "width")) {
+        const parsed = parsers.length_percentage_auto.parse(value, 0) catch {
+            logger.warn("Invalid width value: '{s}'\n", .{value});
+            return;
+        };
+        tree.setStyleProperty(node_id, Tree.StyleProperty{ .width = parsed.value }) catch |err| {
+            logger.warn("Error setting width property: {s}\n", .{@errorName(err)});
+        };
+        return;
+    } else if (std.mem.eql(u8, key, "height")) {
+        const parsed = parsers.length_percentage_auto.parse(value, 0) catch {
+            logger.warn("Invalid height value: '{s}'\n", .{value});
+            return;
+        };
+        tree.setStyleProperty(node_id, Tree.StyleProperty{ .height = parsed.value }) catch |err| {
+            logger.warn("Error setting height property: {s}\n", .{@errorName(err)});
+        };
+        return;
+    } else if (std.mem.eql(u8, key, "text-align")) {
+        const parsed = parsers.text_align.parse(value, 0) catch {
+            logger.warn("Invalid text-align value: '{s}'\n", .{value});
+            return;
+        };
+        tree.setStyleProperty(node_id, Tree.StyleProperty{ .text_align = parsed.value }) catch |err| {
+            logger.warn("Error setting text-align property: {s}\n", .{@errorName(err)});
+        };
+        return;
+    }
+
+    // Fall back to legacy parsing for properties not yet migrated to setStyleProperty
+    // For now, just handle these with legacy parsing and manual invalidation
+    
+    if (std.mem.eql(u8, key, "overflow-x")) {
         const parsed = parsers.position.parse(value, 0) catch {
             logger.warn("Invalid position value: '{s}'\n", .{value});
             return;

@@ -8,15 +8,15 @@ const RenderList = layout_v2.RenderList;
 
 canvas: Canvas,
 allocator: std.mem.Allocator,
-render_mode: RenderMode = .simple,
+render_buffer: std.ArrayListUnmanaged(u8) = .{},
 
 const Self = @This();
 
-pub const RenderMode = enum {
+pub const RenderMode = enum(u8) {
     /// Simple mode: render sequentially with newlines, no cursor positioning
-    simple,
+    simple = 0,
     /// App mode: use cursor positioning and diffing for terminal apps
-    app,
+    app = 1,
 };
 
 pub fn init(allocator: std.mem.Allocator) !Self {
@@ -25,8 +25,8 @@ pub fn init(allocator: std.mem.Allocator) !Self {
         .canvas = try Canvas.init(
             allocator,
             .{ .x = 0, .y = 0 },
-            Color.tw.black,
-            Color.tw.white,
+            Color.tw.transparent,
+            Color.tw.transparent,
         ),
         .allocator = allocator,
     };
@@ -37,7 +37,7 @@ pub fn deinit(self: *Self) void {
 }
 
 /// Render from a pre-built render list
-pub fn render(self: *Self, render_list: *const RenderList, writer: std.io.AnyWriter) !void {
+pub fn render(self: *Self, render_list: *const RenderList, writer: std.io.AnyWriter, mode: RenderMode) !void {
     // Get canvas size from the first element (viewport)
     if (render_list.items.items.len == 0) {
         // No content in render list
@@ -53,10 +53,7 @@ pub fn render(self: *Self, render_list: *const RenderList, writer: std.io.AnyWri
 
     // Size canvas to viewport dimensions
     if (viewport_bounds.width > 0 and viewport_bounds.height > 0) {
-        try self.canvas.resize(.{ 
-            .x = viewport_bounds.x + viewport_bounds.width, 
-            .y = viewport_bounds.y + viewport_bounds.height 
-        });
+        try self.canvas.resize(.{ .x = viewport_bounds.x + viewport_bounds.width, .y = viewport_bounds.y + viewport_bounds.height });
     } else {
         // No valid viewport dimensions
         return;
@@ -66,7 +63,7 @@ pub fn render(self: *Self, render_list: *const RenderList, writer: std.io.AnyWri
     try self.canvas.paintFromRenderList(render_list);
 
     // Render to terminal based on mode
-    switch (self.render_mode) {
+    switch (mode) {
         .simple => try self.renderSimple(writer),
         .app => try self.renderApp(writer),
     }
@@ -82,10 +79,10 @@ pub fn clear(self: *Self) void {
     self.canvas.clear();
 }
 
-/// Set render mode
-pub fn setRenderMode(self: *Self, mode: RenderMode) void {
-    self.render_mode = mode;
-}
+// /// Set render mode
+// pub fn setRenderMode(self: *Self, mode: RenderMode) void {
+//     self.render_mode = mode;
+// }
 
 /// Simple rendering: sequential output with newlines
 fn renderSimple(self: *Self, writer: std.io.AnyWriter) !void {
@@ -146,10 +143,14 @@ fn renderApp(self: *Self, writer: std.io.AnyWriter) !void {
     const previous = self.canvas.getPreviousCells();
     const dims = self.canvas.getDimensions();
 
+    self.render_buffer.clearRetainingCapacity();
+    const buf_writer = self.render_buffer.writer(self.allocator).any();
+
     // If no previous state or dimensions changed, do a full render
     if (previous.len == 0 or previous.len != cells.len) {
-        try self.renderAppFull(writer);
+        self.canvas.clear();
         try self.canvas.savePreviousState();
+
         return;
     }
 
@@ -168,6 +169,7 @@ fn renderApp(self: *Self, writer: std.io.AnyWriter) !void {
             const prev_cell = &previous[idx];
 
             // Skip if cell hasn't changed
+            // std.debug.print("Cell {d} {d} is equal {any}\n", .{ x, y, cell.equal(prev_cell) });
             if (cell.equal(prev_cell)) {
                 continue;
             }
@@ -180,27 +182,29 @@ fn renderApp(self: *Self, writer: std.io.AnyWriter) !void {
             const x_offset = curr_x - (last_x + 1);
             const y_offset = curr_y - last_y;
 
-            try moveCursorBy(writer, x_offset, y_offset);
+            try moveCursorBy(buf_writer, x_offset, y_offset);
+
             last_x = curr_x;
             last_y = curr_y;
 
             // Apply colors if changed
             if (last_bg == null or !last_bg.?.equal(cell.bg)) {
-                try writeBgSequence(writer, cell.bg);
+                try writeBgSequence(buf_writer, cell.bg);
                 last_bg = cell.bg;
             }
 
             if (last_fg == null or !last_fg.?.equal(cell.fg)) {
-                try writeFgSequence(writer, cell.fg);
+                try writeFgSequence(buf_writer, cell.fg);
                 last_fg = cell.fg;
             }
 
             // Apply text formatting if changed
-            try writeFormattingSequence(writer, last_format, cell.format);
+            try writeFormattingSequence(buf_writer, last_format, cell.format);
             last_format = cell.format;
 
             // Write character
-            try writer.writeAll(cell.getChar());
+            const char = cell.getChar();
+            try buf_writer.writeAll(if (char.len == 0) " " else char);
 
             // Skip continuation cells
             if (cell.width > 1) {
@@ -215,72 +219,73 @@ fn renderApp(self: *Self, writer: std.io.AnyWriter) !void {
         const final_y: i32 = @intCast(dims.height);
         const y_offset = final_y - last_y;
         const x_offset = -last_x - 1;
-        try moveCursorBy(writer, x_offset, y_offset);
-        try writer.writeAll("\x1b[0m");
+        try moveCursorBy(buf_writer, x_offset, y_offset);
+        try buf_writer.writeAll("\x1b[0m");
 
         // Save current state as previous
-        try self.canvas.savePreviousState();
+        // try self.canvas.savePreviousState();
+        try writer.writeAll(self.render_buffer.items);
     }
 }
 
-/// Full render for app mode (no diffing)
-fn renderAppFull(self: *Self, writer: std.io.AnyWriter) !void {
-    const cells = self.canvas.getCells();
-    const dims = self.canvas.getDimensions();
+// /// Full render for app mode (no diffing)
+// fn renderAppFull(self: *Self, writer: std.io.AnyWriter) !void {
+//     const cells = self.canvas.getCells();
+//     const dims = self.canvas.getDimensions();
 
-    // Move to home position
-    try writer.writeAll("\x1b[H");
+//     // Move to home position
+//     try writer.writeAll("\x1b[H");
 
-    var last_bg: ?Color = null;
-    var last_fg: ?Color = null;
-    var last_format = Canvas.TextFormat{};
+//     var last_bg: ?Color = null;
+//     var last_fg: ?Color = null;
+//     var last_format = Canvas.TextFormat{};
 
-    for (0..dims.height) |y| {
-        var skip_cells: u32 = 0;
+//     for (0..dims.height) |y| {
+//         var skip_cells: u32 = 0;
 
-        for (0..dims.width) |x| {
-            const cell = &cells[y * dims.width + x];
+//         for (0..dims.width) |x| {
+//             const cell = &cells[y * dims.width + x];
 
-            // Apply colors if changed
-            if (last_bg == null or !last_bg.?.equal(cell.bg)) {
-                try writeBgSequence(writer, cell.bg);
-                last_bg = cell.bg;
-            }
+//             // Apply colors if changed
+//             if (last_bg == null or !last_bg.?.equal(cell.bg)) {
+//                 try writeBgSequence(writer, cell.bg);
+//                 last_bg = cell.bg;
+//             }
 
-            // Skip continuation cells
-            if (skip_cells > 0) {
-                skip_cells -= 1;
-                continue;
-            }
+//             // Skip continuation cells
+//             if (skip_cells > 0) {
+//                 skip_cells -= 1;
+//                 continue;
+//             }
 
-            if (last_fg == null or !last_fg.?.equal(cell.fg)) {
-                try writeFgSequence(writer, cell.fg);
-                last_fg = cell.fg;
-            }
+//             if (last_fg == null or !last_fg.?.equal(cell.fg)) {
+//                 try writeFgSequence(writer, cell.fg);
+//                 last_fg = cell.fg;
+//             }
 
-            // Apply text formatting if changed
-            try writeFormattingSequence(writer, last_format, cell.format);
-            last_format = cell.format;
+//             // Apply text formatting if changed
+//             try writeFormattingSequence(writer, last_format, cell.format);
+//             last_format = cell.format;
 
-            // Write character
-            if (cell.width == 0) {
-                try writer.writeAll(" ");
-            } else {
-                try writer.writeAll(cell.getChar());
-                skip_cells = cell.width - 1;
-            }
-        }
+//             // Write character
+//             if (cell.width == 0) {
+//                 try writer.writeAll(" ");
+//             } else {
+//                 try writer.writeAll(cell.getChar());
+//                 skip_cells = cell.width - 1;
+//             }
+//         }
 
-        // Move to next line
-        if (y < dims.height - 1) {
-            const x_back: i32 = -@as(i32, @intCast(dims.width));
-            try moveCursorBy(writer, x_back, 1);
-        }
-    }
+//         // Move to next line
+//         if (y < dims.height - 1) {
+//             const x_back: i32 = -@as(i32, @intCast(dims.width));
+//             try moveCursorBy(writer, x_back, 1);
+//         }
+//     }
 
-    // Reset at end
-    try writer.writeAll("\x1b[0m");
-}
+//     // Reset at end
+//     try writer.writeAll("\x1b[0m");
+// }
 
 // Helper functions for escape sequences
 fn writeFgSequence(writer: std.io.AnyWriter, fg: Color) !void {

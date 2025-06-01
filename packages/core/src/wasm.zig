@@ -2,7 +2,7 @@ const Tree = @import("tree/Tree.zig");
 const Style = @import("tree/Style.zig");
 const std = @import("std");
 const parsers = @import("styles/styles.zig");
-const Renderer = @import("renderer/Renderer.zig");
+const Renderer = @import("renderer/v2/Renderer.zig");
 const fmt = @import("fmt.zig");
 const TermInfo = @import("cmd/terminfo/main.zig").TermInfo;
 const InputManager = @import("cmd/input/manager.zig");
@@ -16,7 +16,7 @@ const is_wasm = @import("builtin").target.cpu.arch.isWasm();
 pub const std_options: std.Options = .{
     .logFn = wasmLog,
     // .log_level = if (is_debug) .debug else .err,
-    .log_level = .err,
+    .log_level = .debug,
 };
 
 extern fn externalLog(message: [*:0]u8) void;
@@ -60,12 +60,12 @@ pub inline fn wasm_try(T: type, triable: anytype) T {
     };
 }
 
-export const NULL: u32 = std.math.maxInt(u32);
+pub export const NULL: u32 = std.math.maxInt(u32);
 export fn allocBuffer(size: usize) [*]u8 {
     logger.info("allocBuffer({d})", .{size});
     return wasm_try([]u8, wasm_allocator.alloc(u8, size)).ptr;
 }
-export fn allocNullTerminatedBuffer(size: usize) [*:0]u8 {
+pub export fn allocNullTerminatedBuffer(size: usize) [*:0]u8 {
     logger.info("allocNullTerminatedBuffer({d})", .{size});
     const ptr = wasm_try([*:0]u8, wasm_allocator.allocSentinel(u8, size, 0));
     return ptr;
@@ -80,14 +80,14 @@ export fn freeBuffer(ptr: [*]u8, size: usize) void {
     wasm_allocator.free(ptr[0..size]);
 }
 
-export fn Tree_init() *Tree {
+pub export fn Tree_init() *Tree {
     const ptr = wasm_try(*Tree, wasm_allocator.create(Tree));
     ptr.* = wasm_try(Tree, Tree.init(wasm_allocator));
 
     logger.info("Tree_init():{*}", .{ptr});
     return ptr;
 }
-export fn Tree_deinit(tree: *Tree) void {
+pub export fn Tree_deinit(tree: *Tree) void {
     logger.info("Tree_deinit({*})", .{tree});
     tree.deinit();
     wasm_allocator.destroy(tree);
@@ -100,7 +100,7 @@ fn trim(slice: []const u8) []const u8 {
     while (end > begin and std.ascii.isWhitespace(slice[end - 1])) : (end -= 1) {}
     return slice[begin..end];
 }
-export fn Tree_createNode(tree: *Tree, styles: [*:0]u8) u32 {
+pub export fn Tree_createNode(tree: *Tree, styles: [*:0]u8) u32 {
     logger.info("Tree_createNode({*}, \"{s}\")", .{ tree, styles });
     defer freeNullTerminatedBuffer(styles);
     const style_slice = styles[0..std.mem.len(styles)];
@@ -109,7 +109,7 @@ export fn Tree_createNode(tree: *Tree, styles: [*:0]u8) u32 {
 
     return @intCast(node);
 }
-export fn Tree_createTextNode(tree: *Tree, text: [*:0]u8) u32 {
+pub export fn Tree_createTextNode(tree: *Tree, text: [*:0]u8) u32 {
     logger.info("Tree_createTextNode({*}, {s})", .{ tree, text });
     defer freeNullTerminatedBuffer(text);
     const text_slice = text[0..std.mem.len(text)];
@@ -204,7 +204,7 @@ export fn Tree_destroyNodeRecursive(tree: *Tree, node: u32) void {
     logger.info("Tree_destroyNodeRecursive({*}, {d})", .{ tree, node });
     wasm_try(void, tree.destroyNodeRecursive(node));
 }
-export fn Tree_appendChild(tree: *Tree, parent: u32, child: u32) u32 {
+pub export fn Tree_appendChild(tree: *Tree, parent: u32, child: u32) u32 {
     logger.info("Tree_appendChild({*}, {d}, {d})", .{ tree, parent, child });
     return @intCast(wasm_try(Tree.Node.NodeId, tree.appendChild(parent, child)));
 }
@@ -247,7 +247,7 @@ export fn Tree_getNodeCursorStyle(tree: *Tree, node: u32) u32 {
     const style = tree.getComputedStyle(node);
     return @intFromEnum(style.cursor);
 }
-export fn Tree_setStyle(tree: *Tree, node: u32, string: [*:0]u8) void {
+pub export fn Tree_setStyle(tree: *Tree, node: u32, string: [*:0]u8) void {
     logger.info("Tree_setStyle({*}, {d}, \"{s}\")", .{ tree, node, string });
     defer freeNullTerminatedBuffer(string);
     tree.getNode(node).styles = .{};
@@ -258,16 +258,52 @@ export fn Tree_setStyleProperty(tree: *Tree, node: u32, key: [*:0]u8, value: [*:
     logger.info("Tree_setStyleProperty({*}, {d}, \"{s}\", \"{s}\")", .{ tree, node, key, value });
     defer freeNullTerminatedBuffer(key);
     defer freeNullTerminatedBuffer(value);
-    // tree.computed_style_cache.invalidateNode(node);
-    parsers.parseStyleProperty(
-        tree,
-        node,
-        key[0..std.mem.len(key)],
-        value[0..std.mem.len(value)],
-    );
+
+    const key_slice = key[0..std.mem.len(key)];
+    const value_slice = value[0..std.mem.len(value)];
+
+    // Use the updated parseStyleProperty that calls tree.setStyleProperty internally
+    parsers.parseStyleProperty(tree, node, key_slice, value_slice);
 }
 export fn Tree_doesNodeExist(tree: *Tree, node: u32) bool {
     return tree.node_map.contains(node);
+}
+
+pub export fn Tree_getElementById(tree: *Tree, id: [*:0]u8) u32 {
+    logger.info("Tree_getElementById({*}, \"{s}\")", .{ tree, id });
+    defer freeNullTerminatedBuffer(id);
+    const id_slice = id[0..std.mem.len(id)];
+    const result = tree.getElementById(id_slice) orelse NULL;
+    return @intCast(result);
+}
+
+pub export fn Tree_setElementId(tree: *Tree, node: u32, id: [*:0]u8) void {
+    logger.info("Tree_setElementId({*}, {d}, \"{s}\")", .{ tree, node, id });
+    defer freeNullTerminatedBuffer(id);
+    const id_slice = id[0..std.mem.len(id)];
+    wasm_try(void, tree.setElementId(node, id_slice));
+}
+
+pub export fn Tree_hitTest(tree: *Tree, x: f32, y: f32) u32 {
+    logger.info("Tree_hitTest({*}, {d}, {d})", .{ tree, x, y });
+
+    // Hit test for clickable elements only (respects pointer-events)
+    const hit_result = tree.hitTest(.{ .x = x, .y = y }, .{
+        .include_text = true,
+        .include_boxes = true,
+        .include_selections = false,
+        .include_line_boxes = false,
+        .pointer_events_only = true,
+    }) orelse return NULL;
+
+    return @intCast(hit_result.node_id);
+}
+
+pub export fn Tree_getNodeInvalidationStatus(tree: *Tree, node: u32) u32 {
+    logger.info("Tree_getNodeInvalidationStatus({*}, {d})", .{ tree, node });
+    const node_obj = tree.getNode(node);
+
+    return node_obj.regenerate_level.toInt();
 }
 
 export fn Tree_getNodeContains(tree: *Tree, root: u32, node: u32) bool {
@@ -325,19 +361,27 @@ export fn Tree_dump(tree: *Tree) void {
     wasm_try(void, tree.print(array_list.writer().any()));
     tree_dump_logger.info("{s}", .{array_list.items});
 }
-export fn Tree_setText(tree: *Tree, node: u32, text: [*:0]u8) void {
+pub export fn Tree_setText(tree: *Tree, node: u32, text: [*:0]u8) void {
     logger.info("Tree_setText({*}, {d}, \"{s}\")", .{ tree, node, text });
     defer freeNullTerminatedBuffer(text);
     const text_slice = text[0..std.mem.len(text)];
     wasm_try(void, tree.setText(node, text_slice));
 }
-export fn Tree_computeLayout(tree: *Tree, width: [*:0]u8, height: [*:0]u8) void {
+pub export fn Tree_computeStyles(tree: *Tree) void {
+    logger.info("Tree_computeStyles({*})", .{tree});
+    wasm_try(void, tree.computeStyles());
+}
+pub export fn Tree_computeLayoutTree(tree: *Tree) void {
+    logger.info("Tree_computeLayoutTree({*})", .{tree});
+    wasm_try(void, tree.computeLayoutTree());
+}
+pub export fn Tree_computeLayout(tree: *Tree, width: [*:0]u8, height: [*:0]u8) void {
     logger.info("Tree_computeLayout({*}, \"{s}\", \"{s}\")", .{ tree, width, height });
     defer freeNullTerminatedBuffer(width);
     defer freeNullTerminatedBuffer(height);
     const width_slice = std.mem.trim(u8, width[0..std.mem.len(width)], " \n\t\r");
     const height_slice = std.mem.trim(u8, height[0..std.mem.len(height)], " \n\t\r");
-    wasm_try(void, computeLayout(tree, wasm_allocator, .{
+    wasm_try(void, tree.computeLayout(wasm_allocator, .{
         .x = width: {
             if (std.mem.eql(u8, width_slice, "min-content")) {
                 break :width .min_content;
@@ -358,11 +402,22 @@ export fn Tree_computeLayout(tree: *Tree, width: [*:0]u8, height: [*:0]u8) void 
         },
     }));
 }
+pub export fn Tree_paintSimple(tree: *Tree, renderer: *Renderer) void {
+    logger.info("Tree_paint({*}, {*})", .{ tree, renderer });
+    var buffer = std.ArrayList(u8).init(wasm_allocator);
+    defer buffer.deinit();
+    wasm_try(void, tree.paint(renderer, buffer.writer().any(), .simple));
+    std.debug.print("Paint simple: {s}\n", .{buffer.items});
+}
+pub export fn Tree_paintApp(tree: *Tree, renderer: *Renderer) void {
+    logger.info("Tree_paintApp({*}, {*})", .{ tree, renderer });
+    wasm_try(void, tree.paint(renderer, std.io.getStdErr().writer().any(), .app));
+}
 
 var boundary_point_buffer: [4]u32 = undefined;
 
-export fn Tree_caretPositionFromPoint(tree: *Tree, viewport_width: f32, viewport_height: f32, x: f32, y: f32) [*]u32 {
-    const boundary_point = tree.caretPositionFromPoint(.{ .x = viewport_width, .y = viewport_height }, .{ .x = x, .y = y }) orelse {
+pub export fn Tree_caretPositionFromPoint(tree: *Tree, x: f32, y: f32) [*]u32 {
+    const boundary_point = tree.caretPositionFromPoint(.{ .x = x, .y = y }) orelse {
         boundary_point_buffer[0] = NULL;
         boundary_point_buffer[1] = 0;
         return &boundary_point_buffer;
@@ -443,27 +498,41 @@ export fn Selection_getHorizontalOffset(
     return Tree.Selection.getHorizontalOffset(tree, .{ .node_id = node_id, .offset = offset }) orelse 0;
 }
 
-export fn Renderer_renderToStdout(renderer: *Renderer, tree: *Tree, clear_screen: bool) void {
-    logger.info("Renderer_renderToStdout({*}, {*}, {any})", .{ renderer, tree, clear_screen });
-    wasm_try(void, renderer.render(wasm_allocator, tree, std.io.getStdOut().writer().any(), clear_screen));
-}
-export fn Renderer_init() *Renderer {
+// pub export fn Renderer_renderToStdout(renderer: *Renderer, tree: *Tree, clear_screen: bool) void {
+//     _ = clear_screen; // New renderer doesn't use clear_screen parameter
+//     logger.info("Renderer_renderToStdout({*}, {*})", .{ renderer, tree });
+//     wasm_try(void, renderer.render(&tree.render_list, std.io.getStdOut().writer().any(), .simple));
+// }
+// pub export fn Renderer_renderToErr(renderer: *Renderer, tree: *Tree, clear_screen: bool) void {
+//     _ = clear_screen; // New renderer doesn't use clear_screen parameter
+//     logger.info("Renderer_renderToErr({*}, {*})", .{ renderer, tree });
+//     wasm_try(void, renderer.render(&tree.render_list, std.io.getStdErr().writer().any(), .app));
+// }
+pub export fn Renderer_init() *Renderer {
     logger.info("Renderer_init()", .{});
     const renderer = wasm_try(*Renderer, wasm_allocator.create(Renderer));
     renderer.* = wasm_try(Renderer, Renderer.init(wasm_allocator));
     return renderer;
 }
-export fn Renderer_deinit(renderer: *Renderer) void {
+pub export fn Renderer_deinit(renderer: *Renderer) void {
     logger.info("Renderer_deinit({*})", .{renderer});
     renderer.deinit();
     wasm_allocator.destroy(renderer);
 }
-export fn Renderer_getNodeAt(renderer: *Renderer, x: f32, y: f32) u32 {
-    logger.info("Renderer_getNodeAt({*}, {d}, {d})", .{ renderer, x, y });
-    return @intCast(renderer.getNodeAt(.{
-        .x = x,
-        .y = y,
-    }) orelse NULL);
+export fn Renderer_getNodeAt(renderer: *Renderer, tree: *Tree, x: f32, y: f32) u32 {
+    _ = renderer; // New renderer doesn't need to be involved in hit testing
+    logger.info("Renderer_getNodeAt({*}, {d}, {d})", .{ tree, x, y });
+
+    // Use the tree's hit testing functionality with pointer-events filtering
+    const hit_result = tree.hitTest(.{ .x = x, .y = y }, .{
+        .include_text = true,
+        .include_boxes = true,
+        .include_selections = false,
+        .include_line_boxes = false,
+        .pointer_events_only = true, // Only return elements that can receive pointer events
+    }) orelse return NULL;
+
+    return @intCast(hit_result.node_id);
 }
 
 export const EventBuffer = [_]u8{1} ** 128;
@@ -594,4 +663,8 @@ test {
     _ = @import("./layout/v2/line-builder/compute.zig");
     // Tree invalidation tests
     _ = @import("./tree/invalidation_test.zig");
+    // RenderListBuilder tests
+    _ = @import("./layout/v2/RenderListBuilder.zig");
+    // Playground for testing WASM API
+    _ = @import("./playground.zig");
 }

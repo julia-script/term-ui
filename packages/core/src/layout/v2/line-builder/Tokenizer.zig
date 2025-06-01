@@ -98,6 +98,7 @@ pub fn tokenizeLayoutNode(
         },
         else => std.debug.panic("Root node should be an inline container node", .{}),
     }
+    std.debug.print("Content: {s}\n", .{linebreak_iter.buffer.items});
     return tokens;
 }
 pub fn tokenizeLayoutNodeInner(
@@ -113,9 +114,10 @@ pub fn tokenizeLayoutNodeInner(
 
     switch (l_node.data) {
         .text_node => |text_node| {
+            _ = text_node; // autofix
             // const doc_node = context.doc_tree.getNode(l_node.ref.doc_node);
             // const text = doc_node.text.slice();
-            const text = text_node.contents.items;
+            const text = context.layout_tree.getNodeText(context.doc_tree, l_node_id);
             try linebreak_iter.append(text);
             const start_i = linebreak_iter.last_buffer_index;
             var last_break: usize = 0;

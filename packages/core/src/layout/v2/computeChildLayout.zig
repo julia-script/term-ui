@@ -33,5 +33,18 @@ pub fn computeChildLayout(context: *LayoutContext, inputs: mod.ContainerContext,
         }
     };
     cache.store(inputs.known_dimensions, inputs.available_space, inputs.run_mode, computed);
+    
+    // Clear DOM invalidation status only after final layout is computed
+    if (inputs.run_mode == .perform_layout) {
+        switch (l_node.ref) {
+            .doc_node => |doc_node_id| {
+                context.doc_tree.getNode(doc_node_id).regenerate_level = .repaint;
+            },
+            .anonymous => {
+                // Anonymous nodes don't have DOM counterparts, nothing to clear
+            },
+        }
+    }
+    
     return computed;
 }

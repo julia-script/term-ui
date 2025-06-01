@@ -37,10 +37,56 @@ tabindex: i32 = -1,
 // Element ID for getElementById lookups
 element_id: []const u8 = "",
 
+regenerate_level: RegenerateLevel = .regenerate,
 // Invalidation tracking
-needs_repaint: bool = false,
-needs_recompute: bool = false,
-needs_regenerate: bool = false,
+// needs_repaint: bool = false,
+// needs_recompute: bool = false,
+// needs_regenerate: bool = false,
+pub const RegenerateLevel = enum(u8) {
+    regenerate = 0,
+    recompute = 1,
+    repaint = 2,
+
+    pub fn max(a: RegenerateLevel, b: RegenerateLevel) RegenerateLevel {
+        return @enumFromInt(@max(a.toInt(), b.toInt()));
+    }
+    pub fn min(a: RegenerateLevel, b: RegenerateLevel) RegenerateLevel {
+        return @enumFromInt(@min(a.toInt(), b.toInt()));
+    }
+    pub fn toInt(self: RegenerateLevel) u8 {
+        return @intFromEnum(self);
+    }
+};
+pub fn needsRegenerate(self: *Self) bool {
+    return self.regenerate_level.toInt() <= RegenerateLevel.regenerate.toInt();
+}
+pub fn needsRepaint(self: *Self) bool {
+    return self.regenerate_level.toInt() <= RegenerateLevel.repaint.toInt();
+}
+pub fn needsRecompute(self: *Self) bool {
+    return self.regenerate_level.toInt() <= RegenerateLevel.recompute.toInt();
+}
+pub fn markRegenerateCompleted(self: *Self, level: RegenerateLevel) void {
+    if (level == .repaint) {
+        self.regenerate_level = .repaint;
+        return;
+    }
+    const next = level.toInt() + 1;
+    self.regenerate_level = @enumFromInt(next);
+}
+pub fn requestRecompute(self: *Self) void {
+    self.regenerate_level = .recompute;
+}
+pub fn requestRegenerate(self: *Self) void {
+    self.regenerate_level = .regenerate;
+}
+pub fn requestRepaint(self: *Self) void {
+    self.regenerate_level = .repaint;
+}
+
+pub fn setRegenerateLevel(self: *Self, level: RegenerateLevel) void {
+    self.regenerate_level = RegenerateLevel.min(self.regenerate_level, level);
+}
 
 const Self = @This();
 pub const NodeId = usize;

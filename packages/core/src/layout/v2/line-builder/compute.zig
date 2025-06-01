@@ -19,6 +19,7 @@ pub fn compute(
     wrap_mode: css_types.TextWrapMode,
     text_align: css_types.TextAlign,
 ) Error!LineBox.LineBoxList {
+    std.debug.print("Computing line boxes for node {d}\n", .{l_node_id});
     const tokens = try Tokenizer.tokenizeLayoutNode(
         allocator,
         context,
@@ -44,7 +45,6 @@ pub fn compute(
 
     // Convert tokens to line boxes and fragments
     const line_boxes = try tokensToLineBoxes(allocator, tokens.items, resolved_width);
-
     return line_boxes;
 }
 
@@ -228,7 +228,7 @@ test "full pipeline: break-spaces no hanging" {
 }
 
 /// Convert tokens into line boxes with fragments
-/// Sequential tokens with the same node and line are grouped into a single fragment
+/// Each token becomes a separate fragment for easier caret positioning
 fn tokensToLineBoxes(allocator: std.mem.Allocator, tokens: []const Token, width: f32) !LineBox.LineBoxList {
     var line_boxes = LineBox.LineBoxList{
         .allocator = allocator,
@@ -237,9 +237,6 @@ fn tokensToLineBoxes(allocator: std.mem.Allocator, tokens: []const Token, width:
     if (tokens.len == 0) {
         return line_boxes;
     }
-
-    var accumulated_text = std.ArrayList(u8).init(allocator);
-    defer accumulated_text.deinit();
 
     var current_line_index: usize = 0;
     var i: usize = 0;
@@ -279,66 +276,18 @@ fn tokensToLineBoxes(allocator: std.mem.Allocator, tokens: []const Token, width:
             });
             continue;
         }
-        // let's not try to group tokens for now
-        // // we'll just add them to the last line
-        // try line_boxes.appendFragmentToLastLine(.{
-        //     .text = try allocator.dupe(u8, token.text),
-        //     .l_node_id = token.l_node_id,
-        //     .start = token.dom_range.start,
-        //     .length = token.dom_range.end - token.dom_range.start,
-        //     .size = token.size,
-        //     .is_atomic = false,
-        //     .allocator = allocator,
-        //     .position = .{ .x = token.position_in_line, .y = 0 },
-        //     .dom_range = .{ .start = token.dom_range.start, .end = token.dom_range.end },
-        // });
-
-        // Clear text accumulator for new fragment group
-        accumulated_text.clearRetainingCapacity();
-
-        // Start accumulating text and size from first token
-        try accumulated_text.appendSlice(token.text);
-        var accumulated_size: mod.CSSPoint = if (token.is_hanging) .{ .x = 0, .y = token.size.y } else token.size;
-        const position_in_line = token.position_in_line;
-        const dom_start = token.dom_range.start;
-        var dom_end = token.dom_range.end;
-
-        // Group consecutive tokens from same node and line
-        while (i < tokens.len - 1) {
-            const next_token = tokens[i + 1];
-            // Stop if next token is on different line, different node, or is atomic
-            if (next_token.line_index != token.line_index or
-                next_token.l_node_id != token.l_node_id or
-                next_token.kind == .atomic)
-            {
-                break;
-            }
-
-            // Add this token to the group
-            i += 1;
-            // Only add size if not hanging
-            if (!next_token.is_hanging) {
-                accumulated_size.x += next_token.size.x;
-            }
-            accumulated_size.y = @max(accumulated_size.y, next_token.size.y);
-            try accumulated_text.appendSlice(next_token.text);
-            dom_end = next_token.dom_range.end;
-        }
-
-        // Create fragment with accumulated content
-        const fragment = LineBoxFragment{
+        // Keep each token as a separate fragment for easier caret positioning
+        try line_boxes.appendFragmentToLastLine(.{
+            .text = try allocator.dupe(u8, token.text),
             .l_node_id = token.l_node_id,
-            .start = dom_start,
-            .length = dom_end - dom_start,
-            .size = accumulated_size,
+            .start = token.dom_range.start,
+            .length = token.dom_range.end - token.dom_range.start,
+            .size = if (token.is_hanging) .{ .x = 0, .y = token.size.y } else token.size,
             .is_atomic = false,
-            .text = try allocator.dupe(u8, accumulated_text.items),
             .allocator = allocator,
-            .position = .{ .x = position_in_line, .y = 0 },
-            .dom_range = .{ .start = dom_start, .end = dom_end },
-        };
-
-        try line_boxes.appendFragmentToLastLine(fragment);
+            .position = .{ .x = token.position_in_line, .y = 0 },
+            .dom_range = .{ .start = token.dom_range.start, .end = token.dom_range.end },
+        });
     }
 
     for (line_boxes.list.items) |*line| {

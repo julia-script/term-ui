@@ -1496,9 +1496,9 @@ pub fn calculateCrossSize(
     if (flex_lines.items.len == 1 and
         dir.getCross(node_size) != null and
         (!constants.is_wrap or
-            constants.align_content == .stretch or
-            constants.align_content == .space_evenly or
-            constants.align_content == .space_around))
+        constants.align_content == .stretch or
+        constants.align_content == .space_evenly or
+        constants.align_content == .space_around))
     {
         const cross_axis_padding_border = dir.sumCrossAxis(constants.content_box_inset);
         const cross_min_size = dir.getCross(constants.min_size);
@@ -2086,7 +2086,6 @@ pub fn calculateFlexItem(
     };
 
     tree.setUnroundedLayout(item.node_id, .{
-        .order = item.order,
         .content_size = content_size,
         .size = size,
         .scrollbar_size = scrollbar_size,

@@ -10,9 +10,9 @@
 </root>
 
 --- DOM Tree ---
-[node#0 block flow_root CG]
+[node#0 block flow_root RCG]
     [text #1 C] "\n  "
-    [node#2 inline flow CG]
+    [node#2 inline flow RCG]
         [text #3 C] "Hello, World!"
     [text #4 C] "\n"
 
@@ -30,9 +30,12 @@ Available space: [definite: 50] x [max_content]
 --- Layout Tree (after computation) ---
 [block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 5.00) content: (50.00, 5.00)]}]
 └── [inline_container_node #1 ref={doc#0} children={3} lines={1} box={[loc: (0.00, 0.00) size: (40.00, 5.00) content: (50.00, 1.00)]}]
-    ├── [line_box #0 fragments=3 size={(13.00, 1.00)}]
-    │   ├── [fragment node={#2} range=0-3 pos={(0.00, 1.00)} size={(0.00, 0.00)} text=""]
-    │   ├── [fragment node={#4} range=0-13 pos={(0.00, 0.00)} size={(13.00, 1.00)} text="Hello, World!"]
+    ├── [line_box #0 fragments=6 size={(13.00, 1.00)}]
+    │   ├── [fragment node={#2} range=0-1 pos={(0.00, 1.00)} size={(0.00, 0.00)} text=""]
+    │   ├── [fragment node={#2} range=1-3 pos={(0.00, 1.00)} size={(0.00, 0.00)} text=""]
+    │   ├── [fragment node={#4} range=0-6 pos={(0.00, 0.00)} size={(6.00, 1.00)} text="Hello,"]
+    │   ├── [fragment node={#4} range=6-7 pos={(6.00, 0.00)} size={(1.00, 1.00)} text=" "]
+    │   ├── [fragment node={#4} range=7-13 pos={(7.00, 0.00)} size={(6.00, 1.00)} text="World!"]
     │   └── [fragment node={#5} range=0-1 pos={(13.00, 1.00)} size={(0.00, 0.00)} text=""]
     ├── [text_node #2] "\n  "
     ├── [inline_node #3 ref={doc#2} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
@@ -40,11 +43,15 @@ Available space: [definite: 50] x [max_content]
     └── [text_node #5] "\n"
 
 --- Render List ---
-RenderList (4 items):
+RenderList (8 items):
   [0] Box #1 bounds=[pos:(0.0,0.0) size:(40.0x5.0)] z=0 bg=#1e293bff
-  [1] TextFragment #2 bounds=[pos:(0.0,1.0) size:(0.0x0.0)] z=0 text=""
-  [2] TextFragment #4 bounds=[pos:(0.0,0.0) size:(13.0x1.0)] z=0 text="Hello, World!"
-  [3] TextFragment #5 bounds=[pos:(13.0,1.0) size:(0.0x0.0)] z=0 text=""
+  [1] LineBox #1 bounds=(0.0,0.0 13.0x1.0) fragments=[2,3,4,5,6,7]
+  [2] TextFragment #2 bounds=[pos:(0.0,1.0) size:(0.0x0.0)] z=0 text=""
+  [3] TextFragment #2 bounds=[pos:(0.0,1.0) size:(0.0x0.0)] z=0 text=""
+  [4] TextFragment #4 bounds=[pos:(0.0,0.0) size:(6.0x1.0)] z=0 text="Hello,"
+  [5] TextFragment #4 bounds=[pos:(6.0,0.0) size:(1.0x1.0)] z=0 text=" "
+  [6] TextFragment #4 bounds=[pos:(7.0,0.0) size:(6.0x1.0)] z=0 text="World!"
+  [7] TextFragment #5 bounds=[pos:(13.0,1.0) size:(0.0x0.0)] z=0 text=""
 
 --- Rendered Output ---
 Raw (escape sequences as \E):

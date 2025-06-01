@@ -402,8 +402,6 @@ export const getSchema = (
           number(),
           number(),
           number(),
-          number(),
-          number(),
         ]),
       ),
       returns(boundaryPointSchema),
@@ -420,6 +418,30 @@ export const getSchema = (
       args(tuple([number()])),
       returns(void_()),
       catchError("Tree_disableInputManager"),
+    ),
+    Tree_getElementById: pipe(
+      function_(),
+      args(tuple([number(), zigString])),
+      returns(number()),
+      catchError("Tree_getElementById"),
+    ),
+    Tree_setElementId: pipe(
+      function_(),
+      args(tuple([number(), number(), zigString])),
+      returns(void_()),
+      catchError("Tree_setElementId"),
+    ),
+    Tree_hitTest: pipe(
+      function_(),
+      args(tuple([number(), number(), number()])),
+      returns(number()),
+      catchError("Tree_hitTest"),
+    ),
+    Tree_getNodeInvalidationStatus: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(number()),
+      catchError("Tree_getNodeInvalidationStatus"),
     ),
     Tree_createSelection: pipe(
       function_(),
@@ -538,7 +560,7 @@ export const getSchema = (
 
     Renderer_getNodeAt: pipe(
       function_(),
-      args(tuple([number(), number(), number()])),
+      args(tuple([number(), number(), number(), number()])),
       returns(number()),
       catchError("Renderer_getNodeAt"),
     ),

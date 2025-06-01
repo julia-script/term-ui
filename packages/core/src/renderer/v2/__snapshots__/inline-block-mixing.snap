@@ -13,18 +13,18 @@
 </root>
 
 --- DOM Tree ---
-[node#0 block flow_root CG]
+[node#0 block flow_root RCG]
     [text #1 C] "\n  "
-    [node#2 block flow_root CG]
+    [node#2 block flow_root RCG]
         [text #3 C] "Block 1"
     [text #4 C] "\n  "
-    [node#5 inline flow CG]
+    [node#5 inline flow RCG]
         [text #6 C] "Inline text"
     [text #7 C] "\n  "
-    [node#8 inline flow CG]
+    [node#8 inline flow RCG]
         [text #9 C] " with more text"
     [text #10 C] "\n  "
-    [node#11 block flow_root CG]
+    [node#11 block flow_root RCG]
         [text #12 C] "Block 2"
     [text #13 C] "\n"
 
@@ -57,21 +57,34 @@ Available space: [definite: 50] x [max_content]
 [block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (50.00, 15.00) content: (50.00, 15.00)]}]
 └── [block_container_node #1 ref={doc#0} children={5} box={[loc: (0.00, 0.00) size: (40.00, 15.00) content: (50.00, 3.00)]}]
     ├── [inline_container_node #3 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (40.00, 0.00) content: (40.00, 0.00)]}]
-    │   ├── [line_box #0 fragments=1 size={(0.00, 0.00)}]
-    │   │   └── [fragment node={#2} range=0-3 pos={(0.00, 0.00)} size={(0.00, 0.00)} text=""]
+    │   ├── [line_box #0 fragments=2 size={(0.00, 0.00)}]
+    │   │   ├── [fragment node={#2} range=0-1 pos={(0.00, 0.00)} size={(0.00, 0.00)} text=""]
+    │   │   └── [fragment node={#2} range=1-3 pos={(0.00, 0.00)} size={(0.00, 0.00)} text=""]
     │   └── [text_node #2] "\n  "
     ├── [block_container_node #4 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (40.00, 1.00) content: (40.00, 1.00)]}]
     │   └── [inline_container_node #5 ref={doc#2} children={1} lines={1} box={[loc: (0.00, 0.00) size: (40.00, 1.00) content: (40.00, 1.00)]}]
-    │       ├── [line_box #0 fragments=1 size={(7.00, 1.00)}]
-    │       │   └── [fragment node={#6} range=0-7 pos={(0.00, 0.00)} size={(7.00, 1.00)} text="Block 1"]
+    │       ├── [line_box #0 fragments=3 size={(7.00, 1.00)}]
+    │       │   ├── [fragment node={#6} range=0-5 pos={(0.00, 0.00)} size={(5.00, 1.00)} text="Block"]
+    │       │   ├── [fragment node={#6} range=5-6 pos={(5.00, 0.00)} size={(1.00, 1.00)} text=" "]
+    │       │   └── [fragment node={#6} range=6-7 pos={(6.00, 0.00)} size={(1.00, 1.00)} text="1"]
     │       └── [text_node #6] "Block 1"
     ├── [inline_container_node #8 ref={anon} children={5} lines={1} box={[loc: (0.00, 1.00) size: (40.00, 1.00) content: (40.00, 1.00)]}]
-    │   ├── [line_box #0 fragments=5 size={(28.00, 1.00)}]
-    │   │   ├── [fragment node={#7} range=0-3 pos={(0.00, 1.00)} size={(0.00, 0.00)} text=""]
-    │   │   ├── [fragment node={#10} range=0-11 pos={(0.00, 0.00)} size={(11.00, 1.00)} text="Inline text"]
-    │   │   ├── [fragment node={#11} range=0-3 pos={(11.00, 0.00)} size={(2.00, 1.00)} text="  "]
-    │   │   ├── [fragment node={#13} range=0-15 pos={(13.00, 0.00)} size={(15.00, 1.00)} text=" with more text"]
-    │   │   └── [fragment node={#14} range=0-3 pos={(28.00, 1.00)} size={(0.00, 0.00)} text=""]
+    │   ├── [line_box #0 fragments=15 size={(28.00, 1.00)}]
+    │   │   ├── [fragment node={#7} range=0-1 pos={(0.00, 1.00)} size={(0.00, 0.00)} text=""]
+    │   │   ├── [fragment node={#7} range=1-3 pos={(0.00, 1.00)} size={(0.00, 0.00)} text=""]
+    │   │   ├── [fragment node={#10} range=0-6 pos={(0.00, 0.00)} size={(6.00, 1.00)} text="Inline"]
+    │   │   ├── [fragment node={#10} range=6-7 pos={(6.00, 0.00)} size={(1.00, 1.00)} text=" "]
+    │   │   ├── [fragment node={#10} range=7-11 pos={(7.00, 0.00)} size={(4.00, 1.00)} text="text"]
+    │   │   ├── [fragment node={#11} range=0-1 pos={(11.00, 0.00)} size={(1.00, 1.00)} text=" "]
+    │   │   ├── [fragment node={#11} range=1-3 pos={(12.00, 0.00)} size={(1.00, 1.00)} text=" "]
+    │   │   ├── [fragment node={#13} range=0-1 pos={(13.00, 0.00)} size={(1.00, 1.00)} text=" "]
+    │   │   ├── [fragment node={#13} range=1-5 pos={(14.00, 0.00)} size={(4.00, 1.00)} text="with"]
+    │   │   ├── [fragment node={#13} range=5-6 pos={(18.00, 0.00)} size={(1.00, 1.00)} text=" "]
+    │   │   ├── [fragment node={#13} range=6-10 pos={(19.00, 0.00)} size={(4.00, 1.00)} text="more"]
+    │   │   ├── [fragment node={#13} range=10-11 pos={(23.00, 0.00)} size={(1.00, 1.00)} text=" "]
+    │   │   ├── [fragment node={#13} range=11-15 pos={(24.00, 0.00)} size={(4.00, 1.00)} text="text"]
+    │   │   ├── [fragment node={#14} range=0-1 pos={(28.00, 1.00)} size={(0.00, 0.00)} text=""]
+    │   │   └── [fragment node={#14} range=1-3 pos={(28.00, 1.00)} size={(0.00, 0.00)} text=""]
     │   ├── [text_node #7] "\n  "
     │   ├── [inline_node #9 ref={doc#5} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
     │   │   └── [text_node #10] "Inline text"
@@ -81,8 +94,10 @@ Available space: [definite: 50] x [max_content]
     │   └── [text_node #14] "\n  "
     ├── [block_container_node #15 ref={anon} children={1} box={[loc: (0.00, 2.00) size: (40.00, 1.00) content: (40.00, 1.00)]}]
     │   └── [inline_container_node #16 ref={doc#11} children={1} lines={1} box={[loc: (0.00, 0.00) size: (40.00, 1.00) content: (40.00, 1.00)]}]
-    │       ├── [line_box #0 fragments=1 size={(7.00, 1.00)}]
-    │       │   └── [fragment node={#17} range=0-7 pos={(0.00, 0.00)} size={(7.00, 1.00)} text="Block 2"]
+    │       ├── [line_box #0 fragments=3 size={(7.00, 1.00)}]
+    │       │   ├── [fragment node={#17} range=0-5 pos={(0.00, 0.00)} size={(5.00, 1.00)} text="Block"]
+    │       │   ├── [fragment node={#17} range=5-6 pos={(5.00, 0.00)} size={(1.00, 1.00)} text=" "]
+    │       │   └── [fragment node={#17} range=6-7 pos={(6.00, 0.00)} size={(1.00, 1.00)} text="2"]
     │       └── [text_node #17] "Block 2"
     └── [inline_container_node #19 ref={anon} children={1} lines={1} box={[loc: (0.00, 3.00) size: (40.00, 0.00) content: (40.00, 0.00)]}]
         ├── [line_box #0 fragments=1 size={(0.00, 0.00)}]
@@ -90,19 +105,39 @@ Available space: [definite: 50] x [max_content]
         └── [text_node #18] "\n"
 
 --- Render List ---
-RenderList (12 items):
+RenderList (32 items):
   [0] Box #1 bounds=[pos:(0.0,0.0) size:(40.0x15.0)] z=0 bg=#f9fafbff
-  [1] TextFragment #2 bounds=[pos:(0.0,0.0) size:(0.0x0.0)] z=0 text=""
-  [2] Box #5 bounds=[pos:(0.0,0.0) size:(40.0x1.0)] z=0 bg=#e5e7ebff
-  [3] TextFragment #6 bounds=[pos:(0.0,0.0) size:(7.0x1.0)] z=0 text="Block 1"
-  [4] TextFragment #7 bounds=[pos:(0.0,2.0) size:(0.0x0.0)] z=0 text=""
-  [5] TextFragment #10 bounds=[pos:(0.0,1.0) size:(11.0x1.0)] z=0 text="Inline text"
-  [6] TextFragment #11 bounds=[pos:(11.0,1.0) size:(2.0x1.0)] z=0 text="  "
-  [7] TextFragment #13 bounds=[pos:(13.0,1.0) size:(15.0x1.0)] z=0 text=" with more text"
-  [8] TextFragment #14 bounds=[pos:(28.0,2.0) size:(0.0x0.0)] z=0 text=""
-  [9] Box #16 bounds=[pos:(0.0,2.0) size:(40.0x1.0)] z=0 bg=#d1d5dbff
-  [10] TextFragment #17 bounds=[pos:(0.0,2.0) size:(7.0x1.0)] z=0 text="Block 2"
-  [11] TextFragment #18 bounds=[pos:(0.0,3.0) size:(0.0x0.0)] z=0 text=""
+  [1] LineBox #3 bounds=(0.0,0.0 0.0x0.0) fragments=[2,3]
+  [2] TextFragment #2 bounds=[pos:(0.0,0.0) size:(0.0x0.0)] z=0 text=""
+  [3] TextFragment #2 bounds=[pos:(0.0,0.0) size:(0.0x0.0)] z=0 text=""
+  [4] Box #5 bounds=[pos:(0.0,0.0) size:(40.0x1.0)] z=0 bg=#e5e7ebff
+  [5] LineBox #5 bounds=(0.0,0.0 7.0x1.0) fragments=[6,7,8]
+  [6] TextFragment #6 bounds=[pos:(0.0,0.0) size:(5.0x1.0)] z=0 text="Block"
+  [7] TextFragment #6 bounds=[pos:(5.0,0.0) size:(1.0x1.0)] z=0 text=" "
+  [8] TextFragment #6 bounds=[pos:(6.0,0.0) size:(1.0x1.0)] z=0 text="1"
+  [9] LineBox #8 bounds=(0.0,1.0 28.0x1.0) fragments=[10,11,12,13,14,15,16,17,18,19,20,21,22,23,24]
+  [10] TextFragment #7 bounds=[pos:(0.0,2.0) size:(0.0x0.0)] z=0 text=""
+  [11] TextFragment #7 bounds=[pos:(0.0,2.0) size:(0.0x0.0)] z=0 text=""
+  [12] TextFragment #10 bounds=[pos:(0.0,1.0) size:(6.0x1.0)] z=0 text="Inline"
+  [13] TextFragment #10 bounds=[pos:(6.0,1.0) size:(1.0x1.0)] z=0 text=" "
+  [14] TextFragment #10 bounds=[pos:(7.0,1.0) size:(4.0x1.0)] z=0 text="text"
+  [15] TextFragment #11 bounds=[pos:(11.0,1.0) size:(1.0x1.0)] z=0 text=" "
+  [16] TextFragment #11 bounds=[pos:(12.0,1.0) size:(1.0x1.0)] z=0 text=" "
+  [17] TextFragment #13 bounds=[pos:(13.0,1.0) size:(1.0x1.0)] z=0 text=" "
+  [18] TextFragment #13 bounds=[pos:(14.0,1.0) size:(4.0x1.0)] z=0 text="with"
+  [19] TextFragment #13 bounds=[pos:(18.0,1.0) size:(1.0x1.0)] z=0 text=" "
+  [20] TextFragment #13 bounds=[pos:(19.0,1.0) size:(4.0x1.0)] z=0 text="more"
+  [21] TextFragment #13 bounds=[pos:(23.0,1.0) size:(1.0x1.0)] z=0 text=" "
+  [22] TextFragment #13 bounds=[pos:(24.0,1.0) size:(4.0x1.0)] z=0 text="text"
+  [23] TextFragment #14 bounds=[pos:(28.0,2.0) size:(0.0x0.0)] z=0 text=""
+  [24] TextFragment #14 bounds=[pos:(28.0,2.0) size:(0.0x0.0)] z=0 text=""
+  [25] Box #16 bounds=[pos:(0.0,2.0) size:(40.0x1.0)] z=0 bg=#d1d5dbff
+  [26] LineBox #16 bounds=(0.0,2.0 7.0x1.0) fragments=[27,28,29]
+  [27] TextFragment #17 bounds=[pos:(0.0,2.0) size:(5.0x1.0)] z=0 text="Block"
+  [28] TextFragment #17 bounds=[pos:(5.0,2.0) size:(1.0x1.0)] z=0 text=" "
+  [29] TextFragment #17 bounds=[pos:(6.0,2.0) size:(1.0x1.0)] z=0 text="2"
+  [30] LineBox #19 bounds=(0.0,3.0 0.0x0.0) fragments=[31]
+  [31] TextFragment #18 bounds=[pos:(0.0,3.0) size:(0.0x0.0)] z=0 text=""
 
 --- Rendered Output ---
 Raw (escape sequences as \E):

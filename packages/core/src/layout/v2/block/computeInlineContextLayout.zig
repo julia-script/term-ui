@@ -7,38 +7,6 @@ const ContainerContext = mod.ContainerContext;
 const CSSMaybePoint = mod.CSSMaybePoint;
 const css_types = @import("../../../css/types.zig");
 
-/// Recursively process a node and its children to add text content to LineBuilder
-fn processNodeRecursively(context: *LayoutContext, lines_builder: *mod.LineBuilder, node_id: LayoutNode.Id, white_space: css_types.WhiteSpace) !void {
-    const node = context.layout_tree.getNodePtr(node_id);
-
-    switch (node.data) {
-        .inline_container_node => |*container| {
-            // root
-            for (container.children.items) |child_id| {
-                try processNodeRecursively(context, lines_builder, child_id, white_space);
-            }
-        },
-        .text_node => |*text_node| {
-            // Convert text content to slice
-            const text_content = text_node.contents.items;
-
-            // Add this text node's content to the lines builder
-            try lines_builder.appendNodeSlice(text_content, node_id);
-        },
-
-        .inline_node => |*inline_node| {
-            if (inline_node.is_atomic) return;
-            // Recursively process all children
-            for (inline_node.children.items) |child_id| {
-                try processNodeRecursively(context, lines_builder, child_id, white_space);
-            }
-        },
-        .block_container_node => {
-            unreachable;
-        },
-    }
-}
-
 pub fn computeInlineContextLayout(context: *LayoutContext, inputs: ContainerContext, l_node_id: LayoutNode.Id) mod.ComputeLayoutError!mod.LayoutResult {
     context.info(l_node_id, "computeInlineContextLayout", .{});
     const l_node = context.layout_tree.getNodePtr(l_node_id);

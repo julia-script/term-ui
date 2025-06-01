@@ -39,12 +39,12 @@ pub const Cell = struct {
     // Buffer for storing UTF-8 encoded border characters
     char_buf: [4]u8 = [_]u8{' '} ** 4,
     char_len: u8 = 1,
-    
+
     pub const CellData = union(enum) {
         text: []const u8,
         border_char: styles.border.BoxChar,
     };
-    
+
     /// Set border character, merging with existing border if present
     pub fn setBorderChar(self: *Cell, border_char: styles.border.BoxChar) void {
         switch (self.data) {
@@ -70,14 +70,14 @@ pub const Cell = struct {
                 self.width = 1;
             },
         }
-        
+
         // Update the char buffer with the UTF-8 representation
         if (self.data == .border_char) {
             const char_code = styles.border.BoxChar.getChar(self.data.border_char);
             self.char_len = @intCast(std.unicode.utf8Encode(char_code, &self.char_buf) catch 1);
         }
     }
-    
+
     /// Get the character to render
     pub fn getChar(self: *const Cell) []const u8 {
         switch (self.data) {
@@ -85,7 +85,7 @@ pub const Cell = struct {
             .border_char => return self.char_buf[0..self.char_len],
         }
     }
-    
+
     /// Set background color with compositing
     pub fn setBg(self: *Cell, color: Color) void {
         self.bg = Color.composite(color, self.bg, .source_over);
@@ -102,10 +102,10 @@ pub const Cell = struct {
         if (!self.fg.equal(other.fg)) return false;
         if (self.width != other.width) return false;
         if (self.is_continuation != other.is_continuation) return false;
-        
+
         // Compare format
         if (!self.format.equal(other.format)) return false;
-        
+
         // Compare cell data
         switch (self.data) {
             .text => |a_text| switch (other.data) {
@@ -122,7 +122,7 @@ pub const Cell = struct {
                 },
             },
         }
-        
+
         return true;
     }
 };
@@ -149,7 +149,7 @@ pub const TextFormat = struct {
         if (self.is_bold != other.is_bold) return false;
         if (self.is_italic != other.is_italic) return false;
         if (self.decoration_line != other.decoration_line) return false;
-        
+
         // Compare optional decoration_color
         if (self.decoration_color) |self_color| {
             if (other.decoration_color) |other_color| {
@@ -160,7 +160,7 @@ pub const TextFormat = struct {
         } else if (other.decoration_color != null) {
             return false;
         }
-        
+
         return true;
     }
 };
@@ -199,7 +199,7 @@ pub fn deinit(self: *Self) void {
 /// @param check_related: if true, clears related cells for multi-width chars (use for boundary cells)
 fn clearCell(self: *Self, x: u32, y: u32, check_related: bool) void {
     const cell = self.getCell(x, y) orelse return;
-    
+
     if (check_related) {
         // If this is a continuation cell, find and clear from the main cell
         if (cell.is_continuation) {
@@ -234,7 +234,7 @@ fn clearCell(self: *Self, x: u32, y: u32, check_related: bool) void {
             }
         }
     }
-    
+
     // Clear the current cell
     cell.data = .{ .text = "" };
     cell.width = 0;
@@ -339,6 +339,9 @@ pub fn paintFromRenderList(self: *Self, render_list: *const RenderList) !void {
             .pop_clip => {
                 self.popClip();
             },
+            .line_box => {
+                // Line boxes are for hit testing only, not rendered
+            },
         }
     }
 }
@@ -370,11 +373,11 @@ fn fillRectPreserveText(self: *Self, rect: Rect, color: Color) !void {
         var x: i32 = x_start;
         while (x < x_end) : (x += 1) {
             // Check if within clip rect
-            if (!self.clip_rect.contains(@floatFromInt(x), @floatFromInt(y))) continue;
+            if (!self.clip_rect.containsXY(@floatFromInt(x), @floatFromInt(y))) continue;
 
             const x_u32 = @as(u32, @intCast(x));
             const y_u32 = @as(u32, @intCast(y));
-            
+
             if (self.getCell(x_u32, y_u32)) |cell| {
                 // Only change background, preserve text content
                 cell.setBg(color);
@@ -399,15 +402,15 @@ fn fillRect(self: *Self, rect: Rect, background: styles.background.Background) !
                 var x: i32 = x_start;
                 while (x < x_end) : (x += 1) {
                     // Check if within clip rect
-                    if (!self.clip_rect.contains(@floatFromInt(x), @floatFromInt(y))) continue;
+                    if (!self.clip_rect.containsXY(@floatFromInt(x), @floatFromInt(y))) continue;
 
                     const x_u32 = @as(u32, @intCast(x));
                     const y_u32 = @as(u32, @intCast(y));
-                    
+
                     // Check related cells only for boundary cells
                     const is_boundary = (x == x_start or x == x_end - 1);
                     self.clearCell(x_u32, y_u32, is_boundary);
-                    
+
                     if (self.getCell(x_u32, y_u32)) |cell| {
                         cell.setBg(color);
                     }
@@ -428,15 +431,15 @@ fn fillRect(self: *Self, rect: Rect, background: styles.background.Background) !
                 var x: i32 = x_start;
                 while (x < x_end) : (x += 1) {
                     // Check if within clip rect
-                    if (!self.clip_rect.contains(@floatFromInt(x), @floatFromInt(y))) continue;
+                    if (!self.clip_rect.containsXY(@floatFromInt(x), @floatFromInt(y))) continue;
 
                     const x_u32 = @as(u32, @intCast(x));
                     const y_u32 = @as(u32, @intCast(y));
-                    
+
                     // Check related cells only for boundary cells
                     const is_boundary = (x == x_start or x == x_end - 1);
                     self.clearCell(x_u32, y_u32, is_boundary);
-                    
+
                     if (self.getCell(x_u32, y_u32)) |cell| {
                         // Calculate position relative to rect origin
                         const rel_x = @as(f32, @floatFromInt(x)) - rect.x;
@@ -453,37 +456,37 @@ fn fillRect(self: *Self, rect: Rect, background: styles.background.Background) !
 fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anytype) !void {
     // Ensure border char lookup is loaded
     _ = styles.border.BoxChar.load() catch {};
-    
+
     const x_start = @as(u32, @intFromFloat(@floor(rect.x)));
     const y_start = @as(u32, @intFromFloat(@floor(rect.y)));
     const x_end = @as(u32, @intFromFloat(@floor(rect.x + rect.width)));
     const y_end = @as(u32, @intFromFloat(@floor(rect.y + rect.height)));
-    
+
     // Create samplers for each border side
     var top_sampler = try Sampler.from(self.allocator, border_color.top, .{
         .x = rect.width,
         .y = rect.height,
     });
     defer top_sampler.deinit();
-    
+
     var bottom_sampler = try Sampler.from(self.allocator, border_color.bottom, .{
         .x = rect.width,
         .y = rect.height,
     });
     defer bottom_sampler.deinit();
-    
+
     var left_sampler = try Sampler.from(self.allocator, border_color.left, .{
         .x = rect.width,
         .y = rect.height,
     });
     defer left_sampler.deinit();
-    
+
     var right_sampler = try Sampler.from(self.allocator, border_color.right, .{
         .x = rect.width,
         .y = rect.height,
     });
     defer right_sampler.deinit();
-    
+
     // Draw corners
     if (x_end > x_start and y_end > y_start) {
         // Top-left corner
@@ -496,7 +499,7 @@ fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anyt
             const rel_y = @as(f32, @floatFromInt(y_start)) - rect.y;
             cell.fg = top_sampler.at(.{ .x = rel_x, .y = rel_y });
         }
-        
+
         // Top-right corner
         if (x_end > x_start + 1) {
             if (self.getCell(x_end - 1, y_start)) |cell| {
@@ -509,7 +512,7 @@ fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anyt
                 cell.fg = top_sampler.at(.{ .x = rel_x, .y = rel_y });
             }
         }
-        
+
         // Bottom-left corner
         if (y_end > y_start + 1) {
             if (self.getCell(x_start, y_end - 1)) |cell| {
@@ -521,7 +524,7 @@ fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anyt
                 const rel_y = @as(f32, @floatFromInt(y_end - 1)) - rect.y;
                 cell.fg = bottom_sampler.at(.{ .x = rel_x, .y = rel_y });
             }
-            
+
             // Bottom-right corner
             if (x_end > x_start + 1) {
                 if (self.getCell(x_end - 1, y_end - 1)) |cell| {
@@ -536,7 +539,7 @@ fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anyt
             }
         }
     }
-    
+
     // Draw horizontal borders
     if (x_end > x_start + 2) {
         var x = x_start + 1;
@@ -551,7 +554,7 @@ fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anyt
                 const rel_y = @as(f32, @floatFromInt(y_start)) - rect.y;
                 cell.fg = top_sampler.at(.{ .x = rel_x, .y = rel_y });
             }
-            
+
             // Bottom border
             if (y_end > y_start + 1) {
                 if (self.getCell(x, y_end - 1)) |cell| {
@@ -566,7 +569,7 @@ fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anyt
             }
         }
     }
-    
+
     // Draw vertical borders
     if (y_end > y_start + 2) {
         var y = y_start + 1;
@@ -581,7 +584,7 @@ fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anyt
                 const rel_y = @as(f32, @floatFromInt(y)) - rect.y;
                 cell.fg = left_sampler.at(.{ .x = rel_x, .y = rel_y });
             }
-            
+
             // Right border
             if (x_end > x_start + 1) {
                 if (self.getCell(x_end - 1, y)) |cell| {
@@ -614,7 +617,7 @@ fn drawText(self: *Self, x: f32, y: f32, text: []const u8, color: Color, format:
         const width_int = toType(u32, @ceil(self.size.x));
         const height_int = toType(u32, @ceil(self.size.y));
         if (x_int < width_int and y_int < height_int and
-            self.clip_rect.contains(x_pos, y))
+            self.clip_rect.containsXY(x_pos, y))
         {
             if (self.getCell(x_int, y_int)) |cell| {
                 // If drawing over a continuation cell, clear the original cell
@@ -632,7 +635,7 @@ fn drawText(self: *Self, x: f32, y: f32, text: []const u8, color: Color, format:
                         }
                     }
                 }
-                
+
                 // If this cell was the start of a multi-width character, clear its continuations
                 if (cell.width > 1) {
                     var i: u32 = 1;
@@ -646,20 +649,20 @@ fn drawText(self: *Self, x: f32, y: f32, text: []const u8, color: Color, format:
                         }
                     }
                 }
-                
+
                 // Now set the new content
                 cell.data = .{ .text = slice };
-                cell.fg = color;
+                cell.setFg(color);
                 cell.format = format;
                 cell.width = width;
                 cell.is_continuation = false;
             }
-            
+
             // Mark subsequent cells as continuations for multi-width characters
             if (width > 1) {
                 // Get the current cell again to avoid scope issues
                 const current_cell = self.getCell(x_int, y_int).?;
-                
+
                 var i: u32 = 1;
                 while (i < width) : (i += 1) {
                     if (x_int + i < width_int) {

@@ -5,6 +5,7 @@ const Node = @import("../tree/Node.zig");
 const StyleManager = @import("StyleManager.zig");
 const CascadeTypes = @import("CascadeTypes.zig");
 const NodeId = Node.NodeId;
+const Color = @import("../colors/Color.zig");
 
 /// Manages computed styles for nodes
 /// Error types that can occur during style operations
@@ -27,6 +28,7 @@ pub const ComputedStyleCache = struct {
         s.text_align = .left;
         s.white_space_collapse = .collapse;
         s.text_wrap_mode = .wrap;
+        s.foreground_color = Color.tw.black;
         break :blk s;
     };
 
@@ -132,7 +134,6 @@ pub const ComputedStyleCache = struct {
         if (style.foreground_color == null) {
             new_style.foreground_color = parent_style.foreground_color;
         }
-        
 
         // Apply white_space inheritance
         if (style.white_space_collapse == .inherit) {
