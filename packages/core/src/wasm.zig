@@ -371,9 +371,9 @@ pub export fn Tree_computeStyles(tree: *Tree) void {
     logger.info("Tree_computeStyles({*})", .{tree});
     wasm_try(void, tree.computeStyles());
 }
-pub export fn Tree_computeLayoutTree(tree: *Tree) void {
-    logger.info("Tree_computeLayoutTree({*})", .{tree});
-    wasm_try(void, tree.computeLayoutTree());
+pub export fn Tree_buildLayoutTree(tree: *Tree) void {
+    logger.info("Tree_buildLayoutTree({*})", .{tree});
+    wasm_try(void, tree.buildLayoutTree());
 }
 pub export fn Tree_computeLayout(tree: *Tree, width: [*:0]u8, height: [*:0]u8) void {
     logger.info("Tree_computeLayout({*}, \"{s}\", \"{s}\")", .{ tree, width, height });
@@ -407,7 +407,6 @@ pub export fn Tree_paintSimple(tree: *Tree, renderer: *Renderer) void {
     var buffer = std.ArrayList(u8).init(wasm_allocator);
     defer buffer.deinit();
     wasm_try(void, tree.paint(renderer, buffer.writer().any(), .simple));
-    std.debug.print("Paint simple: {s}\n", .{buffer.items});
 }
 pub export fn Tree_paintApp(tree: *Tree, renderer: *Renderer) void {
     logger.info("Tree_paintApp({*}, {*})", .{ tree, renderer });

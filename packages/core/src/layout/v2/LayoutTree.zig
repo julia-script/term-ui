@@ -288,7 +288,6 @@ fn getEffectiveDomStatus(self: *Self, tree: *DocTree, layout_node_id: LayoutNode
 }
 
 pub fn buildIncremental(self: *Self, tree: *DocTree, doc_node_id: DocNodeId) !LayoutNode.Id {
-    std.debug.print("Building incremental for doc node {d} {s}\n", .{ doc_node_id, @tagName(tree.getNode(doc_node_id).regenerate_level) });
 
     // Check if we already have a layout node for this DOM node
     const existing_layout_node_id = self.doc_to_layout.get(doc_node_id) orelse {
@@ -296,7 +295,6 @@ pub fn buildIncremental(self: *Self, tree: *DocTree, doc_node_id: DocNodeId) !La
         // No existing layout node - build from scratch
         return try self.build(tree, doc_node_id);
     };
-    std.debug.print("Regenerating node {d}\n", .{existing_layout_node_id});
 
     // Process the existing layout node
     return try self.buildIncrementalNode(tree, existing_layout_node_id);
@@ -306,7 +304,6 @@ pub fn buildIncremental(self: *Self, tree: *DocTree, doc_node_id: DocNodeId) !La
 fn buildIncrementalNode(self: *Self, tree: *DocTree, layout_node_id: LayoutNode.Id) !LayoutNode.Id {
     const layout_node = self.getNodePtr(layout_node_id);
     const dom_status = self.getEffectiveDomStatus(tree, layout_node_id);
-    std.debug.print("Building incremental layout node {d} {s}\n", .{ layout_node_id, @tagName(dom_status) });
 
     switch (dom_status) {
         .regenerate => {
@@ -514,8 +511,6 @@ fn findExistingLayoutNode(existing_tree: *Self, doc_node_id: DocNodeId) ?LayoutN
 /// not produce a layout representation.
 fn build(self: *Self, tree: *DocTree, node_id: DocNodeId) BuildError!LayoutNode.Id {
     const kind = tree.getNodeKind(node_id);
-
-    std.debug.print("node_id {d}  regen_level {s}\n", .{ node_id, @tagName(tree.getNode(node_id).regenerate_level) });
 
     // 1. Text DOM nodes map directly to layout text nodes.
     if (kind == .text) {

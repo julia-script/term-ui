@@ -2509,7 +2509,7 @@ pub fn computeStyles(self: *Self) !void {
     try self.computed_style_cache.computeRootStyle(self);
 }
 
-pub fn computeLayoutTree(self: *Self) !void {
+pub fn buildLayoutTree(self: *Self) !void {
     try self.layout_tree.computeIncremental(self);
 }
 

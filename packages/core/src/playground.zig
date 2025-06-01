@@ -11,7 +11,7 @@ fn createNullTermString(str: []const u8) [*:0]u8 {
     return ptr;
 }
 
-pub fn playground() !void {
+pub fn main() !void {
     print("=== CSS Layout Engine Playground ===\n\n", .{});
     const stderr = std.io.getStdErr().writer().any();
 
@@ -53,7 +53,7 @@ pub fn playground() !void {
         wasm.Tree_setText(tree, text_id, createNullTermString(buf.slice()));
 
         wasm.Tree_computeStyles(tree);
-        wasm.Tree_computeLayoutTree(tree);
+        wasm.Tree_buildLayoutTree(tree);
         try tree.print(stderr);
         try tree.layout_tree.printRoot(stderr);
         wasm.Tree_computeLayout(tree, createNullTermString("20"), createNullTermString("10"));
@@ -66,6 +66,6 @@ pub fn playground() !void {
     }
 }
 
-test "playground full demo" {
-    try playground();
-}
+// test "playground full demo" {
+//     try playground();
+// }

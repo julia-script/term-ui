@@ -355,10 +355,6 @@ fn writeFormattingSequence(writer: std.io.AnyWriter, current_format: Canvas.Text
 }
 
 test "Renderer v2 multi-width characters" {
-    const LayoutTree = layout_v2.LayoutTree;
-    const LayoutContext = layout_v2.LayoutContext;
-    const computeLayout = layout_v2.computeLayout;
-    const RenderListBuilder = layout_v2.RenderListBuilder;
     const docFromXml = layout_v2.docFromXml;
 
     const xml =
@@ -367,54 +363,29 @@ test "Renderer v2 multi-width characters" {
         \\</root>
     ;
 
-    var doc_tree = try docFromXml(std.testing.allocator, xml, .{});
-    defer doc_tree.deinit();
-
-    // Build layout tree
-    var layout_tree = try LayoutTree.fromTree(std.testing.allocator, &doc_tree);
-    defer layout_tree.deinit();
-
-    // Create layout context
-    var layout_context = LayoutContext{
-        .layout_tree = &layout_tree,
-        .doc_tree = &doc_tree,
-        .allocator = std.testing.allocator,
-    };
-
-    // Compute layout
-    const available_space = layout_v2.PointOf(layout_v2.constants.AvailableSpace){
+    const available_space = layout_v2.constants.AvailableSpacePoint{
         .x = .{ .definite = 20 },
         .y = .{ .definite = 3 },
     };
+    var doc_tree = try docFromXml(std.testing.allocator, xml, .{});
+    defer doc_tree.deinit();
+    try doc_tree.computeStyles();
+    try doc_tree.buildLayoutTree();
 
-    try computeLayout(&layout_context, available_space);
+    try doc_tree.computeLayout(std.testing.allocator, available_space);
 
-    // Build render list
-    var render_list = RenderList.init(std.testing.allocator);
-    defer render_list.deinit();
-
-    var builder = RenderListBuilder.init(&layout_tree, &doc_tree, &render_list);
-    try builder.build();
-
-    // Create renderer
     var renderer = try init(std.testing.allocator);
     defer renderer.deinit();
 
-    // Render to a buffer
     var buffer = std.ArrayList(u8).init(std.testing.allocator);
     defer buffer.deinit();
 
-    try renderer.render(&render_list, buffer.writer().any());
+    try doc_tree.paint(&renderer, buffer.writer().any(), .app);
 
-    // Should have rendered something
     try std.testing.expect(buffer.items.len > 0);
 }
 
 test "Renderer v2 basic rendering" {
-    const LayoutTree = layout_v2.LayoutTree;
-    const LayoutContext = layout_v2.LayoutContext;
-    const computeLayout = layout_v2.computeLayout;
-    const RenderListBuilder = layout_v2.RenderListBuilder;
     const docFromXml = layout_v2.docFromXml;
 
     const xml =
@@ -426,42 +397,25 @@ test "Renderer v2 basic rendering" {
     var doc_tree = try docFromXml(std.testing.allocator, xml, .{});
     defer doc_tree.deinit();
 
-    // Build layout tree
-    var layout_tree = try LayoutTree.fromTree(std.testing.allocator, &doc_tree);
-    defer layout_tree.deinit();
-
-    // Create layout context
-    var layout_context = LayoutContext{
-        .layout_tree = &layout_tree,
-        .doc_tree = &doc_tree,
-        .allocator = std.testing.allocator,
-    };
-
     // Compute layout
-    const available_space = layout_v2.PointOf(layout_v2.constants.AvailableSpace){
+    const available_space = layout_v2.constants.AvailableSpacePoint{
         .x = .{ .definite = 80 },
         .y = .{ .definite = 24 },
     };
 
-    try computeLayout(&layout_context, available_space);
+    defer doc_tree.deinit();
+    try doc_tree.computeStyles();
+    try doc_tree.buildLayoutTree();
 
-    // Build render list
-    var render_list = RenderList.init(std.testing.allocator);
-    defer render_list.deinit();
+    try doc_tree.computeLayout(std.testing.allocator, available_space);
 
-    var builder = RenderListBuilder.init(&layout_tree, &doc_tree, &render_list);
-    try builder.build();
-
-    // Create renderer (size will be inferred from render list)
     var renderer = try init(std.testing.allocator);
     defer renderer.deinit();
 
-    // Render to a buffer
     var buffer = std.ArrayList(u8).init(std.testing.allocator);
     defer buffer.deinit();
 
-    try renderer.render(&render_list, buffer.writer().any());
+    try doc_tree.paint(&renderer, buffer.writer().any(), .app);
 
-    // Should have rendered something
     try std.testing.expect(buffer.items.len > 0);
 }

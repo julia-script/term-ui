@@ -375,6 +375,18 @@ export const getSchema = (
       returns(void_()),
       catchError("Tree_setText"),
     ),
+    Tree_computeStyles: pipe(
+      function_(),
+      args(tuple([number()])),
+      returns(void_()),
+      catchError("Tree_computeStyles"),
+    ),
+    Tree_buildLayoutTree: pipe(
+      function_(),
+      args(tuple([number()])),
+      returns(void_()),
+      catchError("Tree_buildLayoutTree"),
+    ),
     Tree_computeLayout: pipe(
       function_(),
       args(
@@ -382,6 +394,18 @@ export const getSchema = (
       ),
       returns(void_()),
       catchError("Tree_computeLayout"),
+    ),
+    Tree_paintSimple: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(void_()),
+      catchError("Tree_paintSimple"),
+    ),
+    Tree_paintApp: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(void_()),
+      catchError("Tree_paintApp"),
     ),
     Tree_consumeEvents: pipe(
       function_(),
@@ -549,15 +573,6 @@ export const getSchema = (
       returns(void_()),
       catchError("Renderer_deinit"),
     ),
-    Renderer_renderToStdout: pipe(
-      function_(),
-      args(
-        tuple([number(), number(), boolean()]),
-      ),
-      returns(void_()),
-      catchError("Renderer_renderToStdout"),
-    ),
-
     Renderer_getNodeAt: pipe(
       function_(),
       args(tuple([number(), number(), number(), number()])),
