@@ -28,6 +28,7 @@ const visible = @import("../uni/string-width.zig").visible;
 const LayoutTree = @import("../layout/v2/LayoutTree.zig");
 const layout_mod = @import("../layout/v2/mod.zig");
 pub const Renderer = @import("../renderer/v2/Renderer.zig");
+const docFromXml = @import("../layout/v2/doc-from-xml.zig").docFromXml;
 
 node_map: std.AutoHashMapUnmanaged(Node.NodeId, Node) = .{},
 allocator: std.mem.Allocator,
@@ -78,7 +79,7 @@ pub fn getSelection(self: *Self, selection_id: Selection.Id) *Selection {
     return self.selections.getPtr(selection_id) orelse std.debug.panic("Selection {d} not found\n", .{selection_id});
 }
 pub fn getRange(self: *Self, range_id: Range.Id) *Range {
-    return self.live_ranges.getPtr(range_id);
+    return self.live_ranges.getPtr(range_id) orelse std.debug.panic("Range {d} not found\n", .{range_id});
 }
 
 pub fn createSelection(self: *Self, start: BoundaryPoint, end: ?BoundaryPoint) !Selection.Id {
@@ -1224,7 +1225,8 @@ pub fn insertBefore(self: *Self, parent_id: Node.NodeId, node_id: Node.NodeId, c
     return try self.preInsert(parent_id, node_id, child_id);
 }
 test "Tree.insertBefore" {
-    var tree = try parseTree(std.testing.allocator, "<element><text>World</text></element>");
+    const allocator = std.testing.allocator;
+    var tree = try docFromXml(allocator, "<element><text>World</text></element>", .{});
     defer tree.deinit();
     defer tree.validateTree(0, null);
     try tree.expectNodes(0, "<0><1><text#2>'World'</text#2></1></0>", null);
@@ -1234,8 +1236,9 @@ test "Tree.insertBefore" {
 }
 
 test "Tree.removeChild" {
+    const allocator = std.testing.allocator;
     {
-        var tree = try parseTree(std.testing.allocator, "<element><text>World</text></element>");
+        var tree = try docFromXml(allocator, "<element><text>World</text></element>", .{});
         defer tree.deinit();
         defer tree.validateTree(0, null);
 
@@ -1244,7 +1247,7 @@ test "Tree.removeChild" {
         try tree.expectNodes(0, "<0></0>", null);
     }
     {
-        var tree = try parseTree(std.testing.allocator, "<element><text>World</text></element>");
+        var tree = try docFromXml(allocator, "<element><text>World</text></element>", .{});
 
         defer tree.deinit();
         defer tree.validateTree(0, null);
@@ -1725,7 +1728,7 @@ pub fn invalidateStyles(self: *Self, node_id: Node.NodeId) void {
 //     try tree.print(writer);
 // }
 
-pub fn getNodeChildren(self: *Self, node_id: Node.NodeId) []const Node.NodeId {
+pub fn getNodeChildren(self: *Self, node_id: Node.NodeId) []Node.NodeId {
     switch (self.getNode(node_id).kind) {
         .text => return &[_]Node.NodeId{},
         .node => return self.getNode(node_id).children.items,

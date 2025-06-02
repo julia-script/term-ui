@@ -2,6 +2,6 @@
 // Function: test.style invalidation - flex properties
 // Description: flex_properties_invalidation.snap
 
-[node#0 block flow_root CG]
-    [node#1 block flow_root C]
-    [node#2 block flow_root C]
+[node#0 block flow_root Regenerate]
+    [node#1 block flow_root Regenerate]
+    [node#2 block flow_root Regenerate]

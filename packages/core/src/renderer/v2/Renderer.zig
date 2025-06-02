@@ -34,6 +34,7 @@ pub fn init(allocator: std.mem.Allocator) !Self {
 
 pub fn deinit(self: *Self) void {
     self.canvas.deinit();
+    self.render_buffer.deinit(self.allocator);
 }
 
 /// Render from a pre-built render list
@@ -388,33 +389,24 @@ test "Renderer v2 multi-width characters" {
 test "Renderer v2 basic rendering" {
     const docFromXml = layout_v2.docFromXml;
 
+    const available_space = layout_v2.constants.AvailableSpacePoint{
+        .x = .{ .definite = 80 },
+        .y = .{ .definite = 24 },
+    };
     const xml =
         \\<root style="width: 80px; height: 24px; background-color: #1f2937;">
         \\  <div style="width: 20px; height: 10px; background-color: #3b82f6;"></div>
         \\</root>
     ;
-
     var doc_tree = try docFromXml(std.testing.allocator, xml, .{});
-    defer doc_tree.deinit();
-
-    // Compute layout
-    const available_space = layout_v2.constants.AvailableSpacePoint{
-        .x = .{ .definite = 80 },
-        .y = .{ .definite = 24 },
-    };
-
     defer doc_tree.deinit();
     try doc_tree.computeStyles();
     try doc_tree.buildLayoutTree();
-
     try doc_tree.computeLayout(std.testing.allocator, available_space);
-
     var renderer = try init(std.testing.allocator);
     defer renderer.deinit();
-
     var buffer = std.ArrayList(u8).init(std.testing.allocator);
     defer buffer.deinit();
-
     try doc_tree.paint(&renderer, buffer.writer().any(), .app);
 
     try std.testing.expect(buffer.items.len > 0);

@@ -5,51 +5,41 @@
 === Pipeline Snapshot: basic-colored-box ===
 
 --- Input XML ---
-<root style="width: 20px; height: 5px; background-color: #3b82f6;">
-</root>
+<div style="width: 20px; height: 5px; background-color: #3b82f6;">
+</div>
 
 --- DOM Tree ---
-[node#0 block flow_root RCG]
-    [text #1 C] "\n"
+[node#0 block flow_root Regenerate]
+    [text #1 Regenerate] "\n"
+
+--- Computing Styles ---
+Styles computed successfully
+
+--- Building Layout Tree ---
+Layout tree built successfully
 
 --- Layout Tree (before computation) ---
-[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-└── [inline_container_node #1 ref={doc#0} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-    └── [text_node #2] "\n"
+[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+└── [inline_container_node #1 ref={doc#0} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+    └── [text_node #2 gen={1} cache_empty={true}]
 
 --- Layout Computation ---
 Available space: [definite: 30] x [max_content]
 
 --- Layout Tree (after computation) ---
-[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (30.00, 5.00) content: (30.00, 5.00)]}]
-└── [inline_container_node #1 ref={doc#0} children={1} lines={1} box={[loc: (0.00, 0.00) size: (20.00, 5.00) content: (30.00, 0.00)]}]
+[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (30.00, 5.00) content: (30.00, 5.00)]} gen={1} cache_empty={false}]
+└── [inline_container_node #1 ref={doc#0} children={1} lines={1} box={[loc: (0.00, 0.00) size: (20.00, 5.00) content: (30.00, 0.00)]} gen={1} cache_empty={false}]
     ├── [line_box #0 fragments=1 size={(0.00, 0.00)}]
     │   └── [fragment node={#2} range=0-1 pos={(0.00, 0.00)} size={(0.00, 0.00)} text=""]
-    └── [text_node #2] "\n"
-
---- Render List ---
-RenderList (3 items):
-  [0] Box #1 bounds=[pos:(0.0,0.0) size:(20.0x5.0)] z=0 bg=#3b82f6ff
-  [1] LineBox #1 bounds=(0.0,0.0 0.0x0.0) fragments=[2]
-  [2] TextFragment #2 bounds=[pos:(0.0,0.0) size:(0.0x0.0)] z=0 text=""
+    └── [text_node #2 gen={1} cache_empty={true}]
 
 --- Rendered Output ---
 Raw (escape sequences as \E):
-\E[48;2;59;130;246m\E[38;2;255;255;255m                    \E[0m\n
-\E[48;2;59;130;246m\E[38;2;255;255;255m                    \E[0m\n
-\E[48;2;59;130;246m\E[38;2;255;255;255m                    \E[0m\n
-\E[48;2;59;130;246m\E[38;2;255;255;255m                    \E[0m\n
-\E[48;2;59;130;246m\E[38;2;255;255;255m                    \E[0m\n
-
+\E[48;2;59;130;246m\E[38;2;0;0;0m                    \E[1B\E[20D                    \E[1B\E[20D                    \E[1B\E[20D                    \E[1B\E[20D                    \E[1B\E[20D\E[0m
 
 Visual:
-\E[48;2;59;130;246m\E[38;2;255;255;255m                    \E[0m
-\E[48;2;59;130;246m\E[38;2;255;255;255m                    \E[0m
-\E[48;2;59;130;246m\E[38;2;255;255;255m                    \E[0m
-\E[48;2;59;130;246m\E[38;2;255;255;255m                    \E[0m
-\E[48;2;59;130;246m\E[38;2;255;255;255m                    \E[0m
-
+\E[48;2;59;130;246m\E[38;2;0;0;0m                    \E[1B\E[20D                    \E[1B\E[20D                    \E[1B\E[20D                    \E[1B\E[20D                    \E[1B\E[20D\E[0m
 
 --- Canvas Info ---
-Dimensions: 20x5
-Total cells: 100
+Dimensions: 30x5
+Total cells: 150

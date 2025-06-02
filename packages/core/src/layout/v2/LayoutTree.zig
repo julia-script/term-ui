@@ -74,6 +74,11 @@ pub fn getNodeStyle(self: *Self, doc_tree: *DocTree, node_id: LayoutNode.Id) Sty
                 const parent_style = self.getNodeStyle(doc_tree, parent_id);
                 return anonymousInheritStyles(parent_style);
             }
+            // Special case: viewport node (root) has no parent
+            if (node_id == 0) {
+                // Return default styles for viewport
+                return .{};
+            }
             std.debug.panic("Anonymous node {d} has no parent", .{node_id});
         },
     }
@@ -205,21 +210,9 @@ pub const InlineContainerNode = struct {
     }
 };
 
-pub fn fromTree(allocator: std.mem.Allocator, tree: *DocTree) !Self {
-    var self = Self.init(allocator);
+// Removed fromTree() - now using computeIncremental() exclusively
 
-    // Create an anonymous viewport node as the actual root
-    const viewport_id = try self.createNode(.{ .block_container_node = .{} }, .anonymous);
-
-    // Build the document tree and append it as a child of the viewport
-    const doc_root_id = try self.build(tree, DocTree.ROOT_NODE_ID);
-    try self.appendNode(viewport_id, doc_root_id);
-
-    return self;
-}
-pub fn compute(self: *Self, tree: *DocTree) !void {
-    try self.build(tree, DocTree.ROOT_NODE_ID);
-}
+// Removed compute() - now using computeIncremental() exclusively
 
 pub fn clearCacheFromDocNodeId(self: *Self, doc_node_id: DocNodeId) void {
     const node_id = self.doc_to_layout.get(doc_node_id) orelse {
@@ -235,9 +228,35 @@ pub fn clearCache(self: *Self, node_id: LayoutNode.Id) void {
 }
 pub fn computeIncremental(self: *Self, tree: *DocTree) !void {
     self.current_generation += 1;
-    // self.recursivelyUpdateDomStatus(tree, self.root_id);
     tree.propagateNodeRecomputeStatus();
-    self.root_id = try self.buildIncremental(tree, DocTree.ROOT_NODE_ID);
+
+    // Check if this is the first build (no nodes exist)
+    if (self.nodes.count() == 0) {
+        // Create the root viewport node
+        const viewport_id = try self.createNode(.{ .block_container_node = .{} }, .anonymous);
+        std.debug.assert(viewport_id == 0); // Viewport should always be node 0
+        self.root_id = viewport_id;
+
+        // Build the document tree and append it as a child of the viewport
+        const doc_root_id = try self.buildIncremental(tree, DocTree.ROOT_NODE_ID);
+        try self.appendNode(viewport_id, doc_root_id);
+    } else {
+        // Incremental update - viewport already exists at node 0
+        // Update the document tree and ensure it's the child of viewport
+        const doc_root_id = try self.buildIncremental(tree, DocTree.ROOT_NODE_ID);
+
+        // The document root might have been regenerated with a new ID
+        // Update the viewport's first child to point to the new doc root
+        var viewport = self.getNodePtr(0);
+        const children_list = viewport.getChildren();
+        if (children_list.len > 0) {
+            children_list[0] = doc_root_id;
+            try self.setParent(doc_root_id, self.root_id);
+        } else {
+            // Shouldn't happen, but handle it just in case
+            try self.appendNode(self.root_id, doc_root_id);
+        }
+    }
 }
 
 pub fn clearSubtree(self: *Self, doc_node_id: DocNodeId) void {
@@ -734,8 +753,10 @@ pub fn expectLayoutTree(description: []const u8, docXml: []const u8, comptime lo
     var tree = try docFromXml(std.testing.allocator, docXml, .{});
     defer tree.deinit();
 
-    var lt = try fromTree(std.testing.allocator, &tree);
-    defer lt.deinit();
+    // Use the new pipeline approach
+    try tree.computeStyles();
+    try tree.buildLayoutTree();
+    var lt = &tree.layout_tree;
 
     var buf = std.ArrayList(u8).init(std.testing.allocator);
     defer buf.deinit();

@@ -1,36 +1,36 @@
-// Snapshot from: layout/v2/LayoutTree.zig:856:7
+// Snapshot from: layout/v2/LayoutTree.zig:813:7
 // Function: test.deep formatting context break
 // Description: deep formatting context break
 
 DocTree:
-[node#0 block flow_root -]
-    [text #1 -] "\n  Italic only\n  "
-    [node#2 inline flow -]
-        [text #3 -] "\n  italic and bold\n    "
-        [node#4 block flow_root -]
-            [text #5 -] "Wow, a block!"
-        [text #6 -] "\n    "
-        [node#7 block flow_root -]
-            [text #8 -] "Wow, another block!"
-        [text #9 -] "\n    More italic and bold text\n  "
-    [text #10 -] " \n  More italic text\n"
+[node#0 block flow_root Recompute]
+    [text #1 Recompute] "\n  Italic only\n  "
+    [node#2 inline flow Recompute]
+        [text #3 Recompute] "\n  italic and bold\n    "
+        [node#4 block flow_root Recompute]
+            [text #5 Recompute] "Wow, a block!"
+        [text #6 Recompute] "\n    "
+        [node#7 block flow_root Recompute]
+            [text #8 Recompute] "Wow, another block!"
+        [text #9 Recompute] "\n    More italic and bold text\n  "
+    [text #10 Recompute] " \n  More italic text\n"
 LayoutTree:
-[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-└── [block_container_node #1 ref={doc#0} children={5} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-    ├── [inline_container_node #3 ref={anon} children={2} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-    │   ├── [text_node #2] "\n  Italic only\n  "
-    │   └── [inline_node #4 continuation={#11} ref={doc#2} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-    │       └── [text_node #5] "\n  italic and bold\n    "
-    ├── [block_container_node #6 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-    │   └── [inline_container_node #7 ref={doc#4} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-    │       └── [text_node #8] "Wow, a block!"
-    ├── [inline_container_node #10 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-    │   └── [inline_node #11 continuationOf={#4} continuation={#17} ref={doc#2} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-    │       └── [text_node #9] "\n    "
-    ├── [block_container_node #12 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-    │   └── [inline_container_node #13 ref={doc#7} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-    │       └── [text_node #14] "Wow, another block!"
-    └── [inline_container_node #16 ref={anon} children={2} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        ├── [inline_node #17 continuationOf={#11} ref={doc#2} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]}]
-        │   └── [text_node #15] "\n    More italic and bold text\n  "
-        └── [text_node #18] " \n  More italic text\n"
+[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+└── [block_container_node #1 ref={doc#0} children={5} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+    ├── [inline_container_node #3 ref={anon} children={2} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+    │   ├── [text_node #2 gen={1} cache_empty={true}]
+    │   └── [inline_node #4 continuation={#11} ref={doc#2} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+    │       └── [text_node #5 gen={1} cache_empty={true}]
+    ├── [block_container_node #6 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+    │   └── [inline_container_node #7 ref={doc#4} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+    │       └── [text_node #8 gen={1} cache_empty={true}]
+    ├── [inline_container_node #10 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+    │   └── [inline_node #11 continuationOf={#4} continuation={#17} ref={doc#2} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+    │       └── [text_node #9 gen={1} cache_empty={true}]
+    ├── [block_container_node #12 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+    │   └── [inline_container_node #13 ref={doc#7} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+    │       └── [text_node #14 gen={1} cache_empty={true}]
+    └── [inline_container_node #16 ref={anon} children={2} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+        ├── [inline_node #17 continuationOf={#11} ref={doc#2} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+        │   └── [text_node #15 gen={1} cache_empty={true}]
+        └── [text_node #18 gen={1} cache_empty={true}]

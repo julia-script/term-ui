@@ -1082,17 +1082,10 @@ test "computeBlockLayout" {
     var tree = try mod.docFromXml(allocator, doc_xml, .{});
     defer tree.deinit();
 
-    var lt = try mod.LayoutTree.fromTree(allocator, &tree);
-    defer lt.deinit();
-    var context = LayoutContext{
-        .layout_tree = &lt,
-        .doc_tree = &tree,
-        .allocator = allocator,
-    };
-    try mod.computeLayout(
-        &context,
-        .{ .x = .{ .definite = 100 }, .y = .max_content },
-    );
+    // Use the new pipeline approach
+    try tree.computeStyles();
+    try tree.buildLayoutTree();
+    try tree.computeLayout(allocator, .{ .x = .{ .definite = 100 }, .y = .max_content });
 }
 
 // test "margin auto centering" {

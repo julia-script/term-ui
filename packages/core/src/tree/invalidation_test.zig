@@ -139,45 +139,6 @@ test "style invalidation - flex properties" {
     try snapshot.expectMatchSnapshot(@src(), allocator, "flex_properties_invalidation.snap", buf.items);
 }
 
-test "incremental layout tree generation" {
-    const allocator = std.testing.allocator;
-    var tree = try Tree.init(allocator);
-    defer tree.deinit();
-
-    // Create a simple tree
-    const parent = try tree.createNode();
-    const child1 = try tree.createNode();
-    const child2 = try tree.createNode();
-    const grandchild = try tree.createTextNode("Hello");
-    _ = try tree.appendChild(parent, child1);
-    _ = try tree.appendChild(parent, child2);
-    _ = try tree.appendChild(child2, grandchild);
-
-    // Build initial layout tree
-    const LayoutTree = @import("../layout/v2/LayoutTree.zig");
-    var layout1 = try LayoutTree.fromTree(allocator, &tree);
-    defer layout1.deinit();
-
-    // Make a small change - just update text
-    try tree.setText(grandchild, "Hello World!");
-
-    // Build incremental layout tree
-    var layout2 = try LayoutTree.fromTreeIncremental(allocator, &tree, &layout1);
-    defer layout2.deinit();
-
-    // Verify the layout tree was updated correctly
-    var buf = std.ArrayList(u8).init(allocator);
-    defer buf.deinit();
-    try layout2.printRoot(buf.writer().any());
-
-    try snapshot.expectMatchSnapshot(@src(), allocator, "incremental_layout_tree.snap", buf.items);
-
-    // Verify flags are cleared automatically during incremental build
-    try std.testing.expect(!tree.getNode(parent).needs_recompute);
-    try std.testing.expect(!tree.getNode(child2).needs_recompute);
-    try std.testing.expect(!tree.getNode(grandchild).needs_recompute);
-}
-
 test "element IDs and getElementById" {
     const allocator = std.testing.allocator;
     const docFromXml = @import("../layout/v2/doc-from-xml.zig").docFromXml;

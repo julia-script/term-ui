@@ -51,14 +51,11 @@ pub fn compute(
 test "compute" {
     var doc = try mod.docFromXml(std.testing.allocator, "<div>Hello, world!</div>", .{});
     defer doc.deinit();
-    var layout_tree = try mod.LayoutTree.fromTree(std.testing.allocator, &doc);
-    defer layout_tree.deinit();
-    var context = mod.LayoutContext{
-        .allocator = std.testing.allocator,
-        .layout_tree = &layout_tree,
-        .doc_tree = &doc,
-    };
-    try mod.computeLayout(&context, .{ .x = .{ .definite = 30 }, .y = .max_content });
+    
+    // Use the new pipeline approach
+    try doc.computeStyles();
+    try doc.buildLayoutTree();
+    try doc.computeLayout(std.testing.allocator, .{ .x = .{ .definite = 30 }, .y = .max_content });
 }
 
 const snapshot = @import("../../../testing/snapshot.zig");

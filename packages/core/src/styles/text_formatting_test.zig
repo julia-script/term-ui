@@ -160,7 +160,7 @@ test "text formatting inheritance" {
 
     // Set styles on parent
     {
-        var parent_style = (try tree.getComputedStyle(parent_id));
+        var parent_style = tree.getStyle(parent_id);
         parent_style.font_weight = .bold;
         parent_style.font_style = .italic;
         parent_style.text_decoration = text_decoration.TextDecoration.underline();
@@ -169,14 +169,14 @@ test "text formatting inheritance" {
 
     // Set text_align on child (explicit, not inherit)
     {
-        var child_style = (try tree.getComputedStyle(child_id));
+        var child_style = tree.getStyle(child_id);
         child_style.font_weight = .inherit; // Should inherit bold
         child_style.text_decoration.line = .line_through; // Override parent
     }
 
     // Set all properties to inherit on grandchild
     {
-        var grandchild_style = (try tree.getComputedStyle(grandchild_id));
+        var grandchild_style = tree.getStyle(grandchild_id);
         grandchild_style.font_weight = .inherit;
         grandchild_style.font_style = .inherit;
         grandchild_style.text_decoration.line = .inherit;
@@ -214,7 +214,7 @@ test "text formatting inheritance" {
     // Test invalidation
     {
         // Change parent style
-        var parent_style = (try tree.getComputedStyle(parent_id));
+        var parent_style = tree.getStyle(parent_id);
         parent_style.font_weight = .normal;
 
         // Invalidate cache
@@ -309,16 +309,16 @@ test "renderer with text formatting" {
 
     // Apply styling
     {
-        var bold_style = (try tree.getComputedStyle(bold_id));
+        var bold_style = tree.getStyle(bold_id);
         bold_style.font_weight = .bold;
 
-        var italic_style = (try tree.getComputedStyle(italic_id));
+        var italic_style = tree.getStyle(italic_id);
         italic_style.font_style = .italic;
 
-        var underline_style = (try tree.getComputedStyle(underline_id));
+        var underline_style = tree.getStyle(underline_id);
         underline_style.text_decoration = text_decoration.TextDecoration.underline();
 
-        var colored_style = (try tree.getComputedStyle(colored_id));
+        var colored_style = tree.getStyle(colored_id);
         colored_style.text_decoration = text_decoration.TextDecoration{
             .line = .wavy,
             .color = color.Color{ .r = 1, .g = 0, .b = 0, .a = 1 }, // Red
@@ -326,15 +326,17 @@ test "renderer with text formatting" {
         };
     }
 
-    // Compute layout
-    try computeLayout(tree, allocator, .{
+    // Compute styles and layout using the new API
+    try tree.computeStyles();
+    try tree.buildLayoutTree();
+    try tree.computeLayout(allocator, .{
         .x = .{ .definite = 100 },
         .y = .{ .definite = 50 },
     });
 
-    // Render to a null writer - this tests the rendering path without displaying output
+    // Paint using the new API
     const null_writer = std.io.null_writer.any();
-    try renderer.render(&tree, null_writer, false);
+    try tree.paint(&renderer, null_writer, .simple);
 
     // Additional tests that can help catch WASM issues:
 
@@ -559,7 +561,7 @@ test "text formatting style binding" {
     const node_id = try tree.createNode();
 
     // Get the style
-    var style = (try tree.getComputedStyle(node_id));
+    var style = tree.getStyle(node_id);
 
     // Set font-weight through parser
     style.font_weight = (try font_style.parseFontWeight(allocator, "bold", 0)).value;

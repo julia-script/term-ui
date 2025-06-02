@@ -54,52 +54,41 @@ pub fn expectPipeline(
         try writer.writeAll("\n");
     }
 
-    // 3. Build and show layout tree
-    try writer.writeAll("--- Layout Tree (before computation) ---\n");
-    var layout_tree = try layout_v2.LayoutTree.fromTree(allocator, &doc_tree);
-    defer layout_tree.deinit();
+    // 3. Compute styles
+    try writer.writeAll("--- Computing Styles ---\n");
+    try doc_tree.computeStyles();
+    try writer.writeAll("Styles computed successfully\n\n");
 
-    try layout_tree.printRoot(writer.any());
+    // 4. Build layout tree
+    try writer.writeAll("--- Building Layout Tree ---\n");
+    try doc_tree.buildLayoutTree();
+    try writer.writeAll("Layout tree built successfully\n\n");
+
+    // 5. Show layout tree before computation
+    try writer.writeAll("--- Layout Tree (before computation) ---\n");
+    try doc_tree.layout_tree.printRoot(writer.any());
+    try doc_tree.layout_tree.printRoot(std.io.getStdErr().writer().any());
     try writer.writeAll("\n");
 
-    // 4. Compute layout
+    // 6. Compute layout
     try writer.writeAll("--- Layout Computation ---\n");
-    var layout_context = layout_v2.LayoutContext{
-        .layout_tree = &layout_tree,
-        .doc_tree = &doc_tree,
-        .allocator = allocator,
-    };
-
-    try layout_v2.computeLayout(&layout_context, options.available_space);
-
+    try doc_tree.computeLayout(allocator, options.available_space);
     try writer.print("Available space: [{}] x [{}]\n", .{ options.available_space.x, options.available_space.y });
     try writer.writeAll("\n");
 
-    // 5. Show layout tree after computation
+    // 7. Show layout tree after computation
     try writer.writeAll("--- Layout Tree (after computation) ---\n");
-    try layout_tree.printRoot(writer.any());
+    try doc_tree.layout_tree.printRoot(writer.any());
     try writer.writeAll("\n");
 
-    // 6. Build and show render list
-    try writer.writeAll("--- Render List ---\n");
-    var render_list = layout_v2.RenderList.init(allocator);
-    defer render_list.deinit();
-
-    var builder = layout_v2.RenderListBuilder.init(&layout_tree, &doc_tree, &render_list);
-    defer builder.deinit();
-    try builder.build();
-
-    try render_list.print(writer.any());
-    try writer.writeAll("\n");
-
-    // 7. Render to terminal string
+    // 8. Render to terminal string
     try writer.writeAll("--- Rendered Output ---\n");
     var renderer = try renderer_v2.Renderer.init(allocator);
     defer renderer.deinit();
 
     // Create a sub-buffer for rendered output
     var render_buffer = std.ArrayList(u8).init(arena_allocator);
-    try renderer.render(&render_list, render_buffer.writer().any());
+    try doc_tree.paint(&renderer, render_buffer.writer().any(), .app);
 
     // Show the raw output with escape sequences visible
     try writer.writeAll("Raw (escape sequences as \\E):\n");

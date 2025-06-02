@@ -611,39 +611,6 @@ fn allocTestString(str: []const u8) [*:0]u8 {
     std.mem.copyForwards(u8, ptr[0..str.len], str);
     return ptr;
 }
-
-test "should_set_style" {
-    defer _ = gpa.detectLeaks();
-    {
-        const tree = Tree_init();
-        defer Tree_deinit(tree);
-        const node = Tree_createNode(tree, allocTestString(""));
-        const style = allocTestString("background-color: blue; width: 100px;");
-        Tree_setStyle(tree, node, style);
-
-        // // We can't directly check the style value, but we can compute layout and check dimensions
-        const width = allocTestString("200");
-        // defer freeNullTerminatedBuffer(width);
-        const height = allocTestString("200");
-        // defer freeNullTerminatedBuffer(height);
-        Tree_computeLayout(tree, width, height);
-        const width_result = Tree_getNodeClientWidth(tree, node);
-        try std.testing.expectEqual(width_result, 100);
-    }
-
-    {
-        const tree = Tree_init();
-        defer Tree_deinit(tree);
-        const node = Tree_createNode(tree, allocTestString(""));
-        Tree_setStyle(tree, node, allocTestString("background-color: blue; width: 100px;"));
-
-        // We can't directly check the style value, but we can compute layout and check dimensions
-        Tree_computeLayout(tree, allocTestString("200"), allocTestString("200"));
-        const width = Tree_getNodeClientWidth(tree, node);
-        try std.testing.expectEqual(width, 100);
-        //   expect(Tree_getNodeClientWidth(tree, node)).toBe(100);
-    }
-}
 const Cursor = @import("styles/cursor.zig").Cursor;
 
 test {

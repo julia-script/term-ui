@@ -2,6 +2,7 @@ const Node = @import("./Node.zig");
 const Tree = @import("./Tree.zig");
 const traversal = @import("./traversal.zig");
 const std = @import("std");
+const docFromXml = @import("../layout/v2/doc-from-xml.zig").docFromXml;
 
 tree: *Tree,
 reference_node: Node.NodeId,
@@ -143,7 +144,7 @@ pub fn previousNode(self: *Self) ?Node.NodeId {
 
 test "NodeIterator" {
     const allocator = std.testing.allocator;
-    var tree = try Tree.parseTree(allocator,
+    var tree = try docFromXml(allocator,
         \\<view>
         \\  <view>
         \\    <view>
@@ -158,7 +159,7 @@ test "NodeIterator" {
         \\    <view></view>
         \\  </view>
         \\</view>
-    );
+    , .{});
 
     defer tree.deinit();
 

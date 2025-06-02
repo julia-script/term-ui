@@ -245,17 +245,10 @@ test "computeInlineContextLayout" {
     var tree = try mod.docFromXml(allocator, doc_xml, .{});
     defer tree.deinit();
 
-    var lt = try mod.LayoutTree.fromTree(allocator, &tree);
-    defer lt.deinit();
-    var context = LayoutContext{
-        .layout_tree = &lt,
-        .doc_tree = &tree,
-        .allocator = allocator,
-    };
-    try mod.computeLayout(
-        &context,
-        .{ .x = .{ .definite = 100 }, .y = .max_content },
-    );
+    // Use the new pipeline approach
+    try tree.computeStyles();
+    try tree.buildLayoutTree();
+    try tree.computeLayout(allocator, .{ .x = .{ .definite = 100 }, .y = .max_content });
 }
 
 test "computeInlineContextLayout with forced breaks" {
@@ -271,17 +264,10 @@ test "computeInlineContextLayout with forced breaks" {
     var tree = try mod.docFromXml(allocator, doc_xml, .{});
     defer tree.deinit();
 
-    var lt = try mod.LayoutTree.fromTree(allocator, &tree);
-    defer lt.deinit();
-    var context = LayoutContext{
-        .layout_tree = &lt,
-        .doc_tree = &tree,
-        .allocator = allocator,
-    };
-    try mod.computeLayout(
-        &context,
-        .{ .x = .min_content, .y = .max_content },
-    );
+    // Use the new pipeline approach
+    try tree.computeStyles();
+    try tree.buildLayoutTree();
+    try tree.computeLayout(allocator, .{ .x = .min_content, .y = .max_content });
 }
 
 test "computeInlineContextLayout single line" {
@@ -295,17 +281,10 @@ test "computeInlineContextLayout single line" {
     var tree = try mod.docFromXml(allocator, doc_xml, .{});
     defer tree.deinit();
 
-    var lt = try mod.LayoutTree.fromTree(allocator, &tree);
-    defer lt.deinit();
-    var context = LayoutContext{
-        .layout_tree = &lt,
-        .doc_tree = &tree,
-        .allocator = allocator,
-    };
-    try mod.computeLayout(
-        &context,
-        .{ .x = .{ .definite = 100 }, .y = .max_content },
-    );
+    // Use the new pipeline approach
+    try tree.computeStyles();
+    try tree.buildLayoutTree();
+    try tree.computeLayout(allocator, .{ .x = .{ .definite = 100 }, .y = .max_content });
 }
 
 test "computeInlineContextLayout multiple fragments one line" {
@@ -319,17 +298,10 @@ test "computeInlineContextLayout multiple fragments one line" {
     var tree = try mod.docFromXml(allocator, doc_xml, .{});
     defer tree.deinit();
 
-    var lt = try mod.LayoutTree.fromTree(allocator, &tree);
-    defer lt.deinit();
-    var context = LayoutContext{
-        .layout_tree = &lt,
-        .doc_tree = &tree,
-        .allocator = allocator,
-    };
-    try mod.computeLayout(
-        &context,
-        .{ .x = .{ .definite = 100 }, .y = .max_content },
-    );
+    // Use the new pipeline approach
+    try tree.computeStyles();
+    try tree.buildLayoutTree();
+    try tree.computeLayout(allocator, .{ .x = .{ .definite = 100 }, .y = .max_content });
 }
 
 test "computeInlineContextLayout long text wrapping" {
@@ -343,17 +315,10 @@ test "computeInlineContextLayout long text wrapping" {
     var tree = try mod.docFromXml(allocator, doc_xml, .{});
     defer tree.deinit();
 
-    var lt = try mod.LayoutTree.fromTree(allocator, &tree);
-    defer lt.deinit();
-    var context = LayoutContext{
-        .layout_tree = &lt,
-        .doc_tree = &tree,
-        .allocator = allocator,
-    };
-    try mod.computeLayout(
-        &context,
-        .{ .x = .{ .definite = 20 }, .y = .max_content },
-    );
+    // Use the new pipeline approach
+    try tree.computeStyles();
+    try tree.buildLayoutTree();
+    try tree.computeLayout(allocator, .{ .x = .{ .definite = 20 }, .y = .max_content });
 }
 
 test "computeInlineContextLayout real forced breaks" {
@@ -362,17 +327,10 @@ test "computeInlineContextLayout real forced breaks" {
     var tree = try mod.docFromXml(allocator, doc_xml, .{});
     defer tree.deinit();
 
-    var lt = try mod.LayoutTree.fromTree(allocator, &tree);
-    defer lt.deinit();
-    var context = LayoutContext{
-        .layout_tree = &lt,
-        .doc_tree = &tree,
-        .allocator = allocator,
-    };
-    try mod.computeLayout(
-        &context,
-        .{ .x = .min_content, .y = .max_content },
-    );
+    // Use the new pipeline approach
+    try tree.computeStyles();
+    try tree.buildLayoutTree();
+    try tree.computeLayout(allocator, .{ .x = .min_content, .y = .max_content });
 }
 
 test "computeInlineContextLayout text alignment" {
@@ -384,17 +342,10 @@ test "computeInlineContextLayout text alignment" {
         var tree = try mod.docFromXml(allocator, doc_xml, .{});
         defer tree.deinit();
 
-        var lt = try mod.LayoutTree.fromTree(allocator, &tree);
-        defer lt.deinit();
-        var context = LayoutContext{
-            .layout_tree = &lt,
-            .doc_tree = &tree,
-            .allocator = allocator,
-        };
-        try mod.computeLayout(
-            &context,
-            .{ .x = .{ .definite = 50 }, .y = .max_content },
-        );
+        // Use the new pipeline approach
+        try tree.computeStyles();
+        try tree.buildLayoutTree();
+        try tree.computeLayout(allocator, .{ .x = .{ .definite = 50 }, .y = .max_content });
     }
 
     // Test center alignment
@@ -403,17 +354,10 @@ test "computeInlineContextLayout text alignment" {
         var tree = try mod.docFromXml(allocator, doc_xml, .{});
         defer tree.deinit();
 
-        var lt = try mod.LayoutTree.fromTree(allocator, &tree);
-        defer lt.deinit();
-        var context = LayoutContext{
-            .layout_tree = &lt,
-            .doc_tree = &tree,
-            .allocator = allocator,
-        };
-        try mod.computeLayout(
-            &context,
-            .{ .x = .{ .definite = 50 }, .y = .max_content },
-        );
+        // Use the new pipeline approach
+        try tree.computeStyles();
+        try tree.buildLayoutTree();
+        try tree.computeLayout(allocator, .{ .x = .{ .definite = 50 }, .y = .max_content });
     }
 
     // Test right alignment
@@ -422,17 +366,10 @@ test "computeInlineContextLayout text alignment" {
         var tree = try mod.docFromXml(allocator, doc_xml, .{});
         defer tree.deinit();
 
-        var lt = try mod.LayoutTree.fromTree(allocator, &tree);
-        defer lt.deinit();
-        var context = LayoutContext{
-            .layout_tree = &lt,
-            .doc_tree = &tree,
-            .allocator = allocator,
-        };
-        try mod.computeLayout(
-            &context,
-            .{ .x = .{ .definite = 50 }, .y = .max_content },
-        );
+        // Use the new pipeline approach
+        try tree.computeStyles();
+        try tree.buildLayoutTree();
+        try tree.computeLayout(allocator, .{ .x = .{ .definite = 50 }, .y = .max_content });
     }
 
     // Test alignment with multiple lines
@@ -441,16 +378,9 @@ test "computeInlineContextLayout text alignment" {
         var tree = try mod.docFromXml(allocator, doc_xml, .{});
         defer tree.deinit();
 
-        var lt = try mod.LayoutTree.fromTree(allocator, &tree);
-        defer lt.deinit();
-        var context = LayoutContext{
-            .layout_tree = &lt,
-            .doc_tree = &tree,
-            .allocator = allocator,
-        };
-        try mod.computeLayout(
-            &context,
-            .{ .x = .{ .definite = 20 }, .y = .max_content },
-        );
+        // Use the new pipeline approach
+        try tree.computeStyles();
+        try tree.buildLayoutTree();
+        try tree.computeLayout(allocator, .{ .x = .{ .definite = 20 }, .y = .max_content });
     }
 }

@@ -505,7 +505,10 @@ fn isElementClickable(style: ?Style) bool {
 
 /// Check if a box should be rendered (has background or borders)
 fn shouldRenderBox(node: *LayoutTree.LayoutNode, style: ?Style) bool {
-    _ = node;
+    // Special case: viewport node (anonymous root) always renders
+    if (node.ref == .anonymous and node.parent == null) {
+        return true;
+    }
 
     if (style) |s| {
         // Has background?

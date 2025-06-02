@@ -30,14 +30,16 @@ test "cascaded styles affect layout and rendering" {
         parent_style.text_align = .center;
     }
 
-    // Compute layout
-    try computeLayout(tree, allocator, .{
+    // Compute styles and layout using the new API
+    try tree.computeStyles();
+    try tree.buildLayoutTree();
+    try tree.computeLayout(allocator, .{
         .x = .{ .definite = 100 },
         .y = .{ .definite = 100 },
     });
 
     // Test that computed styles were properly calculated
-    const child_computed = (try tree.getComputedStyle(child_id));
+    const child_computed = tree.getComputedStyle(child_id);
     try std.testing.expect(child_computed.foreground_color != null);
     if (child_computed.foreground_color) |color| {
         // Child should inherit the red color from parent
@@ -47,7 +49,7 @@ test "cascaded styles affect layout and rendering" {
     }
 
     // Test that text node also inherits
-    const text_computed = (try tree.getComputedStyle(text_id));
+    const text_computed = tree.getComputedStyle(text_id);
     try std.testing.expectEqual(text_computed.text_align, .center);
     try std.testing.expect(text_computed.foreground_color != null);
 }
