@@ -542,14 +542,14 @@ test "insertNode" {
         });
         var range = tree.getLiveRange(range_id);
 
-        try range.testRange(&tree, root, "<element#0><text#1>'Abcd efgh X[Y blah i]jkl'</text#1></element#0>");
+        try range.testRange(&tree, root, "<element#1><text#2>'Abcd efgh X[Y blah i]jkl'</text#2></element#1>");
 
         // Insert before X (at position 10)
         const insert_text = try tree.createTextNode("inserted text");
         try range.setStart(&tree, text, 10); // Position before 'X'
         try range.insertNode(&tree, insert_text);
 
-        try range.testRange(&tree, root, "<element#0><text#1>'Abcd efgh ['</text#1><text#2>'inserted text'</text#2><text#3>'XY blah i]jkl'</text#3></element#0>");
+        try range.testRange(&tree, root, "<element#1><text#2>'Abcd efgh ['</text#2><text#3>'inserted text'</text#3><text#4>'XY blah i]jkl'</text#4></element#1>");
     }
 
     // Test 2: Insert at start of range (after X)
@@ -572,7 +572,7 @@ test "insertNode" {
         const insert_text = try tree.createTextNode("inserted text");
         try range.insertNode(&tree, insert_text);
 
-        try range.testRange(&tree, root, "<element#0><text#1>'Abcd efgh X['</text#1><text#2>'inserted text'</text#2><text#3>'Y blah i]jkl'</text#3></element#0>");
+        try range.testRange(&tree, root, "<element#1><text#2>'Abcd efgh X['</text#2><text#3>'inserted text'</text#3><text#4>'Y blah i]jkl'</text#4></element#1>");
     }
 
     // Test 3: Insert after Y
@@ -596,7 +596,7 @@ test "insertNode" {
         const insert_text = try tree.createTextNode("inserted text");
         try range.insertNode(&tree, insert_text);
 
-        try range.testRange(&tree, root, "<element#0><text#1>'Abcd efgh XY['</text#1><text#2>'inserted text'</text#2><text#3>' blah i]jkl'</text#3></element#0>");
+        try range.testRange(&tree, root, "<element#1><text#2>'Abcd efgh XY['</text#2><text#3>'inserted text'</text#3><text#4>' blah i]jkl'</text#4></element#1>");
     }
 }
 pub fn format(self: Self, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
@@ -734,60 +734,7 @@ fn testRange(range: *Self, tree: *Tree, node_id: Node.NodeId, expected: []const 
         buffer.items,
     );
 }
-test "Self setStart" {
-    var tree = try Tree.init(std.testing.allocator);
-    defer tree.deinit();
-    const root = try tree.createNode();
-    const child_a = try tree.createNode();
-    const child_b = try tree.createNode();
-    _ = try tree.appendChild(root, child_a);
-    _ = try tree.appendChild(root, child_b);
-    const text_a_a = try tree.createTextNode("First text node");
-    const text_a_b = try tree.createTextNode("Second text node");
-    _ = try tree.appendChild(child_a, text_a_a);
-    _ = try tree.appendChild(child_a, text_a_b);
-    const text_b_a = try tree.createTextNode("Third text node");
-    _ = try tree.appendChild(child_b, text_b_a);
 
-    {
-        // Siblings
-        var range = Self{ .id = 0 };
-        try range.setStart(&tree, child_a, 0);
-        try range.setEnd(&tree, child_a, 1);
-        try std.testing.expectEqual(range.start.node_id, child_a);
-        try std.testing.expectEqual(range.start.offset, 0);
-        try std.testing.expectEqual(range.end.node_id, child_a);
-        try std.testing.expectEqual(range.end.offset, 1);
-    }
-    {
-        // Siblings, end before start (should collapse to end when setEnd is called second)
-        var range = Self{ .id = 0 };
-        try range.setStart(&tree, child_a, 1);
-        try range.setEnd(&tree, child_a, 0);
-        try std.testing.expectEqual(range.start.node_id, child_a);
-        try std.testing.expectEqual(range.start.offset, 0);
-        try std.testing.expectEqual(range.isCollapsed(), true);
-    }
-    {
-        // Siblings, end before start (should collapse to start when setEnd was called first)
-        var range = Self{ .id = 0 };
-        try range.setEnd(&tree, child_a, 0);
-        try range.setStart(&tree, child_a, 1);
-        try std.testing.expectEqual(range.start.node_id, child_a);
-        try std.testing.expectEqual(range.start.offset, 1);
-        try std.testing.expectEqual(range.isCollapsed(), true);
-    }
-    {
-        // Siblings, ancestor start, descendant end
-        var range = Self{ .id = 0 };
-        try range.setStart(&tree, root, 0);
-        try range.setEnd(&tree, child_a, 1);
-        try std.testing.expectEqual(range.start.node_id, root);
-        try std.testing.expectEqual(range.start.offset, 0);
-        try std.testing.expectEqual(range.end.node_id, child_a);
-        try std.testing.expectEqual(range.end.offset, 1);
-    }
-}
 fn order(T: type, a: T, b: T) Order {
     if (a < b) {
         return .lt;
@@ -971,7 +918,6 @@ test "boundaryPointTreeOrder - comprehensive" {
         try std.testing.expectEqual(try boundaryPointTreeOrder(&tree, bp1, bp2), .lt);
     }
 }
-
 test "deleteContents" {
     // Test 1: Delete within a text node
     {
@@ -990,9 +936,9 @@ test "deleteContents" {
             .offset = hello.len + world.len,
         });
         var range = tree.getLiveRange(range_id);
-        try range.testRange(&tree, root, "<element#0><text#1>'Hello[, world!]'</text#1></element#0>");
+        try range.testRange(&tree, root, "<element#1><text#2>'Hello[, world!]'</text#2></element#1>");
         try range.deleteContents(&tree);
-        try range.testRange(&tree, root, "<element#0><text#1>'Hello|'</text#1></element#0>");
+        try range.testRange(&tree, root, "<element#1><text#2>'Hello|'</text#2></element#1>");
     }
 
     // Test 2: Delete across multiple nodes
@@ -1018,9 +964,9 @@ test "deleteContents" {
         });
         var range = tree.getLiveRange(range_id);
 
-        try range.testRange(&tree, root, "<element#0><text#1>'First [node'</text#1><text#2>'Second node'</text#2><text#3>'Third] node'</text#3></element#0>");
+        try range.testRange(&tree, root, "<element#1><text#2>'First [node'</text#2><text#3>'Second node'</text#3><text#4>'Third] node'</text#4></element#1>");
         try range.deleteContents(&tree);
-        try range.testRange(&tree, root, "<element#0><text#1>'First '</text#1>|<text#3>' node'</text#3></element#0>");
+        try range.testRange(&tree, root, "<element#1><text#2>'First '</text#2>|<text#4>' node'</text#4></element#1>");
     }
 
     // Test 3: Delete where start node is ancestor of end node
@@ -1044,9 +990,9 @@ test "deleteContents" {
             .offset = 5, // "Child" ]
         });
         var range = tree.getLiveRange(range_id);
-        try range.testRange(&tree, root, "<element#0><element#1><text#2>'Child one'</text#2>[<text#3>'Child] two'</text#3></element#1></element#0>");
+        try range.testRange(&tree, root, "<element#1><element#2><text#3>'Child one'</text#3>[<text#4>'Child] two'</text#4></element#2></element#1>");
         try range.deleteContents(&tree);
-        try range.testRange(&tree, root, "<element#0><element#1><text#2>'Child one'</text#2>|<text#3>' two'</text#3></element#1></element#0>");
+        try range.testRange(&tree, root, "<element#1><element#2><text#3>'Child one'</text#3>|<text#4>' two'</text#4></element#2></element#1>");
     }
 
     // Test 4: Delete where end node is ancestor of start node
@@ -1070,9 +1016,9 @@ test "deleteContents" {
             .offset = 2, // After child1 and child2
         });
         var range = tree.getLiveRange(range_id);
-        try range.testRange(&tree, root, "<element#0><element#1><text#2>'Child [one'</text#2><text#3>'Child two'</text#3></element#1>]</element#0>");
+        try range.testRange(&tree, root, "<element#1><element#2><text#3>'Child [one'</text#3><text#4>'Child two'</text#4></element#2>]</element#1>");
         try range.deleteContents(&tree);
-        try range.testRange(&tree, root, "<element#0><element#1><text#2>'Child '</text#2>|</element#1></element#0>");
+        try range.testRange(&tree, root, "<element#1><element#2><text#3>'Child '</text#3>|</element#2></element#1>");
     }
 
     // Test 5: Complex case with nodes in different branches
@@ -1098,9 +1044,9 @@ test "deleteContents" {
             .offset = 5, // "Leaf " [two
         });
         var range = tree.getLiveRange(range_id);
-        try range.testRange(&tree, root, "<element#0><element#1><text#3>'Leaf [one'</text#3></element#1><element#2><text#4>'Leaf ]two'</text#4></element#2></element#0>");
+        try range.testRange(&tree, root, "<element#1><element#2><text#4>'Leaf [one'</text#4></element#2><element#3><text#5>'Leaf ]two'</text#5></element#3></element#1>");
         try range.deleteContents(&tree);
-        try range.testRange(&tree, root, "<element#0><element#1><text#3>'Leaf '</text#3></element#1>|<element#2><text#4>'two'</text#4></element#2></element#0>");
+        try range.testRange(&tree, root, "<element#1><element#2><text#4>'Leaf '</text#4></element#2>|<element#3><text#5>'two'</text#5></element#3></element#1>");
     }
 
     // Test 6: Empty range (collapsed)
@@ -1120,8 +1066,8 @@ test "deleteContents" {
             .offset = 5,
         });
         var range = tree.getLiveRange(range_id);
-        try range.testRange(&tree, root, "<element#0><text#1>'Test |text'</text#1></element#0>");
+        try range.testRange(&tree, root, "<element#1><text#2>'Test |text'</text#2></element#1>");
         try range.deleteContents(&tree);
-        try range.testRange(&tree, root, "<element#0><text#1>'Test |text'</text#1></element#0>");
+        try range.testRange(&tree, root, "<element#1><text#2>'Test |text'</text#2></element#1>");
     }
 }

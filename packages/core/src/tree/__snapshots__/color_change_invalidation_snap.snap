@@ -2,5 +2,5 @@
 // Function: test.style invalidation - color change
 // Description: color_change_invalidation.snap
 
-[node#0 block flow_root Regenerate]
-    [node#1 block flow_root Regenerate]
+[node#1 block flow_root Regenerate]
+    [node#2 block flow_root Regenerate]

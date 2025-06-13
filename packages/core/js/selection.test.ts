@@ -1,11 +1,11 @@
-import { expect, test, describe } from "vitest";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, test } from "vitest";
 import {
   SelectionExtendDirection,
   SelectionExtendGranularity,
 } from "./constants";
 import { initFromFile } from "./node";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 const dirpath = dirname(
   fileURLToPath(import.meta.url),
 );
@@ -131,6 +131,5 @@ describe("Selection operations", () => {
     });
 
     mod.Tree_deinit(tree);
-   
   });
 });

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" id="html">
 
 <head>
   <meta charset="UTF-8">
@@ -16,61 +16,73 @@
       box-sizing: border-box;
     }
 
-    #root {
-      width: 500px;
-      height: 500px;
-      background-color: red;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      gap: 20px;
-      white-space: pre-wrap;
-      tab-size: 8;
-    }
-
-    .boc {
-      width: 30ch;
-      background-color: lightblue;
-      text-align: center;
-      white-space: normal;
-      resize: both;
-      
-    }
   </style>
 </head>
 
-<body>
+<body id="body">
 
-  <div class="boc">Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quos.</div>
-  <input type="number" id="width" value="30" onchange="updateWidth(this.value)">
-  <select id="white-space" onchange="updateWhiteSpace(this.value)">
-    <option value="normal">normal</option>
-    <option value="nowrap">nowrap</option>
-    <option value="pre">pre</option>
-    <option value="pre-wrap">pre-wrap</option>
-    <option value="pre-line">pre-line</option>
-    <option value="break-spaces">break-spaces</option>
-  </select>
-  <select id="text-align" onchange="updateTextAlign(this.value)">
-    <option value="left">left</option>
-    <option value="center">center</option>
-    <option value="right">right</option>
-    <option value="justify">justify</option>
-  </select>
-  <script>  
 
-    function updateWidth(value) {
-      document.querySelector('.boc').style.width = value + 'ch';
-    }
-    function updateWhiteSpace(value) {
-      document.querySelector('.boc').style.whiteSpace = value;
-    }
-    function updateTextAlign(value) {
-      document.querySelector('.boc').style.textAlign = value;
-    }
+  <div id="result">
+  </div>
+
+  <div id="a">Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quos.
+
+    <div id="b">
+      <p id="b-p1">Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quos.</p>
+      <p id="b-p2">Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quos.</p>
+      <div id="c" tabindex="2">Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quos.</div>
+    </div>
+  </div>
+
+
+  <script>
+    const result = document.getElementById('result');
+    document.addEventListener('keydown', (e) => {
+      console.log("document",{
+        target: e.target,
+        currentTarget: e.currentTarget,
+        srcElement: e.srcElement,
+      });
+    });
+    const b = document.getElementById('b');
+    b.addEventListener('keydown', (e) => {
+      console.log("b",{
+        target: e.target,
+        currentTarget: e.currentTarget,
+        srcElement: e.srcElement,
+      });
+
+    });
+    const c = document.getElementById('c');
+    c.addEventListener('keydown', (e) => {
+      console.log("c",{
+        target: e.target,
+        currentTarget: e.currentTarget,
+        srcElement: e.srcElement,
+      });
+    });
+    // const getNodeId = (node) => {
+    //   let id = node.id;
+    //   if (!id) {
+    //     return `#${node.parentElement.id}>text`;
+    //   }
+    //   return `#${id}`;
+    // }
+    window.addEventListener('wheel', (e) => {
+      console.log("wheel", e);
+      // console.log("document mousemove",{
+      //   target: e.target,
+      //   currentTarget: e.currentTarget,
+      //   srcElement: e.srcElement,
+      // });
+    });
+    // const divs = document.querySelectorAll('div');
+    // for (const div of divs) {
+    //   div.addEventListener('click', (e) => {
+    //     console.log(e, e.target, e.currentTarget);
+    //   }, );
+    // }
   </script>
-
 </body>
 
 </html>

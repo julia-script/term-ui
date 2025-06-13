@@ -28,6 +28,7 @@ const visible = @import("../uni/string-width.zig").visible;
 const LayoutTree = @import("../layout/v2/LayoutTree.zig");
 const layout_mod = @import("../layout/v2/mod.zig");
 pub const Renderer = @import("../renderer/v2/Renderer.zig");
+pub const HitTestFilter = @import("../layout/v2/RenderList.zig").HitTestFilter;
 const docFromXml = @import("../layout/v2/doc-from-xml.zig").docFromXml;
 
 node_map: std.AutoHashMapUnmanaged(Node.NodeId, Node) = .{},
@@ -35,14 +36,15 @@ allocator: std.mem.Allocator,
 style_manager: StyleManager,
 computed_style_cache: ComputedStyleCache,
 input_manager: ?InputManager = null,
-node_id_counter: Node.NodeId = 0,
+
+node_id_counter: Node.NodeId = 1,
 selections: std.AutoHashMapUnmanaged(Selection.Id, Selection) = .{},
 
 // Map from element IDs to node IDs for fast lookups
 id_map: std.StringHashMapUnmanaged(Node.NodeId) = .{},
 
 live_ranges: std.AutoHashMapUnmanaged(u32, Range) = .{},
-live_range_counter: u32 = 0,
+live_range_counter: u32 = 1,
 
 // Current render list for hit testing (rebuilt on each paint)
 render_list: @import("../layout/v2/RenderList.zig"),
@@ -53,7 +55,7 @@ layout_tree: LayoutTree,
 const Self = @This();
 
 usingnamespace @import("../layout/compute/compute_layout.zig");
-pub const ROOT_NODE_ID: Node.NodeId = 0;
+pub const ROOT_NODE_ID: Node.NodeId = 1;
 pub fn init(allocator: std.mem.Allocator) !Self {
     // Initialize style system and tree together
     return Self{
@@ -781,13 +783,11 @@ const RenderList = @import("../layout/v2/RenderList.zig");
 
 // Hit testing using the current render list
 // Returns the layout node ID that contains the given point
-pub fn hitTest(self: *const Self, point: @import("../layout/v2/mod.zig").CSSPoint, options: RenderList.HitTestOptions) ?RenderList.HitTestResult {
-    return self.render_list.hitTest(point, options);
+pub fn hitTest(self: *const Self, point: @import("../layout/v2/mod.zig").CSSPoint, filter: u8) ?RenderList.HitTestResult {
+    return self.render_list.hitTest(point, filter);
 }
-
-// Get all hits at a point (for debugging)
-pub fn hitTestAll(self: *const Self, allocator: std.mem.Allocator, point: @import("../layout/v2/mod.zig").CSSPoint, options: RenderList.HitTestOptions) !std.ArrayList(RenderList.HitTestResult) {
-    return self.render_list.hitTestAll(allocator, point, options);
+pub fn hitTestList(self: *const Self, list: *std.ArrayList(RenderList.HitTestResult), point: @import("../layout/v2/mod.zig").CSSPoint, filter: u8) !void {
+    return self.render_list.hitTestList(list, point, filter);
 }
 
 pub fn destroyNode(self: *Self, id: Node.NodeId) !void {
@@ -1215,9 +1215,9 @@ test "Tree.replaceChild" {
         _ = try tree.appendChild(root, child);
     }
     const to_replace = try tree.createNode();
-    try tree.expectNodes(0, "<0><1></1><2></2><3></3><4></4><5></5></0>", null);
-    _ = try tree.replaceChild(to_replace, 3);
-    try tree.expectNodes(0, "<0><1></1><2></2><6></6><4></4><5></5></0>", null);
+    try tree.expectNodes(1, "<1><2></2><3></3><4></4><5></5><6></6></1>", null);
+    _ = try tree.replaceChild(to_replace, 4);
+    try tree.expectNodes(1, "<1><2></2><3></3><7></7><5></5><6></6></1>", null);
 }
 
 pub fn insertBefore(self: *Self, parent_id: Node.NodeId, node_id: Node.NodeId, child_id: ?Node.NodeId) !Node.NodeId {
@@ -1228,11 +1228,11 @@ test "Tree.insertBefore" {
     const allocator = std.testing.allocator;
     var tree = try docFromXml(allocator, "<element><text>World</text></element>", .{});
     defer tree.deinit();
-    defer tree.validateTree(0, null);
-    try tree.expectNodes(0, "<0><1><text#2>'World'</text#2></1></0>", null);
+    defer tree.validateTree(1, null);
+    try tree.expectNodes(1, "<1><2><text#3>'World'</text#3></2></1>", null);
     const hello_node = try tree.createTextNode("Hello ");
-    _ = try tree.insertBefore(1, hello_node, 2);
-    try tree.expectNodes(0, "<0><1><text#3>'Hello '</text#3><text#2>'World'</text#2></1></0>", null);
+    _ = try tree.insertBefore(2, hello_node, 3);
+    try tree.expectNodes(1, "<1><2><text#4>'Hello '</text#4><text#3>'World'</text#3></2></1>", null);
 }
 
 test "Tree.removeChild" {
@@ -1240,44 +1240,44 @@ test "Tree.removeChild" {
     {
         var tree = try docFromXml(allocator, "<element><text>World</text></element>", .{});
         defer tree.deinit();
-        defer tree.validateTree(0, null);
+        defer tree.validateTree(1, null);
 
-        try tree.expectNodes(0, "<0><1><text#2>'World'</text#2></1></0>", null);
-        try tree.removeChild(0, 1);
-        try tree.expectNodes(0, "<0></0>", null);
+        try tree.expectNodes(1, "<1><2><text#3>'World'</text#3></2></1>", null);
+        try tree.removeChild(1, 2);
+        try tree.expectNodes(1, "<1></1>", null);
     }
     {
         var tree = try docFromXml(allocator, "<element><text>World</text></element>", .{});
 
         defer tree.deinit();
-        defer tree.validateTree(0, null);
-        try tree.expectNodes(0, "<0><1><text#2>'World'</text#2></1></0>", null);
-        try tree.removeChild(1, 2);
-        try tree.expectNodes(0, "<0><1></1></0>", null);
+        defer tree.validateTree(1, null);
+        try tree.expectNodes(1, "<1><2><text#3>'World'</text#3></2></1>", null);
+        try tree.removeChild(2, 3);
+        try tree.expectNodes(1, "<1><2></2></1>", null);
     }
 
     {
         var tree = try init(std.testing.allocator);
 
         defer tree.deinit();
-        defer tree.validateTree(0, null);
+        defer tree.validateTree(1, null);
         const root = try tree.createNode();
         for (0..5) |i| {
             _ = i; // autofix
             const child = try tree.createNode();
             _ = try tree.appendChild(root, child);
         }
-        try tree.expectNodes(0, "<0><1></1><2></2><3></3><4></4><5></5></0>", null);
-        try tree.removeChild(0, 2);
-        try tree.expectNodes(0, "<0><1></1><3></3><4></4><5></5></0>", null);
-        try tree.removeChild(0, 5);
-        try tree.expectNodes(0, "<0><1></1><3></3><4></4></0>", null);
-        try tree.removeChild(0, 4);
-        try tree.expectNodes(0, "<0><1></1><3></3></0>", null);
-        try tree.removeChild(0, 3);
-        try tree.expectNodes(0, "<0><1></1></0>", null);
-        try tree.removeChild(0, 1);
-        try tree.expectNodes(0, "<0></0>", null);
+        try tree.expectNodes(1, "<1><2></2><3></3><4></4><5></5><6></6></1>", null);
+        try tree.removeChild(1, 3);
+        try tree.expectNodes(1, "<1><2></2><4></4><5></5><6></6></1>", null);
+        try tree.removeChild(1, 6);
+        try tree.expectNodes(1, "<1><2></2><4></4><5></5></1>", null);
+        try tree.removeChild(1, 5);
+        try tree.expectNodes(1, "<1><2></2><4></4></1>", null);
+        try tree.removeChild(1, 4);
+        try tree.expectNodes(1, "<1><2></2></1>", null);
+        try tree.removeChild(1, 2);
+        try tree.expectNodes(1, "<1></1>", null);
     }
 }
 pub fn removeChildren(self: *Self, parent_id: Node.NodeId) void {
@@ -1405,7 +1405,7 @@ pub fn normalize(self: *Self, node_id: Node.NodeId) !void {
 test "Tree.normalize" {
     var tree = try init(std.testing.allocator);
     defer tree.deinit();
-    defer tree.validateTree(0, null);
+    defer tree.validateTree(1, null);
     const root = try tree.createNode();
     const text1 = try tree.createTextNode("Hello ");
     const text2 = try tree.createTextNode("World");
@@ -1419,10 +1419,10 @@ test "Tree.normalize" {
     _ = try tree.appendChild(child3, text3);
     _ = try tree.appendChild(child3, text4);
 
-    try tree.expectNodes(0, "<0><text#1>'Hello '</text#1><text#2>'World'</text#2><3><text#4>'!'</text#4><text#5>'!'</text#5></3></0>", null);
-    try tree.normalize(0);
-    try tree.expectNodes(0, "<0><text#1>'Hello World'</text#1><3><text#4>'!!'</text#4></3></0>", null);
-    tree.validateTree(0, null);
+    try tree.expectNodes(1, "<1><text#2>'Hello '</text#2><text#3>'World'</text#3><4><text#5>'!'</text#5><text#6>'!'</text#6></4></1>", null);
+    try tree.normalize(1);
+    try tree.expectNodes(1, "<1><text#2>'Hello World'</text#2><4><text#5>'!!'</text#5></4></1>", null);
+    tree.validateTree(1, null);
 }
 
 pub fn getNodeContains(self: *Self, parent_id: Node.NodeId, maybe_child_id: Node.NodeId) bool {
@@ -1525,21 +1525,21 @@ fn printNode(self: *Self, writer: std.io.AnyWriter, node_id: Node.NodeId, indent
     }
 }
 pub fn print(self: *Self, writer: std.io.AnyWriter) !void {
-    try self.printNode(writer, 0, 0);
+    try self.printNode(writer, ROOT_NODE_ID, 0);
 }
 
-pub inline fn parseTree(allocator: std.mem.Allocator, tree_string: []const u8) !Self {
-    var arena = std.heap.ArenaAllocator.init(allocator);
-    defer arena.deinit();
-    const arena_allocator = arena.allocator();
+// pub inline fn parseTree(allocator: std.mem.Allocator, tree_string: []const u8) !Self {
+//     var arena = std.heap.ArenaAllocator.init(allocator);
+//     defer arena.deinit();
+//     const arena_allocator = arena.allocator();
 
-    const doc = try xml.parse(arena_allocator, tree_string);
-    var tree = try init(allocator);
-    errdefer tree.deinit();
-    _ = try fromXmlElement(&tree, doc.root, null);
+//     const doc = try xml.parse(arena_allocator, tree_string);
+//     var tree = try init(allocator);
+//     errdefer tree.deinit();
+//     _ = try fromXmlElement(&tree, doc.root, null);
 
-    return tree;
-}
+//     return tree;
+// }
 const PrintTreeError = error{
     OutOfMemory,
     NotFound,
@@ -1551,146 +1551,147 @@ const PrintTreeError = error{
     OutOfBounds,
     StartAfterEnd,
 };
-inline fn textNodeFromXmlElement(
-    tree: *Self,
-    xml_node: *xml.Element,
-    parent_id: ?Node.NodeId,
-) PrintTreeError!void {
-    // const node_id = try tree.createTextNode("");
-    const node_id = try tree.createNode();
-    if (parent_id) |parent| {
-        _ = try tree.appendChild(parent, node_id);
-    }
-    var node = tree.getNode(node_id);
-    node.styles.display = .{ .inside = .flow, .outside = .@"inline" };
+// inline fn textNodeFromXmlElement(
+//     tree: *Self,
+//     xml_node: *xml.Element,
+//     parent_id: ?Node.NodeId,
+// ) PrintTreeError!void {
+//     // const node_id = try tree.createTextNode("");
+//     const node_id = try tree.createNode();
+//     if (parent_id) |parent| {
+//         _ = try tree.appendChild(parent, node_id);
+//     }
+//     var node = tree.getNode(node_id);
+//     node.styles.display = .{ .inside = .flow, .outside = .@"inline" };
 
-    var it = xml_node.iterator();
-    var curr_offset: usize = 0;
-    while (it.next()) |content| {
-        switch (content.*) {
-            .char_data => |text| {
-                const text_node_id = try tree.createTextNode(text);
-                _ = try tree.appendChild(node_id, text_node_id);
-                try tree.setText(text_node_id, text);
+//     var it = xml_node.iterator();
+//     var curr_offset: usize = 0;
+//     while (it.next()) |content| {
+//         switch (content.*) {
+//             .char_data => |text| {
+//                 const text_node_id = try tree.createTextNode(text);
+//                 _ = try tree.appendChild(node_id, text_node_id);
+//                 try tree.setText(text_node_id, text);
 
-                for (xml_node.attributes) |attr| {
-                    if (std.mem.eql(u8, attr.name, "selectionStart")) {
-                        const offset: u32 = try std.fmt.parseInt(u32, attr.value, 10);
-                        if (offset >= curr_offset and offset < curr_offset + text.len) {
-                            if (tree.getFirstSelection()) |selection| {
-                                try selection.setAnchor(tree, .{ .node_id = text_node_id, .offset = offset });
-                            } else {
-                                _ = try tree.createSelection(.{ .node_id = text_node_id, .offset = offset }, null);
-                            }
-                        }
+//                 for (xml_node.attributes) |attr| {
+//                     if (std.mem.eql(u8, attr.name, "selectionStart")) {
+//                         const offset: u32 = try std.fmt.parseInt(u32, attr.value, 10);
+//                         if (offset >= curr_offset and offset < curr_offset + text.len) {
+//                             if (tree.getFirstSelection()) |selection| {
+//                                 try selection.setAnchor(tree, .{ .node_id = text_node_id, .offset = offset });
+//                             } else {
+//                                 _ = try tree.createSelection(.{ .node_id = text_node_id, .offset = offset }, null);
+//                             }
+//                         }
 
-                        continue;
-                    }
-                    if (std.mem.eql(u8, attr.name, "selectionEnd")) {
-                        const offset: u32 = try std.fmt.parseInt(u32, attr.value, 10);
-                        if (offset >= curr_offset and offset < curr_offset + text.len) {
-                            if (tree.getFirstSelection()) |selection| {
-                                try selection.setFocus(tree, .{ .node_id = text_node_id, .offset = offset });
-                            } else {
-                                _ = try tree.createSelection(.{ .node_id = text_node_id, .offset = offset }, null);
-                            }
-                        }
-                        continue;
-                    }
-                }
-                curr_offset += text.len;
-            },
-            .element => |el| {
-                // errorFromFunction(fromXmlElement);
-                const child_id = try fromXmlElement(tree, el, node_id);
-                _ = child_id; // autofix
-                // _ = try tree.appendChild(node_id, child_id);
-            },
-            else => {
-                // Unknown content type - skip silently
-            },
-        }
-    }
+//                         continue;
+//                     }
+//                     if (std.mem.eql(u8, attr.name, "selectionEnd")) {
+//                         const offset: u32 = try std.fmt.parseInt(u32, attr.value, 10);
+//                         if (offset >= curr_offset and offset < curr_offset + text.len) {
+//                             if (tree.getFirstSelection()) |selection| {
+//                                 try selection.setFocus(tree, .{ .node_id = text_node_id, .offset = offset });
+//                             } else {
+//                                 _ = try tree.createSelection(.{ .node_id = text_node_id, .offset = offset }, null);
+//                             }
+//                         }
+//                         continue;
+//                     }
+//                 }
+//                 curr_offset += text.len;
+//             },
+//             .element => |el| {
+//                 // errorFromFunction(fromXmlElement);
+//                 const child_id = try fromXmlElement(tree, el, node_id);
+//                 _ = child_id; // autofix
+//                 // _ = try tree.appendChild(node_id, child_id);
+//             },
+//             else => {
+//                 // Unknown content type - skip silently
+//             },
+//         }
+//     }
 
-    // return node_id;
-}
-fn fromXmlElement(
-    tree: *Self,
-    xml_node: *xml.Element,
-    parent_id: ?Node.NodeId,
-) PrintTreeError!void {
-    const is_text_node = std.mem.eql(u8, xml_node.tag, "text");
-    if (is_text_node) {
-        return textNodeFromXmlElement(
-            tree,
-            xml_node,
-            parent_id,
-        );
-    }
-    const node_id = try tree.createNode();
-    if (parent_id) |parent| {
-        _ = try tree.appendChild(parent, node_id);
-    }
+//     // return node_id;
+// }
 
-    // // var style = Style.init(tree.allocator);
-    // // errdefer style.deinit();
-    // const node_id = try tree.createNode();
-    // var style = &tree.getNode(node_id).styles;
-    // if (is_text_node) {
-    //     style.display = .{ .inside = .flow, .outside = .@"inline" };
-    // }
+// fn fromXmlElement(
+//     tree: *Self,
+//     xml_node: *xml.Element,
+//     parent_id: ?Node.NodeId,
+// ) PrintTreeError!void {
+//     const is_text_node = std.mem.eql(u8, xml_node.tag, "text");
+//     if (is_text_node) {
+//         return textNodeFromXmlElement(
+//             tree,
+//             xml_node,
+//             parent_id,
+//         );
+//     }
+//     const node_id = try tree.createNode();
+//     if (parent_id) |parent| {
+//         _ = try tree.appendChild(parent, node_id);
+//     }
 
-    for (xml_node.children) |child| {
-        switch (child) {
-            .element => |el| {
-                const child_id = try fromXmlElement(tree, el, node_id);
-                _ = child_id; // autofix
-                // _ = try tree.appendChild(node_id, child_id);
-            },
-            // .char_data => |text| {
-            //     if (!is_text_node) continue;
-            //     const child_id = try tree.createTextNode(text);
-            //     _ = try tree.appendChild(node_id, child_id);
-            // },
-            else => {},
-        }
-    }
+//     // // var style = Style.init(tree.allocator);
+//     // // errdefer style.deinit();
+//     // const node_id = try tree.createNode();
+//     // var style = &tree.getNode(node_id).styles;
+//     // if (is_text_node) {
+//     //     style.display = .{ .inside = .flow, .outside = .@"inline" };
+//     // }
 
-    for (xml_node.attributes) |attr| {
-        if (std.mem.eql(u8, attr.name, "style")) {
-            try s.parseStyleString(tree, node_id, attr.value);
-            continue;
-        }
-        if (std.mem.eql(u8, attr.name, "scroll-y")) {
-            tree.getNode(node_id).scroll_offset.y = std.fmt.parseFloat(f32, attr.value) catch unreachable;
-            continue;
-        }
-        if (std.mem.eql(u8, attr.name, "scroll-x")) {
-            tree.getNode(node_id).scroll_offset.x = std.fmt.parseFloat(f32, attr.value) catch unreachable;
-            continue;
-        }
-        if (std.mem.eql(u8, attr.name, "selectionStart")) {
-            const offset: u32 = try std.fmt.parseInt(u32, attr.value, 10);
-            if (tree.getFirstSelection()) |selection| {
-                try selection.setAnchor(tree, .{ .node_id = node_id, .offset = offset });
-            } else {
-                _ = try tree.createSelection(.{ .node_id = node_id, .offset = offset }, null);
-            }
+//     for (xml_node.children) |child| {
+//         switch (child) {
+//             .element => |el| {
+//                 const child_id = try fromXmlElement(tree, el, node_id);
+//                 _ = child_id; // autofix
+//                 // _ = try tree.appendChild(node_id, child_id);
+//             },
+//             // .char_data => |text| {
+//             //     if (!is_text_node) continue;
+//             //     const child_id = try tree.createTextNode(text);
+//             //     _ = try tree.appendChild(node_id, child_id);
+//             // },
+//             else => {},
+//         }
+//     }
 
-            continue;
-        }
-        if (std.mem.eql(u8, attr.name, "selectionEnd")) {
-            const offset: u32 = try std.fmt.parseInt(u32, attr.value, 10);
-            if (tree.getFirstSelection()) |selection| {
-                try selection.setFocus(tree, .{ .node_id = node_id, .offset = offset });
-            } else {
-                _ = try tree.createSelection(.{ .node_id = node_id, .offset = offset }, null);
-            }
-            continue;
-        }
-    }
-    // return node_id;
-}
+//     for (xml_node.attributes) |attr| {
+//         if (std.mem.eql(u8, attr.name, "style")) {
+//             try s.parseStyleString(tree, node_id, attr.value);
+//             continue;
+//         }
+//         if (std.mem.eql(u8, attr.name, "scroll-y")) {
+//             tree.getNode(node_id).scroll_offset.y = std.fmt.parseFloat(f32, attr.value) catch unreachable;
+//             continue;
+//         }
+//         if (std.mem.eql(u8, attr.name, "scroll-x")) {
+//             tree.getNode(node_id).scroll_offset.x = std.fmt.parseFloat(f32, attr.value) catch unreachable;
+//             continue;
+//         }
+//         if (std.mem.eql(u8, attr.name, "selectionStart")) {
+//             const offset: u32 = try std.fmt.parseInt(u32, attr.value, 10);
+//             if (tree.getFirstSelection()) |selection| {
+//                 try selection.setAnchor(tree, .{ .node_id = node_id, .offset = offset });
+//             } else {
+//                 _ = try tree.createSelection(.{ .node_id = node_id, .offset = offset }, null);
+//             }
+
+//             continue;
+//         }
+//         if (std.mem.eql(u8, attr.name, "selectionEnd")) {
+//             const offset: u32 = try std.fmt.parseInt(u32, attr.value, 10);
+//             if (tree.getFirstSelection()) |selection| {
+//                 try selection.setFocus(tree, .{ .node_id = node_id, .offset = offset });
+//             } else {
+//                 _ = try tree.createSelection(.{ .node_id = node_id, .offset = offset }, null);
+//             }
+//             continue;
+//         }
+//     }
+//     // return node_id;
+// }
 
 /// Get the computed style for a node, accounting for inheritance and cascading
 pub fn getComputedStyle(self: *Self, node_id: Node.NodeId) Style {
@@ -1834,7 +1835,7 @@ pub fn getLowestCommonAncestorAndFirstDistinctAncestor(self: *Self, a: Node.Node
 test "getLowestCommonAncestorAndFirstDistinctAncestor" {
     var tree = try init(std.testing.allocator);
     defer tree.deinit();
-    defer tree.validateTree(0, null);
+    defer tree.validateTree(1, null);
     const root = try tree.createNode();
     const child_a = try tree.createNode();
     const child_b = try tree.createNode();
@@ -1918,7 +1919,7 @@ pub fn treeOrder(self: *Self, node_a: Node.NodeId, node_b: Node.NodeId) !Order {
 test "treeOrder - comprehensive" {
     var tree = try init(std.testing.allocator);
     defer tree.deinit();
-    defer tree.validateTree(0, null);
+    defer tree.validateTree(1, null);
     // Create a more complex tree structure
     //                    root
     //                   /    \
@@ -2273,201 +2274,223 @@ pub fn dumpNodes(tree: *Self, node_id: Node.NodeId, writer: std.io.AnyWriter, ma
     }
 }
 
-pub fn caretPositionFromPoint(self: *const Self, point: @import("../layout/v2/mod.zig").CSSPoint) ?BoundaryPoint {
+pub fn caretPositionFromPoint(self: *Self, point: @import("../layout/v2/mod.zig").CSSPoint) ?BoundaryPoint {
     // No render tree means document is not laid out
-    if (self.render_list.items.items.len == 0) return null;
+    const items = self.render_list.items.items;
+    if (items.len == 0) return null;
 
-    // Try hit testing for text fragments and line boxes
-    // Text fragments will have priority since they're on top
-    const hit_result = self.render_list.hitTest(point, .{
-        .include_text = true,
-        .include_boxes = false,
-        .include_selections = false,
-        .include_line_boxes = true,
-    });
+    // get the box, linebox or fragment  under the point
+    const hit_result = self.render_list.hitTest(point, RenderList.HitTestFilter.TEXT_FRAGMENT | RenderList.HitTestFilter.LINE_BOX | RenderList.HitTestFilter.BOX) orelse return null;
 
-    if (hit_result) |hit| {
-        switch (hit.item_type) {
-            .text_fragment => {
-                // Direct hit on text - calculate exact character position
-                return self.getCharacterPositionInFragment(hit.item_index, point.x);
-            },
-            .line_box => {
-                // Hit empty space in a line box - find closest fragment
-                const line_box = self.render_list.items.items[hit.item_index].line_box;
-                if (self.closestFragmentForHorizontalPosition(line_box.fragment_indices, point.x)) |fragment_index| {
-                    return self.getCharacterPositionInFragment(fragment_index, point.x);
+    switch (hit_result.item_type) {
+        .text_fragment => {
+            // happy path
+            // direct hit on text fragment
+            // we calculate the carecter position in it
+            return self.getCharacterPositionInFragment(hit_result.item_index, point.x);
+        },
+        .line_box => {
+            // we hit a line but not fragment inside it, we get the closest fragment to the point
+            return self.findInLineBox(hit_result.item_index, point.x);
+        },
+        else => {},
+    }
+    // we hit a box, so we  will try to fall back to the closest line box within the box's subtree
+
+    {
+
+        // first we check if  we have a close linebox horizontally
+        // ✓ = positions this SHOULD catch
+        // ✗ = positions this SHOULD NOT catch
+        // obs: lineboxes could be at any depth in the tree
+        // ┏━━━━━━━━━━━━━━━━┓
+        // ┃   ▓▓▓▓▓▓▓▓▓▓   ┃
+        // ┃ ✓ ▓▓▓▓▓▓▓▓▓▓   ┃
+        // ┃   ▓▓▓▓▓▓▓▓▓▓   ┃
+        // ┃ ✗     ✗      ✗ ┃
+        // ┃   ▓▓▓▓▓▓▓▓▓▓   ┃
+        // ┃   ▓▓▓▓▓▓▓▓▓▓ ✓ ┃
+        // ┃   ▓▓▓▓▓▓▓▓▓▓   ┃
+        // ┗━━━━━━━━━━━━━━━━┛
+        var i = hit_result.item_index + 1; // start from the next item in the render list
+        while (i < items.len) : (i += 1) {
+            const item = items[i];
+            if (item != .line_box) {
+                continue;
+            }
+            const fragment_indexes = item.line_box.fragment_indexes;
+            if (fragment_indexes.len == 0) {
+                // no fragments in this line box
+                // ignore it
+                continue;
+            }
+            const bounds = item.line_box.bounds;
+            // if (point.x < bounds.x or point.x > bounds.x + bounds.width) {
+            // not a match in the horizontal axis
+            if (point.y < bounds.y or point.y >= bounds.y + bounds.height) {
+                //not a match in the horizontal axis
+                continue;
+            }
+            if (!self.isNodeAncestor(hit_result.external_id, item.line_box.doc_node_id) and item.line_box.doc_node_id != hit_result.external_id) {
+                // not in the same subtree
+                // we can't use this line box and we can bail because we know that all the other lineboxes are not in the same subtree
+                break;
+            }
+            // hit
+            // are we to the left of the linebox?
+            if (point.x < bounds.x) {
+                return self.getStartOfFirstFragment(&item.line_box);
+            }
+
+            // we are to the right of the linebox
+            return self.getEndOfLastFragment(&item.line_box);
+            // }
+        }
+    }
+
+    {
+        // then we check if we have a close linebox vertically
+        // ✓ = positions this SHOULD catch
+        // all other positions should be covered by now
+        // obs: lineboxes could be at any depth in the tree
+        // ┏━━━━━━━━━━━━━━━━┓
+        // ┃   ✓            ┃
+        // ┃   ▓▓▓▓▓▓▓▓▓▓   ┃
+        // ┃   ▓▓▓▓▓▓▓▓▓▓   ┃
+        // ┃       ✓       ✓┃
+        // ┃   ▓▓▓▓▓▓▓▓▓▓   ┃
+        // ┃   ▓▓▓▓▓▓▓▓▓▓   ┃
+        // ┃   ▓▓▓▓▓▓▓▓▓▓   ┃
+        // ┃          ✓     ┃
+        // ┗━━━━━━━━━━━━━━━━┛
+        var candidate_index: ?usize = null;
+        var i = hit_result.item_index + 1;
+        while (i < items.len) : (i += 1) {
+            const item = items[i];
+            // same filtering from the horizontal check
+            if (item != .line_box) {
+                continue;
+            }
+            const fragment_indexes = item.line_box.fragment_indexes;
+            if (fragment_indexes.len == 0) {
+                // no fragments in this line box
+                // ignore it
+                continue;
+            }
+            const bounds = item.line_box.bounds;
+            // if (point.x < bounds.x or point.x >= bounds.x + bounds.width) {
+            //     continue;
+            // }
+
+            if (!self.isNodeAncestor(hit_result.external_id, item.line_box.doc_node_id) and item.line_box.doc_node_id != hit_result.external_id) {
+                break;
+            }
+
+            // we found a candidate
+            if (bounds.y > point.y) {
+                // we are past the y position already, the previous candidate is the last line below the point
+                if (candidate_index) |prev_line_index| {
+                    return self.getEndOfLastFragment(&items[prev_line_index].line_box);
+                } else {
+                    // but if there is no previous candidate, we are before the first line box
+                    return self.getStartOfFirstFragment(&items[i].line_box);
                 }
-            },
-            else => {},
+                break;
+            }
+            candidate_index = i;
+        }
+        // if it reached here, we are after the last line box
+        if (candidate_index) |index| {
+            return self.getEndOfLastFragment(&items[index].line_box);
         }
     }
-
-    // Fallback: find first/last line box based on y position
-    return self.findFallbackPosition(point.y);
-}
-
-// Find fallback position when no direct hit
-fn findFallbackPosition(self: *const Self, y: f32) ?BoundaryPoint {
-    // Collect all line boxes
-    var line_boxes = std.ArrayList(usize).init(self.allocator);
-    defer line_boxes.deinit();
-
-    for (self.render_list.items.items, 0..) |item, i| {
-        if (item == .line_box) {
-            line_boxes.append(i) catch continue;
-        }
-    }
-
-    if (line_boxes.items.len == 0) {
-        // No line boxes at all - return position 0 in root
-        return BoundaryPoint{ .node_id = 1, .offset = 0 };
-    }
-
-    // Find first and last line boxes by y position
-    var first_line_idx: usize = line_boxes.items[0];
-    var last_line_idx: usize = line_boxes.items[0];
-    var min_y: f32 = self.render_list.items.items[first_line_idx].line_box.bounds.y;
-    var max_y: f32 = min_y;
-
-    for (line_boxes.items) |idx| {
-        const line_y = self.render_list.items.items[idx].line_box.bounds.y;
-        if (line_y < min_y) {
-            min_y = line_y;
-            first_line_idx = idx;
-        }
-        if (line_y > max_y) {
-            max_y = line_y;
-            last_line_idx = idx;
-        }
-    }
-
-    // if clicking above all content, return start of first line
-    if (y < min_y) {
-        const first_line = self.render_list.items.items[first_line_idx].line_box;
-        if (first_line.fragment_indices.len > 0) {
-            return self.getPositionFromTextFragment(first_line.fragment_indices[0]);
-        }
-    }
-
-    // if clicking below all content, return end of last line
-    const last_line = self.render_list.items.items[last_line_idx].line_box;
-    if (last_line.fragment_indices.len > 0) {
-        const last_fragment_idx = last_line.fragment_indices[last_line.fragment_indices.len - 1];
-        const last_fragment = self.render_list.items.items[last_fragment_idx].text_fragment;
-        // Return the END of the last fragment
-        const dom_node_id: Node.NodeId = @intCast(last_fragment.node_id);
-        return BoundaryPoint{
-            .node_id = dom_node_id,
-            .offset = last_fragment.dom_range.end,
-        };
-    }
-
-    return BoundaryPoint{ .node_id = 1, .offset = 0 };
-}
-
-// Find the closest text fragment on a line for the given x-coordinate
-fn closestFragmentForHorizontalPosition(self: *const Self, fragment_indices: []const usize, x: f32) ?usize {
-    if (fragment_indices.len == 0) return null;
-
-    const items = self.render_list.items.items;
-
-    // Single fragment case
-    if (fragment_indices.len == 1) {
-        return fragment_indices[0];
-    }
-
-    // Fragments are already in left-to-right order from line breaking
-    const first_fragment = items[fragment_indices[0]].text_fragment;
-    const last_fragment = items[fragment_indices[fragment_indices.len - 1]].text_fragment;
-
-    // Click before first fragment
-    if (x <= first_fragment.bounds.x) {
-        return fragment_indices[0];
-    }
-
-    // Click after last fragment
-    if (x >= last_fragment.bounds.x + last_fragment.bounds.width) {
-        return fragment_indices[fragment_indices.len - 1];
-    }
-
-    // Find fragment containing x
-    for (fragment_indices) |idx| {
-        const fragment = items[idx].text_fragment;
-        if (x >= fragment.bounds.x and x < fragment.bounds.x + fragment.bounds.width) {
-            return idx;
-        }
-    }
-
-    // Find closest fragment (shouldn't normally reach here)
-    var closest_idx: ?usize = null;
-    var min_distance: f32 = std.math.floatMax(f32);
-
-    for (fragment_indices) |idx| {
-        const fragment = items[idx].text_fragment;
-        const fragment_center = fragment.bounds.x + fragment.bounds.width / 2;
-        const distance = @abs(x - fragment_center);
-        if (distance < min_distance) {
-            min_distance = distance;
-            closest_idx = idx;
-        }
-    }
-
-    return closest_idx;
-}
-
-// Convert a text fragment to a BoundaryPoint
-fn getPositionFromTextFragment(self: *const Self, fragment_index: usize) ?BoundaryPoint {
-    const items = self.render_list.items.items;
-    if (fragment_index >= items.len) return null;
-
-    const item = items[fragment_index];
-    if (item != .text_fragment) return null;
-
-    const fragment = item.text_fragment;
-
-    // TODO: We need to map from layout node ID to DOM node ID
-    // For now, assume they're the same
-    const dom_node_id: Node.NodeId = @intCast(fragment.node_id);
-
-    // Return the start of the fragment's DOM range
-    // TODO: Calculate exact character position within fragment
-    return BoundaryPoint{
-        .node_id = dom_node_id,
-        .offset = fragment.dom_range.start,
+    return .{
+        .node_id = hit_result.external_id,
+        .offset = 0,
     };
 }
 
-// Calculate character position within a text fragment based on x coordinate
-fn getCharacterPositionInFragment(self: *const Self, fragment_index: usize, x: f32) ?BoundaryPoint {
+pub fn findInLineBox(self: *const Self, linebox_index: usize, x: f32) ?BoundaryPoint {
     const items = self.render_list.items.items;
-    if (fragment_index >= items.len) return null;
+    const line_box = items[linebox_index].line_box;
+    const line_box_bounds = line_box.bounds;
+    std.debug.assert(x >= line_box_bounds.x and x <= line_box_bounds.x + line_box_bounds.width);
 
-    const item = items[fragment_index];
-    if (item != .text_fragment) return null;
-
-    const fragment = item.text_fragment;
-
-    // Calculate x offset within the fragment
-    const x_offset = x - fragment.bounds.x;
-
-    // If clicking before the fragment, return start position
-    if (x_offset <= 0) {
-        const dom_node_id: Node.NodeId = @intCast(fragment.node_id);
+    const fragment_indexes = line_box.fragment_indexes;
+    const first = items[fragment_indexes[0]].text_fragment;
+    if (x < first.bounds.x) {
+        // we are before the first fragment
         return BoundaryPoint{
-            .node_id = dom_node_id,
+            .node_id = first.doc_node_id,
+            .offset = 0,
+        };
+    }
+    const last = items[fragment_indexes[fragment_indexes.len - 1]].text_fragment;
+    if (x > last.bounds.x + last.bounds.width) {
+        // we are after the last fragment
+        return BoundaryPoint{
+            .node_id = last.doc_node_id,
+            .offset = last.dom_range.end,
+        };
+    }
+    // this could happen when there's space between fragments, like, on justified text
+    // we get the closest fragment to the left
+    var candidate_index: ?usize = null;
+    for (fragment_indexes) |fragment_index| {
+        const fragment = items[fragment_index].text_fragment;
+        if (x < fragment.bounds.x) {
+            // we are past it, we can bail
+            break;
+        }
+        candidate_index = fragment_index;
+    }
+    // we should have a candidate by now since we checked before and after the fragments
+    std.debug.assert(candidate_index != null);
+    return getEndOfFragment(&items[candidate_index.?].text_fragment);
+}
+
+pub fn getEndOfFragment(fragment: *const RenderList.TextFragmentItem) BoundaryPoint {
+    return BoundaryPoint{
+        .node_id = fragment.doc_node_id,
+        .offset = fragment.dom_range.end,
+    };
+}
+pub fn getStartOfFragment(fragment: *const RenderList.TextFragmentItem) BoundaryPoint {
+    return BoundaryPoint{
+        .node_id = fragment.doc_node_id,
+        .offset = fragment.dom_range.start,
+    };
+}
+fn getEndOfLastFragment(self: *const Self, linebox: *const RenderList.LineBoxItem) BoundaryPoint {
+    const fragment_indexes = linebox.fragment_indexes;
+    const last_fragment_index = fragment_indexes[fragment_indexes.len - 1];
+    const last_fragment = self.render_list.items.items[last_fragment_index].text_fragment;
+    return getEndOfFragment(&last_fragment);
+}
+
+fn getStartOfFirstFragment(self: *const Self, linebox: *const RenderList.LineBoxItem) BoundaryPoint {
+    const fragment_indexes = linebox.fragment_indexes;
+    const first_fragment_index = fragment_indexes[0];
+    const first_fragment = self.render_list.items.items[first_fragment_index].text_fragment;
+    return getStartOfFragment(&first_fragment);
+}
+
+// Calculate character position within a text fragment based on x coordinate
+fn getCharacterPositionInFragment(self: *const Self, fragment_index: usize, x: f32) BoundaryPoint {
+    const items = self.render_list.items.items;
+
+    const fragment = items[fragment_index].text_fragment;
+    const bounds = fragment.bounds;
+    std.debug.assert(x >= bounds.x and x <= bounds.x + bounds.width);
+    if (fragment.is_atomic) {
+        // this is an atomic fragment, it has no text, so we return the dom position, start and end should be the same
+        return BoundaryPoint{
+            .node_id = fragment.doc_node_id,
             .offset = fragment.dom_range.start,
         };
     }
 
-    // If clicking after the fragment, return end position
-    if (x_offset >= fragment.bounds.width) {
-        const dom_node_id: Node.NodeId = @intCast(fragment.node_id);
-        return BoundaryPoint{
-            .node_id = dom_node_id,
-            .offset = fragment.dom_range.end,
-        };
-    }
+    const local_x = x - bounds.x;
 
     // Find character position within the fragment
     var current_x: f32 = 0;
@@ -2479,19 +2502,17 @@ fn getCharacterPositionInFragment(self: *const Self, fragment_index: usize, x: f
         const char_width_f32 = @as(f32, @floatFromInt(char_width));
 
         // If we've passed the target x position, decide which side of the character
-        if (current_x + char_width_f32 >= x_offset) {
+        if (current_x + char_width_f32 >= local_x) {
             // If we're in the left half of the character, place caret before it
             // If we're in the right half, place caret after it
-            if (x_offset - current_x < char_width_f32 / 2) {
-                const dom_node_id: Node.NodeId = @intCast(fragment.node_id);
+            if (local_x - current_x < char_width_f32 / 2) {
                 return BoundaryPoint{
-                    .node_id = dom_node_id,
+                    .node_id = fragment.doc_node_id,
                     .offset = fragment.dom_range.start + char_count,
                 };
             } else {
-                const dom_node_id: Node.NodeId = @intCast(fragment.node_id);
                 return BoundaryPoint{
-                    .node_id = dom_node_id,
+                    .node_id = fragment.doc_node_id,
                     .offset = fragment.dom_range.start + char_count + 1,
                 };
             }
@@ -2501,12 +2522,7 @@ fn getCharacterPositionInFragment(self: *const Self, fragment_index: usize, x: f
         char_count += 1;
     }
 
-    // If we reach here, place caret at the end of the fragment
-    const dom_node_id: Node.NodeId = @intCast(fragment.node_id);
-    return BoundaryPoint{
-        .node_id = dom_node_id,
-        .offset = fragment.dom_range.end,
-    };
+    unreachable;
 }
 pub fn computeStyles(self: *Self) !void {
     try self.computed_style_cache.computeRootStyle(self);
@@ -2526,7 +2542,7 @@ pub fn computeLayout(self: *Self, allocator: std.mem.Allocator, available_space:
     try layout_mod.computeLayout(&layout_context, available_space);
 }
 pub fn paint(self: *Self, renderer: *Renderer, writer: std.io.AnyWriter, mode: Renderer.RenderMode) !void {
-    self.render_list.clearRetainingCapacity();
+    self.render_list.clear();
     var builder = layout_mod.RenderListBuilder.init(&self.layout_tree, self, &self.render_list);
     defer builder.deinit();
 
@@ -2539,128 +2555,6 @@ pub fn expectNodes(tree: *Self, node_id: Node.NodeId, expected: []const u8, rang
     defer buffer.deinit();
     try tree.dumpNodes(node_id, buffer.writer().any(), range, .{});
     try std.testing.expectEqualStrings(expected, buffer.items);
-}
-
-const HitTestOptions = struct {
-    whatToShow: u8 = 0,
-    include_margin: bool = true,
-};
-pub fn hitTestLegacy(self: *Self, viewport_size: Point(f32), position: Point(f32), comptime options: HitTestOptions) ?BoundaryPoint {
-    return hitTestLegacyInner(self, viewport_size, .{ .pos = .{ .x = 0, .y = 0 }, .size = viewport_size }, 0, .{ .x = 0, .y = 0 }, position, options);
-}
-
-fn hitTestLegacyInner(
-    self: *Self,
-    viewport_size: Point(f32),
-    mask: Canvas.Rect,
-    node_id: Node.NodeId,
-    offset: Point(f32),
-    hit_position: Point(f32),
-    comptime options: HitTestOptions,
-) ?BoundaryPoint {
-    const layout = self.getLayout(node_id);
-    var absolute_position = layout.location.add(offset);
-    const style = self.getComputedStyle(node_id);
-    const node = self.getNode(node_id);
-    const is_scrollable = style.overflow.y == .scroll or style.overflow.x == .scroll or style.overflow.y == .hidden or style.overflow.x == .hidden;
-    if (is_scrollable) {
-        absolute_position = absolute_position.sub(node.scroll_offset);
-    }
-
-    var node_rect = Canvas.Rect{ .pos = absolute_position, .size = layout.size };
-    if (comptime options.include_margin) {
-        node_rect.pos = node_rect.pos.sub(.{ .x = layout.margin.left, .y = layout.margin.top });
-        node_rect.size = node_rect.size.sub(.{ .x = layout.margin.left + layout.margin.right, .y = layout.margin.top + layout.margin.bottom });
-    }
-
-    node_rect = node_rect.intersect(mask);
-
-    var hit: ?BoundaryPoint = if (node_rect.isPointWithin(f32, hit_position)) .{ .node_id = node_id, .offset = 0 } else null;
-
-    const is_text_root = style.display.isInlineFlow();
-    if (is_text_root) {
-        const computed_text = self.getComputedText(node_id) orelse return null;
-        for (computed_text.lines.items) |line| {
-            const line_position = absolute_position.add(line.position);
-            const line_rect = Canvas.Rect{ .pos = line_position, .size = line.size };
-
-            if (!line_rect.isPointWithin(f32, hit_position)) {
-                if (hit_position.y > line_rect.pos.y) {
-                    if (line.parts.getLastOrNull()) |last_part| {
-                        hit = .{ .node_id = last_part.node_id, .offset = @intCast(last_part.node_offset + last_part.length) };
-                    } else {
-                        hit = .{ .node_id = node_id, .offset = 0 };
-                    }
-                } else {
-                    break;
-                }
-
-                continue;
-            }
-
-            if (line.parts.items.len == 0) {
-                return .{ .node_id = node_id, .offset = 0 };
-            }
-            const first_part: ComputedText.TextPart = line.parts.items[0];
-
-            const first_part_pos = line_position.add(first_part.position);
-            if (hit_position.x < first_part_pos.x) {
-                return .{ .node_id = first_part.node_id, .offset = @intCast(first_part.node_offset) };
-            }
-            const last_part: ComputedText.TextPart = line.parts.items[line.parts.items.len - 1];
-            const last_part_pos = line_position.add(last_part.position);
-            const last_part_end = last_part_pos.add(.{ .x = last_part.size.x, .y = 0 });
-            if (hit_position.x >= last_part_end.x) {
-                return .{ .node_id = last_part.node_id, .offset = @intCast(last_part.node_offset + last_part.length) };
-            }
-
-            for (line.parts.items) |part| {
-                const part_rect = Canvas.Rect{ .pos = line_position.add(part.position), .size = .{
-                    .x = part.size.x,
-                    .y = line.size.y,
-                } };
-
-                if (part_rect.isPointWithin(f32, hit_position)) {
-                    hit = .{ .node_id = part.node_id, .offset = @intCast(part.node_offset) };
-                    var x: f32 = part_rect.pos.x;
-
-                    if (x >= hit_position.x) {
-                        return .{ .node_id = part.node_id, .offset = @intCast(part.node_offset) };
-                    }
-
-                    const str = computed_text.slice(part.start, part.start + part.length);
-                    var grapheme_iterator = GraphemeIterator.init(str);
-
-                    while (grapheme_iterator.next()) |grapheme| {
-                        if (x >= hit_position.x) {
-                            return .{ .node_id = part.node_id, .offset = @intCast(part.node_offset + grapheme.offset) };
-                        }
-                        x += @floatFromInt(visible.width.exclude_ansi_colors.utf8(grapheme.bytes(str)));
-                    }
-
-                    return .{ .node_id = part.node_id, .offset = @intCast(part.node_offset + part.length) };
-                }
-            }
-        }
-        return hit;
-    }
-
-    const children = self.getChildren(node_id);
-
-    for (children.items) |child_id| {
-        const child_hit = hitTestLegacyInner(
-            self,
-            viewport_size,
-            mask,
-            child_id,
-            absolute_position,
-            hit_position,
-            options,
-        );
-        hit = child_hit orelse hit;
-    }
-
-    return hit;
 }
 fn getBoundaryEnd(tree: *Self, node_id: Node.NodeId) BoundaryPoint {
     const length = tree.getNode(node_id).length();

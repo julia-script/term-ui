@@ -79,11 +79,11 @@ pub fn generateAnonymousFlexItems(
             .left = mod.math.maybeResolve(css_margin.left, constants.node_inner_size.x) orelse 0,
         };
 
-        const margin_is_auto = mod.CSSRect{
-            .top = if (css_margin.top == .auto) 1.0 else 0.0,
-            .right = if (css_margin.right == .auto) 1.0 else 0.0,
-            .bottom = if (css_margin.bottom == .auto) 1.0 else 0.0,
-            .left = if (css_margin.left == .auto) 1.0 else 0.0,
+        const margin_is_auto = mod.RectOf(bool){
+            .top = (css_margin.top == .auto),
+            .right = (css_margin.right == .auto),
+            .bottom = (css_margin.bottom == .auto),
+            .left = (css_margin.left == .auto),
         };
 
         try flex_items.append(.{
@@ -92,7 +92,12 @@ pub fn generateAnonymousFlexItems(
             .size = size,
             .min_size = min_size,
             .max_size = max_size,
-            .inset = css_inset,
+            .inset = .{
+                .top = mod.math.maybeResolve(css_inset.top, constants.node_inner_size.y),
+                .bottom = mod.math.maybeResolve(css_inset.bottom, constants.node_inner_size.y),
+                .left = mod.math.maybeResolve(css_inset.left, constants.node_inner_size.x),
+                .right = mod.math.maybeResolve(css_inset.right, constants.node_inner_size.x),
+            },
             .margin = margin,
             .margin_is_auto = margin_is_auto,
             .padding = padding,
@@ -136,27 +141,78 @@ pub const DirectionHelper = struct {
         };
     }
 
-    pub fn getMain(self: DirectionHelper, point: mod.CSSMaybePoint) ?f32 {
+    pub fn getMain(self: DirectionHelper, point: mod.CSSPoint) f32 {
         return if (self.is_row) point.x else point.y;
     }
 
-    pub fn getCross(self: DirectionHelper, point: mod.CSSMaybePoint) ?f32 {
+    pub fn getMainOptional(self: DirectionHelper, point: mod.CSSMaybePoint) ?f32 {
+        return if (self.is_row) point.x else point.y;
+    }
+    pub fn getCross(self: DirectionHelper, point: mod.CSSPoint) f32 {
         return if (self.is_row) point.y else point.x;
     }
 
-    pub fn setMain(self: DirectionHelper, point: mod.CSSMaybePoint, value: ?f32) mod.CSSMaybePoint {
+    pub fn getCrossOptional(self: DirectionHelper, point: mod.CSSMaybePoint) ?f32 {
+        return if (self.is_row) point.y else point.x;
+    }
+
+    // pub fn getCross(self: DirectionHelper, point: mod.CSSMaybePoint) ?f32 {
+    //     return if (self.is_row) point.y else point.x;
+    // }
+
+    // pub fn getCrossPoint(self: DirectionHelper, point: mod.CSSPoint) f32 {
+    //     return if (self.is_row) point.y else point.x;
+    // }
+
+    pub fn getCrossAvailableSpace(self: DirectionHelper, point: mod.constants.AvailableSpacePoint) mod.constants.AvailableSpace {
+        return if (self.is_row) point.y else point.x;
+    }
+
+    pub fn getMainAvailableSpace(self: DirectionHelper, point: mod.constants.AvailableSpacePoint) mod.constants.AvailableSpace {
+        return if (self.is_row) point.y else point.x;
+    }
+
+    pub fn setMain(self: DirectionHelper, point: mod.CSSPoint, value: f32) mod.CSSPoint {
+        if (self.is_row) {
+            return .{ .x = value, .y = point.y };
+        } else {
+            return .{ .x = point.x, .y = value };
+        }
+    }
+    pub fn setMainOptional(self: DirectionHelper, point: mod.CSSMaybePoint, value: ?f32) mod.CSSMaybePoint {
         if (self.is_row) {
             return mod.CSSMaybePoint{ .x = value, .y = point.y };
         } else {
             return mod.CSSMaybePoint{ .x = point.x, .y = value };
         }
     }
-
-    pub fn setCross(self: DirectionHelper, point: mod.CSSMaybePoint, value: ?f32) mod.CSSMaybePoint {
+    pub fn setCrossOptional(self: DirectionHelper, point: mod.CSSMaybePoint, value: ?f32) mod.CSSMaybePoint {
         if (self.is_row) {
             return mod.CSSMaybePoint{ .x = point.x, .y = value };
         } else {
             return mod.CSSMaybePoint{ .x = value, .y = point.y };
+        }
+    }
+    pub fn getMainByType(self: DirectionHelper, T: type, point: mod.PointOf(T)) T {
+        return if (self.is_row) point.x else point.y;
+    }
+    pub fn getCrossByType(self: DirectionHelper, T: type, point: mod.PointOf(T)) T {
+        return if (self.is_row) point.y else point.x;
+    }
+
+    pub fn setMainAvailableSpace(self: DirectionHelper, point: mod.constants.AvailableSpacePoint, value: mod.constants.AvailableSpace) mod.constants.AvailableSpacePoint {
+        return if (self.is_row) .{ .x = point.x, .y = value } else .{ .x = value, .y = point.y };
+    }
+
+    pub fn setCrossAvailableSpace(self: DirectionHelper, point: mod.constants.AvailableSpacePoint, value: mod.constants.AvailableSpace) mod.constants.AvailableSpacePoint {
+        return if (self.is_row) .{ .x = point.x, .y = value } else .{ .x = value, .y = point.y };
+    }
+
+    pub fn setCross(self: DirectionHelper, point: mod.CSSPoint, value: f32) mod.CSSPoint {
+        if (self.is_row) {
+            return .{ .x = point.x, .y = value };
+        } else {
+            return .{ .x = value, .y = point.y };
         }
     }
 
@@ -168,8 +224,17 @@ pub const DirectionHelper = struct {
         return if (self.is_row) rect.sumVertical() else rect.sumHorizontal();
     }
 
-    pub fn getCrossStart(self: DirectionHelper, rect: mod.CSSRect) f32 {
+    pub fn getCrossStart(self: DirectionHelper, T: type, rect: mod.RectOf(T)) T {
         return if (self.is_row) rect.top else rect.left;
+    }
+    pub fn getCrossEnd(self: DirectionHelper, T: type, rect: mod.RectOf(T)) T {
+        return if (self.is_row) rect.bottom else rect.right;
+    }
+    pub fn getMainStart(self: DirectionHelper, T: type, rect: mod.RectOf(T)) T {
+        return if (self.is_row) rect.left else rect.top;
+    }
+    pub fn getMainEnd(self: DirectionHelper, T: type, rect: mod.RectOf(T)) T {
+        return if (self.is_row) rect.right else rect.bottom;
     }
 };
 
@@ -188,158 +253,195 @@ pub fn determineFlexBaseSize(
 
     for (flex_items.items) |*child| {
         const css_flex_basis = context.getStyleValue(css_types.LengthPercentageAuto, child.node_id, .flex_basis);
-        const css_overflow = context.getStyleValue(css_types.OverflowPoint, child.node_id, .overflow);
-
         // Parent size for child sizing
-        const cross_axis_parent_size: ?f32 = dir.getCross(constants.node_inner_size);
-        const child_parent_size: mod.CSSMaybePoint = if (dir.is_row)
-            mod.CSSMaybePoint{ .x = null, .y = cross_axis_parent_size }
-        else
-            mod.CSSMaybePoint{ .x = cross_axis_parent_size, .y = null };
+        const cross_axis_parent_size: ?f32 = dir.getCrossOptional(constants.node_inner_size);
+        const child_parent_size: mod.CSSMaybePoint = constants.dir.pointFromCross(cross_axis_parent_size);
 
         // Available space for child sizing
         const cross_axis_margin_sum: f32 = dir.sumCrossAxis(constants.margin);
-        const child_min_cross: ?f32 = if (dir.getCross(child.min_size)) |a| a + cross_axis_margin_sum else null;
-        const child_max_cross: ?f32 = if (dir.getCross(child.max_size)) |a| a + cross_axis_margin_sum else null;
-
-        const cross_axis_available_space: mod.constants.AvailableSpace = switch (dir.getCross(available_space)) {
-            .definite => |d| .{
-                .definite = mod.math.maybeClamp(
-                    cross_axis_parent_size orelse d,
-                    child_min_cross,
-                    child_max_cross,
-                ) orelse d,
-            },
-            .min_content => .min_content,
-            .max_content => .max_content,
+        const child_min_cross: ?f32 = blk: {
+            if (dir.getCrossOptional(child.min_size)) |a| {
+                break :blk a + cross_axis_margin_sum;
+            }
+            break :blk null;
         };
-
+        const child_max_cross: ?f32 = blk: {
+            if (dir.getCrossOptional(child.max_size)) |a| {
+                break :blk a + cross_axis_margin_sum;
+            }
+            break :blk null;
+        };
+        const cross_axis_available_space: mod.constants.AvailableSpace = blk: {
+            const v: mod.constants.AvailableSpace = dir.getCrossAvailableSpace(available_space);
+            switch (v) {
+                .definite => |d| break :blk .{
+                    .definite = mod.math.maybeClamp(
+                        cross_axis_parent_size orelse d,
+                        child_min_cross,
+                        child_max_cross,
+                    ).?,
+                },
+                else => break :blk v,
+            }
+        };
         // Known dimensions for child sizing
         const child_known_dimensions: mod.CSSMaybePoint = blk: {
-            const ckd = dir.setMain(child.size, null);
-            if (child.align_self == .stretch and dir.getCross(child.size) == null) {
-                break :blk dir.setCross(
+            const ckd = dir.setMainOptional(child.size, null);
+            if (child.align_self == .stretch and dir.getCrossOptional(child.size) == null) {
+                break :blk dir.setCrossOptional(
                     ckd,
                     mod.math.maybeSub(
-                        switch (cross_axis_available_space) {
-                            .definite => |d| d,
-                            else => null,
-                        },
+                        cross_axis_available_space.intoOption(),
                         dir.sumCrossAxis(constants.margin),
                     ),
                 );
             }
+
             break :blk ckd;
         };
-
         child.flex_basis = flex_basis: {
             // A. If the item has a definite used flex basis, that's the flex base size.
-            // B. Handle aspect ratio cases (already resolved in size calculation)
-            const flex_basis: ?f32 = mod.math.maybeResolve(css_flex_basis, dir.getMain(constants.node_inner_size));
-            const main_size: ?f32 = dir.getMain(child.size);
+
+            // B. If the flex item has an intrinsic aspect ratio,
+            //    a used flex basis of content, and a definite cross size,
+            //    then the flex base size is calculated from its inner
+            //    cross size and the flex item's intrinsic aspect ratio.
+
+            // Note: `child.size` has already been resolved against aspect_ratio in generateAnonymousFlexItems
+            // So B will just work here by using main_size without special handling for aspect_ratio
+
+            const flex_basis: ?f32 = css_flex_basis.maybeResolve(dir.getMainOptional(constants.node_inner_size));
+            const main_size: ?f32 = dir.getMainOptional(child.size);
             if (flex_basis orelse main_size) |value| {
                 break :flex_basis value;
             }
 
-            // C-E. Content-based sizing
-            const child_available_space = mod.constants.AvailableSpacePoint{
-                .x = if (dir.is_row)
-                    (if (available_space.x == .min_content) .min_content else .max_content)
-                else
-                    cross_axis_available_space,
-                .y = if (dir.is_row)
-                    cross_axis_available_space
-                else
-                    (if (available_space.y == .min_content) .min_content else .max_content),
+            // C. If the used flex basis is content or depends on its available space,
+            //    and the flex container is being sized under a min-content or max-content
+            //    constraint (e.g. when performing automatic table layout [CSS21]),
+            //    size the item under that constraint. The flex base size is the item's
+            //    resulting main size.
+
+            // This is covered by the implementation of E below, which passes the available_space constraint
+            // through to the child size computation. It may need a separate implementation if/when D is implemented.
+
+            // D. Otherwise, if the used flex basis is content or depends on its
+            //    available space, the available main size is infinite, and the flex item's
+            //    inline axis is parallel to the main axis, lay the item out using the rules
+            //    for a box in an orthogonal flow [CSS3-WRITING-MODES]. The flex base size
+            //    is the item's max-content main size.
+
+            // TODO if/when vertical writing modes are supported
+
+            // E. Otherwise, size the item into the available space using its used flex basis
+            //    in place of its main size, treating a value of content as max-content.
+            //    If a cross size is needed to determine the main size (e.g. when the
+            //    flex item's main size is in its block axis) and the flex item's cross size
+            //    is auto and not definite, in this calculation use fit-content as the
+            //    flex item's cross size. The flex base size is the item's resulting main size.
+
+            const child_available_space = blk: {
+                var space = mod.constants.AvailableSpace.MAX_CONTENT;
+                if (dir.getMainAvailableSpace(available_space) == .min_content) {
+                    space = dir.setMainAvailableSpace(space, .min_content);
+                }
+                break :blk dir.setCrossAvailableSpace(space, cross_axis_available_space);
             };
 
-            const child_layout = try mod.performChildLayout(
+            break :flex_basis try measureChildSize(
                 context,
                 child.node_id,
                 child_known_dimensions,
                 child_parent_size,
                 child_available_space,
                 .content_size,
-                .{ .start = false, .end = false },
+                mod.constants.AbsoluteAxis.fromFlexDirection(constants.dir),
+                .{
+                    .start = false,
+                    .end = false,
+                },
             );
-
-            break :flex_basis dir.getMain(mod.CSSMaybePoint{
-                .x = child_layout.size.x,
-                .y = child_layout.size.y,
-            }) orelse 0;
         };
 
-        // Floor flex-basis by the padding_border_sum
+        // Floor flex-basis by the padding_border_sum (floors inner_flex_basis at zero)
+        // This seems to be in violation of the spec which explicitly states that the content box should not be floored at zero
+        // (like it usually is) when calculating the flex-basis. But including this matches both Chrome and Firefox's behaviour.
+        //
+        // TODO: resolve spec violation
+        // Spec: https://www.w3.org/TR/css-flexbox-1/#intrinsic-item-contributions
+        // Spec: https://www.w3.org/TR/css-flexbox-1/#change-2016-max-contribution
         const padding_border_sum: f32 = dir.sumMainAxis(child.padding) + dir.sumMainAxis(child.border);
         child.flex_basis = @max(child.flex_basis, padding_border_sum);
 
-        // The hypothetical main size is the item's flex base size clamped according to its used min and max main sizes
+        // The hypothetical main size is the item's flex base size clamped according to its
+        // used min and max main sizes (and flooring the content box size at zero).
+
         child.inner_flex_basis = child.flex_basis - dir.sumMainAxis(child.padding) - dir.sumMainAxis(child.border);
 
-        const padding_border_size = mod.CSSPoint{
-            .x = child.padding.sumHorizontal() + child.border.sumHorizontal(),
-            .y = child.padding.sumVertical() + child.border.sumVertical(),
-        };
-
+        const padding_border_axes_sums = (child.padding.add(child.border)).sumAxes();
         const hypothetical_inner_min_main: ?f32 = mod.math.maybeMax(
-            dir.getMain(child.min_size),
-            dir.getMain(padding_border_size),
+            dir.getMainOptional(child.min_size),
+            dir.getMain(padding_border_axes_sums),
         );
-
         const hypothetical_inner_size: f32 = mod.math.maybeClamp(
             child.flex_basis,
             hypothetical_inner_min_main,
-            dir.getMain(child.max_size),
-        ) orelse child.flex_basis;
-
+            dir.getMainOptional(child.max_size),
+        ).?;
         const hypothetical_outer_size: f32 = hypothetical_inner_size + dir.sumMainAxis(child.margin);
 
-        child.hypothetical_inner_size = if (dir.is_row)
-            mod.CSSPoint{ .x = hypothetical_inner_size, .y = child.hypothetical_inner_size.y }
-        else
-            mod.CSSPoint{ .x = child.hypothetical_inner_size.x, .y = hypothetical_inner_size };
+        child.hypothetical_inner_size = dir.setMain(child.hypothetical_inner_size, hypothetical_inner_size);
+        child.hypothetical_outer_size = dir.setMain(child.hypothetical_outer_size, hypothetical_outer_size);
 
-        child.hypothetical_outer_size = if (dir.is_row)
-            mod.CSSPoint{ .x = hypothetical_outer_size, .y = child.hypothetical_outer_size.y }
-        else
-            mod.CSSPoint{ .x = child.hypothetical_outer_size.x, .y = hypothetical_outer_size };
-
-        // Determine resolved minimum main size
-        const style_min_main_size: ?f32 = dir.getMain(child.min_size) orelse blk: {
-            const auto_min = mod.CSSMaybePoint{
-                .x = switch (css_overflow.x) {
-                    .visible => 0,
-                    else => null,
-                },
-                .y = switch (css_overflow.y) {
-                    .visible => 0,
-                    else => null,
-                },
-            };
-            break :blk dir.getMain(auto_min);
-        };
+        // Note that it is important that the `parent_size` parameter in the main axis is not set for this
+        // function call as it used for resolving percentages, and percentage size in an axis should not contribute
+        // to a min-content contribution in that same axis. However the `parent_size` and `available_space` *should*
+        // be set to their usual values in the cross axis so that wrapping content can wrap correctly.
+        //
+        // See https://drafts.csswg.org/css-sizing-3/#min-percentage-contribution
+        const style_min_main_size: ?f32 = dir.getMainOptional(child.min_size) orelse dir.getMainOptional(.{
+            .x = child.overflow.x.maybeIntoAutomaticMinSize(),
+            .y = child.overflow.y.maybeIntoAutomaticMinSize(),
+        });
 
         child.resolved_minimum_main_size = style_min_main_size orelse resolved: {
-            // Compute min-content size for automatic minimum
-            const child_available_space_min = mod.constants.AvailableSpacePoint{
-                .x = if (dir.is_row) .min_content else cross_axis_available_space,
-                .y = if (dir.is_row) cross_axis_available_space else .min_content,
+            const min_content_main_size: f32 = blk: {
+                const child_available_space = dir.setCrossAvailableSpace(
+                    mod.constants.AvailableSpace.MIN_CONTENT,
+                    cross_axis_available_space,
+                );
+
+                break :blk try measureChildSize(
+                    context,
+                    child.node_id,
+                    child_known_dimensions,
+                    child_parent_size,
+                    child_available_space,
+                    .content_size,
+                    mod.constants.AbsoluteAxis.fromFlexDirection(constants.dir),
+                    .{
+                        .start = false,
+                        .end = false,
+                    },
+                );
             };
 
-            const min_content_layout = try mod.performChildLayout(
-                context,
-                child.node_id,
-                mod.CSSMaybePoint.NULL,
-                child_parent_size,
-                child_available_space_min,
-                .content_size,
-                .{ .start = false, .end = false },
-            );
+            // 4.5. Automatic Minimum Size of Flex Items
+            // https://www.w3.org/TR/css-flexbox-1/#min-size-auto
+            var clamped_min_content_size: f32 = mod.math.maybeMin(
+                min_content_main_size,
+                dir.getMainOptional(child.size),
+            ).?;
 
-            break :resolved dir.getMain(mod.CSSMaybePoint{
-                .x = min_content_layout.size.x,
-                .y = min_content_layout.size.y,
-            }) orelse 0;
+            clamped_min_content_size = mod.math.maybeMin(
+                clamped_min_content_size,
+                dir.getMainOptional(child.max_size),
+            ).?;
+
+            break :resolved mod.math.maybeMax(
+                clamped_min_content_size,
+                dir.getMain(padding_border_axes_sums),
+            ).?;
         };
     }
 }

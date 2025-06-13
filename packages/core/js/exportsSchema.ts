@@ -208,7 +208,14 @@ export const getSchema = (
 
     Tree_insertBefore: pipe(
       function_(),
-      args(tuple([number(), number(), number(), number()])),
+      args(
+        tuple([
+          number(),
+          number(),
+          number(),
+          number(),
+        ]),
+      ),
       returns(number()),
       catchError("Tree_insertBefore"),
     ),
@@ -366,6 +373,12 @@ export const getSchema = (
       args(tuple([number()])),
       returns(void_()),
     ),
+    Tree_dumpLayoutTree: pipe(
+      function_(),
+      args(tuple([number()])),
+      returns(void_()),
+      catchError("Tree_dumpLayoutTree"),
+    ),
 
     Tree_setText: pipe(
       function_(),
@@ -421,13 +434,7 @@ export const getSchema = (
     ),
     Tree_caretPositionFromPoint: pipe(
       function_(),
-      args(
-        tuple([
-          number(),
-          number(),
-          number(),
-        ]),
-      ),
+      args(tuple([number(), number(), number()])),
       returns(boundaryPointSchema),
       catchError("Tree_caretPositionFromPoint"),
     ),
@@ -451,21 +458,97 @@ export const getSchema = (
     ),
     Tree_setElementId: pipe(
       function_(),
-      args(tuple([number(), number(), zigString])),
+      args(
+        tuple([number(), number(), zigString]),
+      ),
       returns(void_()),
       catchError("Tree_setElementId"),
     ),
     Tree_hitTest: pipe(
       function_(),
-      args(tuple([number(), number(), number()])),
-      returns(number()),
+      args(
+        tuple([
+          number(),
+          number(),
+          number(),
+          number(),
+        ]),
+      ),
+      returns(
+        pipe(
+          number(),
+          transform((ptr) => {
+            const array = new Uint32Array(
+              memory.buffer,
+              ptr,
+              2,
+            );
+            if (array[0] === 0) return null;
+            return {
+              id: array[0] as number,
+              type: array[1] as number,
+            };
+          }),
+        ),
+      ),
       catchError("Tree_hitTest"),
+    ),
+    Tree_hitTestList: pipe(
+      function_(),
+      args(
+        tuple([
+          number(),
+          number(),
+          number(),
+          number(),
+        ]),
+      ),
+      returns(
+        pipe(
+          number(),
+          transform((ptr) => {
+            const array = new Uint32Array(
+              memory.buffer,
+              ptr,
+            );
+            const results: {
+              id: number;
+              type: number;
+            }[] = [];
+            let i = 0;
+            while (array[i] !== 0) {
+              if (i > 1024) {
+                break;
+              }
+              results.push({
+                id: array[i] as number,
+                type: array[i + 1] as number,
+              });
+              i += 2;
+            }
+            // setTimeout(() => {
+            //   module.Tree_deinitHitTestList(ptr);
+            // }, 0);
+            // module.Tree_deinitHitTestList(ptr);
+            return results;
+          }),
+        ),
+      ),
+      catchError("Tree_hitTestList"),
+    ),
+    Tree_deinitHitTestList: pipe(
+      function_(),
+      args(tuple([number()])),
+      returns(void_()),
+      catchError("Tree_deinitHitTestList"),
     ),
     Tree_getNodeInvalidationStatus: pipe(
       function_(),
       args(tuple([number(), number()])),
       returns(number()),
-      catchError("Tree_getNodeInvalidationStatus"),
+      catchError(
+        "Tree_getNodeInvalidationStatus",
+      ),
     ),
     Tree_createSelection: pipe(
       function_(),
@@ -572,12 +655,6 @@ export const getSchema = (
       args(tuple([number()])),
       returns(void_()),
       catchError("Renderer_deinit"),
-    ),
-    Renderer_getNodeAt: pipe(
-      function_(),
-      args(tuple([number(), number(), number(), number()])),
-      returns(number()),
-      catchError("Renderer_getNodeAt"),
     ),
 
     TermInfo_initFromMemory: pipe(

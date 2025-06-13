@@ -1,17 +1,17 @@
-// Snapshot from: layout/v2/LayoutTree.zig:781:7
+// Snapshot from: layout/v2/LayoutTree.zig:835:7
 // Function: test.LayoutTree
 // Description: inline only
 
 DocTree:
-[node#0 block flow_root Recompute]
-    [text #1 Recompute] "\n  "
-    [node#2 inline flow Recompute]
-        [text #3 Recompute] "\n    abc\n    def\n  "
-    [text #4 Recompute] "\n  zzz\n"
+[node#1 block flow_root Recompute]
+    [text #2 Recompute] "\n  "
+    [node#3 inline flow Recompute]
+        [text #4 Recompute] "\n    abc\n    def\n  "
+    [text #5 Recompute] "\n  zzz\n"
 LayoutTree:
-[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
-└── [inline_container_node #1 ref={doc#0} children={3} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
-    ├── [text_node #2 gen={1} cache_empty={true}]
-    ├── [inline_node #3 ref={doc#2} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
-    │   └── [text_node #4 gen={1} cache_empty={true}]
-    └── [text_node #5 gen={1} cache_empty={true}]
+[block_container_node #1 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+└── [inline_container_node #2 ref={doc#1} children={3} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+    ├── [text_node #3 ref={doc#2} gen={1} cache_empty={true}]
+    ├── [inline_node #4 ref={doc#3} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+    │   └── [text_node #5 ref={doc#4} gen={1} cache_empty={true}]
+    └── [text_node #6 ref={doc#5} gen={1} cache_empty={true}]

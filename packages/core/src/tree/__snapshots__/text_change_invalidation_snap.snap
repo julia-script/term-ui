@@ -2,5 +2,5 @@
 // Function: test.style invalidation - text change
 // Description: text_change_invalidation.snap
 
-[node#0 block flow_root Regenerate]
-    [text #1 Regenerate] "Hello World!"
+[node#1 block flow_root Regenerate]
+    [text #2 Regenerate] "Hello World!"

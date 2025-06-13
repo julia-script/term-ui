@@ -242,7 +242,7 @@ fn computeInner(allocator: std.mem.Allocator, node_id: Node.NodeId, tree: *Tree,
                 .order = @intCast(order),
                 .margin = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
             });
-            _ = try performChildLayout(
+            const layout = try performChildLayout(
                 allocator,
                 child_id,
                 tree,
@@ -252,6 +252,7 @@ fn computeInner(allocator: std.mem.Allocator, node_id: Node.NodeId, tree: *Tree,
                 .inherent_size,
                 .{ .start = false, .end = false },
             );
+            defer layout.deinit();
         }
     }
     // 7. Determine whether this node can be collapsed through
@@ -329,7 +330,6 @@ pub fn determineContentBasedContainerWidth(
     items: *Array(BlockItem),
     available_width: AvailableSpace,
 ) !f32 {
-    _ = node_id; // autofix
     var max_child_width: f32 = 0;
     const available_space = Point(AvailableSpace){
         .x = available_width,
@@ -345,6 +345,7 @@ pub fn determineContentBasedContainerWidth(
         var width = known_dimensions.x orelse blk: {
             const item_x_margin_sum: f32 = item.margin.maybeResolve(available_space_width).orZero().sumHorizontal();
 
+            std.debug.print("#{d} will performChildLayout\n", .{node_id});
             const size_and_baselines = try performChildLayout(
                 allocator,
                 item.node_id,
@@ -379,7 +380,7 @@ fn performFinalLayoutOnInFlowChildren(
     _ = root_id; // autofix
 
     // Resolve container_inner_width for sizing child nodes using initial content_box_inset
-    //     let container_inner_width = container_outer_width - content_box_inset.horizontal_axis_sum();
+    // let container_inner_width = container_outer_width - content_box_inset.horizontal_axis_sum();
     //     let parent_size = Size { width: Some(container_outer_width), height: None };
     //     let available_space =
     //         Size { width: AvailableSpace::Definite(container_inner_width), height: AvailableSpace::MinContent };
@@ -423,6 +424,8 @@ fn performFinalLayoutOnInFlowChildren(
             .x = available_space.x.maybeSubtractIfDefinite(item_non_auto_x_margin_sum),
             .y = available_space.y,
         };
+
+        std.debug.print("#{d} will performChildLayout\n", .{node_id});
 
         const item_layout = try performChildLayout(
             allocator,

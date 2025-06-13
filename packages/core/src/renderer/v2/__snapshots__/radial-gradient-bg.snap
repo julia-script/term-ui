@@ -9,8 +9,8 @@
 </div>
 
 --- DOM Tree ---
-[node#0 block flow_root Regenerate]
-    [text #1 Regenerate] "\n"
+[node#1 block flow_root Regenerate]
+    [text #2 Regenerate] "\n"
 
 --- Computing Styles ---
 Styles computed successfully
@@ -19,19 +19,19 @@ Styles computed successfully
 Layout tree built successfully
 
 --- Layout Tree (before computation) ---
-[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
-└── [inline_container_node #1 ref={doc#0} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
-    └── [text_node #2 gen={1} cache_empty={true}]
+[block_container_node #1 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+└── [inline_container_node #2 ref={doc#1} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+    └── [text_node #3 ref={doc#2} gen={1} cache_empty={true}]
 
 --- Layout Computation ---
 Available space: [definite: 30] x [definite: 15]
 
 --- Layout Tree (after computation) ---
-[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (30.00, 15.00) content: (30.00, 15.00)]} gen={1} cache_empty={false}]
-└── [inline_container_node #1 ref={doc#0} children={1} lines={1} box={[loc: (0.00, 0.00) size: (20.00, 10.00) content: (30.00, 0.00)]} gen={1} cache_empty={false}]
-    ├── [line_box #0 fragments=1 size={(0.00, 0.00)}]
-    │   └── [fragment node={#2} range=0-1 pos={(0.00, 0.00)} size={(0.00, 0.00)} text=""]
-    └── [text_node #2 gen={1} cache_empty={true}]
+[block_container_node #1 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (30.00, 15.00) content: (30.00, 15.00)]} gen={1} cache_empty={false}]
+└── [inline_container_node #2 ref={doc#1} children={1} lines={1} box={[loc: (0.00, 0.00) size: (20.00, 10.00) content: (0.00, 0.00)]} gen={1} cache_empty={false}]
+    ├── [line_box #0 fragments=1 size={(0.00, 0.00)} location={(0.00, 0.00)}]   
+    │   └── [fragment node={#3} range=0-1 pos={(0.00, 0.00)} size={(0.00, 0.00)} text=""]
+    └── [text_node #3 ref={doc#2} gen={1} cache_empty={true}]
 
 --- Rendered Output ---
 Raw (escape sequences as \E):
@@ -41,5 +41,5 @@ Visual:
 
 
 --- Canvas Info ---
-Dimensions: 30x15
-Total cells: 450
+Dimensions: 20x10
+Total cells: 200

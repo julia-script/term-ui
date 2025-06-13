@@ -68,7 +68,7 @@ const WhiteSpaceCollapse = @import("../../../styles/white-space.zig").WhiteSpace
 
 //     return tokens;
 // }
-pub const Error = error{ OutOfMemory, InvalidUtf8 };
+pub const Error = error{ OutOfMemory, InvalidUtf8, FailedToComputeChildLayout };
 pub fn tokenizeLayoutNode(
     allocator: std.mem.Allocator,
     context: *mod.LayoutContext,
@@ -98,7 +98,6 @@ pub fn tokenizeLayoutNode(
         },
         else => std.debug.panic("Root node should be an inline container node", .{}),
     }
-    std.debug.print("Content: {s}\n", .{linebreak_iter.buffer.items});
     return tokens;
 }
 pub fn tokenizeLayoutNodeInner(
@@ -118,6 +117,18 @@ pub fn tokenizeLayoutNodeInner(
             // const doc_node = context.doc_tree.getNode(l_node.ref.doc_node);
             // const text = doc_node.text.slice();
             const text = context.layout_tree.getNodeText(context.doc_tree, l_node_id);
+            // special case: if the text is empty, we still need a token for it so every node has at least one token
+            if (text.len == 0) {
+                try tokens.append(.{
+                    .l_node_id = l_node_id,
+                    .dom_range = .{ .start = 0, .end = 0 },
+                    .text = "",
+                    .kind = .text,
+                    .break_after = .prohibited,
+                    .size = .{ .x = 0, .y = 0 },
+                });
+                return;
+            }
             try linebreak_iter.append(text);
             const start_i = linebreak_iter.last_buffer_index;
             var last_break: usize = 0;
@@ -152,7 +163,7 @@ pub fn tokenizeLayoutNodeInner(
         },
         .inline_node => |inline_node| {
             if (inline_node.is_atomic) {
-                const layout = try mod.performChildLayout(
+                var layout = try mod.performChildLayout(
                     context,
 
                     l_node_id,
@@ -162,6 +173,7 @@ pub fn tokenizeLayoutNodeInner(
                     .inherent_size,
                     .{ .start = false, .end = false },
                 );
+                defer layout.deinit();
                 try tokens.append(.{
                     .l_node_id = l_node_id,
                     .dom_range = .{ .start = 0, .end = 0 },

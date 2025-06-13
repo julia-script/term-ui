@@ -164,8 +164,8 @@ test "NodeIterator" {
     defer tree.deinit();
 
     {
-        var node_iter = tree.createNodeIterator(0);
-        var i: Node.NodeId = 1;
+        var node_iter = tree.createNodeIterator(1);
+        var i: Node.NodeId = 2;
         while (node_iter.nextNode()) |node_id| {
             try std.testing.expectEqual(node_id, i);
             i += 1;

@@ -11,9 +11,21 @@ export const distDir = join(
 );
 
 const _initFromFile = async (
-  path: string = join(distDir, "core.wasm"),
+  path?: string,
   args: InitArgs = {},
 ) => {
+  // Use dev flag from args, defaulting to NODE_ENV check
+  const isDev =
+    args.dev ??
+    process.env.NODE_ENV === "development";
+
+  if (!path) {
+    const wasmFile = isDev
+      ? "core-debug.wasm"
+      : "core.wasm";
+    path = join(distDir, wasmFile);
+  }
+
   const bytes = await readFile(path);
   return await init(new Uint8Array(bytes), args);
 };

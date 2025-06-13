@@ -19,7 +19,6 @@ pub fn compute(
     wrap_mode: css_types.TextWrapMode,
     text_align: css_types.TextAlign,
 ) Error!LineBox.LineBoxList {
-    std.debug.print("Computing line boxes for node {d}\n", .{l_node_id});
     const tokens = try Tokenizer.tokenizeLayoutNode(
         allocator,
         context,
@@ -51,7 +50,7 @@ pub fn compute(
 test "compute" {
     var doc = try mod.docFromXml(std.testing.allocator, "<div>Hello, world!</div>", .{});
     defer doc.deinit();
-    
+
     // Use the new pipeline approach
     try doc.computeStyles();
     try doc.buildLayoutTree();

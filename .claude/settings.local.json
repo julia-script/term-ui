@@ -14,7 +14,9 @@
       "Bash(UPDATE_SNAPSHOTS=true zig build debugbuild -Dtest-filter=\"hanging spaces\")",
       "mcp__notionApi__API-get-self",
       "mcp__notionApi__API-post-search",
-      "mcp__notionApi__API-post-page"
+      "mcp__notionApi__API-post-page",
+      "Bash(awk:*)",
+      "Bash(timeout:*)"
     ],
     "deny": []
   },

@@ -35,6 +35,14 @@ export class Tree {
       throw new Error("Tree already disposed");
     }
   }
+  computeStyles() {
+    this.assertNotDisposed();
+    this.module.Tree_computeStyles(this.ptr);
+  }
+  buildLayoutTree() {
+    this.assertNotDisposed();
+    this.module.Tree_buildLayoutTree(this.ptr);
+  }
   computeLayout(
     width: number | "min-content" | "max-content",
     height:

@@ -3,12 +3,13 @@ import { clamp } from "@term-ui/shared/clamp";
 import type { Document } from "./Document";
 import { Node } from "./Node";
 import { TextElement } from "./TextElement";
-import type { DomEvent } from "./types";
+
+import type { DOMEvent, DOMEventByType } from "./types";
 
 export class Element extends Node {
   listeners: Map<
-    string,
-    Set<(event: DomEvent) => void>
+    DOMEvent["type"],
+    Set<(event: DOMEvent) => void>
   > = new Map();
   constructor(
     private document: Document,
@@ -248,38 +249,40 @@ export class Element extends Node {
       this.document.createTextNode(text);
     this.appendChild(textNode);
   };
-  emitEvent = (event: DomEvent) => {
-    const set = this.listeners.get(event.kind);
+  emitEvent = (event: DOMEvent) => {
+    const set = this.listeners.get(event.type);
     if (set) {
       for (const listener of set) {
         listener(event);
       }
     }
   };
-  addEventListener = <K extends DomEvent["kind"]>(
+  addEventListener = <
+    const K extends DOMEvent["type"],
+  >(
     event: K,
     listener: (
-      event: Extract<DomEvent, { kind: K }>,
+      event: DOMEventByType<K>,
     ) => void,
   ) => {
     const set =
       this.listeners.get(event) ?? new Set();
     set.add(
-      listener as (event: DomEvent) => void,
+      listener as (event: DOMEvent) => void,
     );
     this.listeners.set(event, set);
   };
   removeEventListener = <
-    K extends DomEvent["kind"],
+    K extends DOMEvent["type"],
   >(
     event: K,
     listener: (
-      event: Extract<DomEvent, { kind: K }>,
+      event: DOMEventByType<K>,
     ) => void,
   ) => {
     const set = this.listeners.get(event);
     set?.delete(
-      listener as (event: DomEvent) => void,
+      listener as (event: DOMEvent) => void,
     );
   };
 

@@ -1,6 +1,6 @@
 import type { Document } from "./Document";
+import type { Element } from "./Element";
 import { Node } from "./Node";
-import type { DomEvent } from "./types";
 
 export class TextElement extends Node {
   constructor(
@@ -12,6 +12,20 @@ export class TextElement extends Node {
     }
     super(document.tree, id);
     document.addElement(this);
+  }
+  get parent(): Element | TextElement | null {
+    const parentId =
+      this.document.tree.module.Tree_getNodeParent(
+        this.document.tree.ptr,
+        this.id,
+      );
+
+    if (parentId === -1) {
+      return null;
+    }
+    return this.document.getOrAddElement(
+      parentId,
+    );
   }
   static fromNode(
     document: Document,
@@ -27,7 +41,6 @@ export class TextElement extends Node {
       document,
       node,
     );
-    element.document = document;
     return element;
   }
   setText(text: string) {
@@ -37,9 +50,7 @@ export class TextElement extends Node {
       text,
     );
   }
-  emitEvent = (_: DomEvent) => {
-    // debug.log(event);
-  };
+
   [Symbol.for("nodejs.util.inspect.custom")]() {
     return `<text (${this.id})/>`;
   }

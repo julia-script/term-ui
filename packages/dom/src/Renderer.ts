@@ -18,23 +18,46 @@ export class Renderer {
     return new Renderer(module, stdout);
   }
 
-  getNodeAt(x: number, y: number) {
-    return this.module.Renderer_getNodeAt(
-      this.ptr,
+  hitTest(
+    tree: Tree,
+    x: number,
+    y: number,
+    filter: number,
+  ) {
+    return this.module.Tree_hitTest(
+      tree.ptr,
       x,
       y,
+      filter,
     );
   }
-  renderToStdout(
-    tree: Tree,
-    clearScreen = false,
-  ) {
-    this.module.Renderer_renderToStdout(
-      this.ptr,
+  // getNodeAt(x: number, y: number, tree: Tree) {
+  //   return this.module.Tree_hitTest(
+  //     tree.ptr,
+  //     x,
+  //     y,
+  //   );
+  // }
+  // renderToStdout(
+  //   tree: Tree,
+  //   clearScreen = false,
+  // ) {
+  //   this.module.Renderer_renderToStdout(
+  //     this.ptr,
+  //     tree.ptr,
+  //     clearScreen,
+  //   );
+  // }
+  paintSimple(tree: Tree) {
+    this.module.Tree_paintSimple(
       tree.ptr,
-      clearScreen,
+      this.ptr,
     );
   }
+  paint(tree: Tree) {
+    this.module.Tree_paintApp(tree.ptr, this.ptr);
+  }
+
   dispose() {
     this.module.Renderer_deinit(this.ptr);
   }

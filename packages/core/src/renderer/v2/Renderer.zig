@@ -146,6 +146,7 @@ fn renderApp(self: *Self, writer: std.io.AnyWriter) !void {
 
     self.render_buffer.clearRetainingCapacity();
     const buf_writer = self.render_buffer.writer(self.allocator).any();
+    try buf_writer.writeAll("\x1b[H");
 
     // If no previous state or dimensions changed, do a full render
     if (previous.len == 0 or previous.len != cells.len) {

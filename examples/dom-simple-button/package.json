@@ -9,6 +9,8 @@
   "dependencies": {
     "@term-ui/core": "workspace:*",
     "@term-ui/dom": "workspace:*",
-    "@term-ui/shared": "workspace:*"
+    "@termui/devtools": "workspace:*",
+    "@term-ui/shared": "workspace:*",
+    "socket.io-client": "^4.8.1"
   }
 }

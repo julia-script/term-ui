@@ -84,13 +84,17 @@ pub fn get(self: *Cache, known_dimensions: Point(?f32), available_space: Point(A
     }
 }
 
-pub fn store(self: *Cache, known_dimensions: Point(?f32), available_space: Point(AvailableSpace), run_mode: RunMode, layout_output: LayoutResult) void {
+pub fn store(self: *Cache, allocator: std.mem.Allocator, known_dimensions: Point(?f32), available_space: Point(AvailableSpace), run_mode: RunMode, layout_output: LayoutResult) !void {
     switch (run_mode) {
         .perform_layout => {
+            // Clean up old line_boxes before storing new entry, but only if it's a different pointer
+            if (self.final_layout_entry) |*old_entry| {
+                old_entry.content.deinit();
+            }
             self.final_layout_entry = .{
                 .known_dimensions = known_dimensions,
                 .available_space = available_space,
-                .content = layout_output,
+                .content = try layout_output.dupe(allocator),
             };
         },
         .compute_size => {
@@ -106,8 +110,19 @@ pub fn store(self: *Cache, known_dimensions: Point(?f32), available_space: Point
 
 const EMPTY_MEASURE_ENTRIES = [_]?CacheEntry(Point(f32)){null} ** CACHE_SIZE;
 pub fn clear(self: *Cache) void {
+    // Clean up line_boxes before clearing
+    if (self.final_layout_entry) |*entry| {
+        entry.content.deinit();
+    }
     self.final_layout_entry = null;
     self.measure_entries = EMPTY_MEASURE_ENTRIES;
+}
+
+pub fn deinit(self: *Cache) void {
+    // Clean up any stored line_boxes
+    if (self.final_layout_entry) |*entry| {
+        entry.content.deinit();
+    }
 }
 
 pub fn isEmpty(self: *Cache) bool {

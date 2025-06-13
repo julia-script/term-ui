@@ -23,7 +23,7 @@ dom_range: @import("../RenderList.zig").DomRange = .{ .start = 0, .end = 0 },
 
 const Self = @This();
 
-pub fn dupe(self: *Self, allocator: std.mem.Allocator) !Self {
+pub inline fn dupe(self: *Self, allocator: std.mem.Allocator) !Self {
     return .{
         .l_node_id = self.l_node_id,
         .start = self.start,

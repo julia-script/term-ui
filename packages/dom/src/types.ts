@@ -10,50 +10,50 @@ export type Size<T = number> = {
   width: T;
   height: T;
 };
-export type DomEvent =
-  | MouseEnterEvent
-  | MouseLeaveEvent
-  | MouseMoveEvent
-  | MouseDownEvent
-  | MouseUpEvent
-  | MouseClickEvent
-  | ScrollEvent
-  | KeydownEvent
-  | KeyupEvent
-  | KeypressEvent;
+// export type DomEvent =
+//   | MouseEnterEvent
+//   | MouseLeaveEvent
+//   | MouseMoveEvent
+//   | MouseDownEvent
+//   | MouseUpEvent
+//   | MouseClickEvent
+//   | ScrollEvent
+//   | KeydownEvent
+//   | KeyupEvent
+//   | KeypressEvent;
 export type MouseEnterEvent = {
-  kind: "mouse-enter";
+  type: "mouseenter";
   target: Element;
   document: Document;
 };
 export type MouseLeaveEvent = {
-  kind: "mouse-leave";
+  type: "mouseleave";
   target: Element;
   document: Document;
 };
 export type MouseMoveEvent = {
-  kind: "mouse-move";
+  kind: "mousemove";
   target: Element;
   document: Document;
   x: number;
   y: number;
 };
 export type MouseDownEvent = {
-  kind: "mouse-down";
+  type: "mousedown";
   target: Element;
   document: Document;
   x: number;
   y: number;
 };
 export type MouseUpEvent = {
-  kind: "mouse-up";
+  type: "mouseup";
   target: Element;
   document: Document;
   x: number;
   y: number;
 };
 export type MouseClickEvent = {
-  kind: "click";
+  type: "click";
   target: Element;
   document: Document;
   x: number;
@@ -84,15 +84,15 @@ export type BaseKeyEvent = {
 };
 
 export type KeydownEvent = BaseKeyEvent & {
-  kind: "keydown";
+  type: "keydown";
 };
 
 export type KeyupEvent = BaseKeyEvent & {
-  kind: "keyup";
+  type: "keyup";
 };
 
 export type KeypressEvent = BaseKeyEvent & {
-  kind: "keypress";
+  type: "keypress";
 };
 
 export type RenderingSize = Size<
@@ -112,3 +112,81 @@ export type DocumentOptions = {
   clearScreenBeforePaint: boolean;
   onPaintRequest?: () => void;
 };
+
+export type EventTarget = Element | Document;
+export type KeyboardEvent = {
+  type: "keydown" | "keyup" | "keypress";
+  target: EventTarget;
+  currentTarget: EventTarget;
+  key: string;
+  code: string;
+  charCode?: number;
+  text: string;
+  keyCode?: number;
+  bubbles: boolean;
+  defaultPrevented: boolean;
+  preventDefault: () => void;
+  stopPropagation: () => void;
+  shiftKey: boolean;
+  ctrlKey: boolean;
+  altKey: boolean;
+  metaKey: boolean;
+  repeat: boolean;
+};
+
+// mousedown, mouseenter, mouseleave, mousemove, mouseout, mouseover, or mouseup.
+export type MouseEvent = {
+  type:
+    | "mousedown"
+    | "mouseup"
+    | "mousemove"
+    | "mouseenter"
+    | "mouseleave"
+    | "mouseout"
+    | "mouseover";
+  button: string;
+  clientX: number;
+  clientY: number;
+  target: EventTarget;
+  currentTarget: EventTarget;
+  bubbles: boolean;
+  defaultPrevented: boolean;
+  preventDefault: () => void;
+  stopPropagation: () => void;
+  shiftKey: boolean;
+  ctrlKey: boolean;
+  altKey: boolean;
+  metaKey: boolean;
+};
+
+export type WheelEvent = {
+  type: "wheel";
+  target: EventTarget;
+  currentTarget: EventTarget;
+  deltaX: number;
+  deltaY: number;
+  bubbles: boolean;
+  defaultPrevented: boolean;
+  preventDefault: () => void;
+  stopPropagation: () => void;
+  shiftKey: boolean;
+  ctrlKey: boolean;
+  altKey: boolean;
+  metaKey: boolean;
+} 
+
+export type DOMEvent =
+  | KeyboardEvent
+  | MouseEvent
+  | WheelEvent;
+
+
+
+
+
+
+
+export type DOMEventByType<T extends DOMEvent["type"]> =  T extends DOMEvent["type"] ? DOMEvent & { type: T } : never;
+
+export type test = DOMEventByType<"mousemove">; 
+//           ^?

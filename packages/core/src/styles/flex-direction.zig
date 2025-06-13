@@ -1,6 +1,7 @@
 const std = @import("std");
 const utils = @import("utils.zig");
 const Point = @import("../layout/point.zig").Point;
+const Rect = @import("../layout/rect.zig").Rect;
 
 const MemberType = @import("../layout/utils/comptime.zig").MemberType;
 pub const FlexDirection = enum {
@@ -37,8 +38,7 @@ pub const FlexDirection = enum {
             return point.x;
         }
     }
-
-    pub fn getCrossStart(self: FlexDirection, rect: anytype) MemberType(@TypeOf(rect)) {
+    pub fn getCrossStart(self: FlexDirection, T: type, rect: Rect(T)) T {
         if (self.isRow()) {
             return rect.top;
         } else {
@@ -46,7 +46,15 @@ pub const FlexDirection = enum {
         }
     }
 
-    pub fn getCrossEnd(self: FlexDirection, rect: anytype) MemberType(@TypeOf(rect)) {
+    // pub fn getCrossStart(self: FlexDirection, rect: anytype) MemberType(@TypeOf(rect)) {
+    //     if (self.isRow()) {
+    //         return rect.top;
+    //     } else {
+    //         return rect.left;
+    //     }
+    // }
+
+    pub fn getCrossEnd(self: FlexDirection, T: type, rect: Rect(T)) T {
         if (self.isRow()) {
             return rect.bottom;
         } else {

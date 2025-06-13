@@ -5,6 +5,7 @@ pub const LineBreak = lookups.LineBreak;
 pub const GeneralCategory = lookups.GeneralCategory;
 pub const GraphemeBreak = lookups.GraphemeBreak;
 pub const CoreProperty = lookups.CoreProperty;
+pub const WordBreak = lookups.WordBreak;
 pub fn getHandle(comptime T: type) usize {
     inline for (std.meta.fields(lookups.Columns), 0..) |field, index| {
         if (field.type == T) {
@@ -58,4 +59,7 @@ pub fn getGraphemeBreak(c: u21) GraphemeBreak {
 }
 pub fn getCoreProperty(c: u21) CoreProperty {
     return getValue(CoreProperty, c);
+}
+pub fn getWordBreak(c: u21) WordBreak {
+    return getValue(WordBreak, c);
 }

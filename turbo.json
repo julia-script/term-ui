@@ -1,11 +1,18 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
+    "build:wasm:all": {
+      "outputs": ["dist/*.wasm", "zig-out/**"],
+      "cache": false
+    },
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**", "zig-out/**"]
     },
     "dev": {
+      "dependsOn": [
+        "@term-ui/core#build:wasm:all"
+      ],
       "persistent": true,
       "cache": false
     },

@@ -7,7 +7,9 @@ const fmt = @import("fmt.zig");
 const TermInfo = @import("cmd/terminfo/main.zig").TermInfo;
 const InputManager = @import("cmd/input/manager.zig");
 const builtin = @import("builtin");
+
 const logger = std.log.scoped(.wasm);
+const RenderList = @import("layout/v2/RenderList.zig");
 const computeLayout = @import("layout/compute/compute_layout.zig").computeLayout;
 const is_debug = builtin.mode == .Debug;
 
@@ -16,7 +18,11 @@ const is_wasm = @import("builtin").target.cpu.arch.isWasm();
 pub const std_options: std.Options = .{
     .logFn = wasmLog,
     // .log_level = if (is_debug) .debug else .err,
-    .log_level = .debug,
+    .log_level = .err,
+    .log_scope_levels = &[_]std.log.ScopeLevel{
+        .{ .scope = .paint, .level = .debug },
+        .{ .scope = .tree_dump, .level = .debug },
+    },
 };
 
 extern fn externalLog(message: [*:0]u8) void;
@@ -38,6 +44,7 @@ pub fn wasmLog(
     externalLog(owned.ptr);
     std.heap.wasm_allocator.free(owned);
 }
+
 var gpa = std.heap.GeneralPurposeAllocator(.{
     .safety = true,
     .verbose_log = false,
@@ -128,7 +135,7 @@ export fn Tree_disableInputManager(tree: *Tree) void {
     logger.info("Tree_disableInputManager({*})", .{tree});
     tree.disableInputManager();
 }
-const external = if (!builtin.is_test) struct {
+const external = if (!builtin.is_test and is_wasm) struct {
     extern fn emitEvent(data: [*]const u32) void;
 } else struct {
     pub fn emitEvent(_: [*]const u32) void {}
@@ -284,19 +291,40 @@ pub export fn Tree_setElementId(tree: *Tree, node: u32, id: [*:0]u8) void {
     wasm_try(void, tree.setElementId(node, id_slice));
 }
 
-pub export fn Tree_hitTest(tree: *Tree, x: f32, y: f32) u32 {
-    logger.info("Tree_hitTest({*}, {d}, {d})", .{ tree, x, y });
+pub var HIT_TEST_RESULT_BUFFER = [2]u32{ 0, 0 };
 
-    // Hit test for clickable elements only (respects pointer-events)
-    const hit_result = tree.hitTest(.{ .x = x, .y = y }, .{
-        .include_text = true,
-        .include_boxes = true,
-        .include_selections = false,
-        .include_line_boxes = false,
-        .pointer_events_only = true,
-    }) orelse return NULL;
+pub export fn Tree_hitTest(tree: *Tree, x: f32, y: f32, filter: u8) [*]u32 {
+    logger.info("Tree_hitTest({*}, {d}, {d}, {d})", .{ tree, x, y, filter });
 
-    return @intCast(hit_result.node_id);
+    // Hit test with the provided filter
+    const hit_result = tree.hitTest(.{ .x = x, .y = y }, filter) orelse {
+        HIT_TEST_RESULT_BUFFER[0] = 0;
+        HIT_TEST_RESULT_BUFFER[1] = 0;
+        return &HIT_TEST_RESULT_BUFFER;
+    };
+
+    HIT_TEST_RESULT_BUFFER[0] = @intCast(hit_result.external_id);
+    HIT_TEST_RESULT_BUFFER[1] = @intFromEnum(hit_result.item_type);
+    return @ptrCast(&HIT_TEST_RESULT_BUFFER);
+}
+var HIT_TEST_LIST_RESULT_BUFFER: [1024]u32 = undefined;
+pub export fn Tree_hitTestList(tree: *Tree, x: f32, y: f32, filter: u8) [*]u32 {
+    logger.info("Tree_hitTestList({*}, {d}, {d}, {d})", .{ tree, x, y, filter });
+    var list = std.ArrayList(RenderList.HitTestResult).init(wasm_allocator);
+    defer list.deinit();
+    wasm_try(void, tree.hitTestList(&list, .{ .x = x, .y = y }, filter));
+    var i: usize = 0;
+    for (list.items) |result| {
+        HIT_TEST_LIST_RESULT_BUFFER[i * 2] = @intCast(result.external_id);
+        HIT_TEST_LIST_RESULT_BUFFER[i * 2 + 1] = @intFromEnum(result.item_type);
+        i += 1;
+    }
+    HIT_TEST_LIST_RESULT_BUFFER[i * 2] = 0;
+    HIT_TEST_LIST_RESULT_BUFFER[i * 2 + 1] = 0;
+    return @ptrCast(&HIT_TEST_LIST_RESULT_BUFFER);
+}
+pub export fn Tree_deinitHitTestList(list: [*:0]u32) void {
+    wasm_allocator.free(list[0..std.mem.len(list)]);
 }
 
 pub export fn Tree_getNodeInvalidationStatus(tree: *Tree, node: u32) u32 {
@@ -355,11 +383,23 @@ export fn Tree_getNodeClientWidth(tree: *Tree, node_id: u32) f32 {
 }
 
 const tree_dump_logger = std.log.scoped(.tree_dump);
-export fn Tree_dump(tree: *Tree) void {
+pub export fn Tree_dump(tree: *Tree) void {
+    // if (!is_wasm) return;
     var array_list = std.ArrayList(u8).init(wasm_allocator);
     defer array_list.deinit();
+
     wasm_try(void, tree.print(array_list.writer().any()));
+
     tree_dump_logger.info("{s}", .{array_list.items});
+    // std.io.getStdErr().writer().print("{s}", .{array_list.items}) catch {};
+}
+pub export fn Tree_dumpLayoutTree(tree: *Tree) void {
+    // if (!is_wasm) return;
+    var array_list = std.ArrayList(u8).init(wasm_allocator);
+    defer array_list.deinit();
+    wasm_try(void, tree.layout_tree.printRoot(array_list.writer().any()));
+    tree_dump_logger.info("{s}", .{array_list.items});
+    // std.io.getStdErr().writer().print("{s}", .{array_list.items}) catch {};
 }
 pub export fn Tree_setText(tree: *Tree, node: u32, text: [*:0]u8) void {
     logger.info("Tree_setText({*}, {d}, \"{s}\")", .{ tree, node, text });
@@ -404,9 +444,9 @@ pub export fn Tree_computeLayout(tree: *Tree, width: [*:0]u8, height: [*:0]u8) v
 }
 pub export fn Tree_paintSimple(tree: *Tree, renderer: *Renderer) void {
     logger.info("Tree_paint({*}, {*})", .{ tree, renderer });
-    var buffer = std.ArrayList(u8).init(wasm_allocator);
-    defer buffer.deinit();
-    wasm_try(void, tree.paint(renderer, buffer.writer().any(), .simple));
+    // var buffer = std.ArrayList(u8).init(wasm_allocator);
+    // defer buffer.deinit();
+    wasm_try(void, tree.paint(renderer, std.io.getStdErr().writer().any(), .simple));
 }
 pub export fn Tree_paintApp(tree: *Tree, renderer: *Renderer) void {
     logger.info("Tree_paintApp({*}, {*})", .{ tree, renderer });
@@ -467,35 +507,35 @@ export fn Selection_setFocus(tree: *Tree, selection_id: Tree.Selection.Id, node_
     };
 }
 
-export fn Selection_extendBy(
-    tree: *Tree,
-    selection_id: Tree.Selection.Id,
-    granularity: u8,
-    direction: u8,
-    ghost_horizontal_position: f32,
-    root_node_id: u32,
-) void {
-    logger.debug("Selection_extendBy({d}, {d}, {d}, {d}, {d})", .{ selection_id, granularity, direction, ghost_horizontal_position, root_node_id });
-    const selection = tree.getSelection(selection_id);
-    // selection.extendBy(tree, @as(Tree.Selection.ExtendGranularity, @enumFromInt(granularity)), @as(Tree.Selection.ExtendDirection, @enumFromInt(direction)), if (has_ghost_position) ghost_horizontal_position else null, root_node_id) catch |e| {
-    //     logger.err("Error {s} Selection_extendBy({d}, {d}, {d}, {d}, {d})", .{ @errorName(e), selection_id, granularity, direction, ghost_horizontal_position, root_node_id });
-    // };
-    wasm_try(void, selection.extendBy(
-        tree,
-        @as(Tree.Selection.ExtendGranularity, @enumFromInt(granularity)),
-        @as(Tree.Selection.ExtendDirection, @enumFromInt(direction)),
-        if (ghost_horizontal_position == NULL) null else ghost_horizontal_position,
-        root_node_id,
-    ));
-}
+// export fn Selection_extendBy(
+//     tree: *Tree,
+//     selection_id: Tree.Selection.Id,
+//     granularity: u8,
+//     direction: u8,
+//     ghost_horizontal_position: f32,
+//     root_node_id: u32,
+// ) void {
+//     logger.debug("Selection_extendBy({d}, {d}, {d}, {d}, {d})", .{ selection_id, granularity, direction, ghost_horizontal_position, root_node_id });
+//     const selection = tree.getSelection(selection_id);
+//     // selection.extendBy(tree, @as(Tree.Selection.ExtendGranularity, @enumFromInt(granularity)), @as(Tree.Selection.ExtendDirection, @enumFromInt(direction)), if (has_ghost_position) ghost_horizontal_position else null, root_node_id) catch |e| {
+//     //     logger.err("Error {s} Selection_extendBy({d}, {d}, {d}, {d}, {d})", .{ @errorName(e), selection_id, granularity, direction, ghost_horizontal_position, root_node_id });
+//     // };
+//     wasm_try(void, selection.extendBy(
+//         tree,
+//         @as(Tree.Selection.ExtendGranularity, @enumFromInt(granularity)),
+//         @as(Tree.Selection.ExtendDirection, @enumFromInt(direction)),
+//         if (ghost_horizontal_position == NULL) null else ghost_horizontal_position,
+//         root_node_id,
+//     ));
+// }
 
-export fn Selection_getHorizontalOffset(
-    tree: *Tree,
-    node_id: u32,
-    offset: u32,
-) f32 {
-    return Tree.Selection.getHorizontalOffset(tree, .{ .node_id = node_id, .offset = offset }) orelse 0;
-}
+// export fn Selection_getHorizontalOffset(
+//     tree: *Tree,
+//     node_id: u32,
+//     offset: u32,
+// ) f32 {
+//     // return Tree.Selection.getHorizontalOffset(tree, .{ .node_id = node_id, .offset = offset }) orelse 0;
+// }
 
 // pub export fn Renderer_renderToStdout(renderer: *Renderer, tree: *Tree, clear_screen: bool) void {
 //     _ = clear_screen; // New renderer doesn't use clear_screen parameter
@@ -518,20 +558,14 @@ pub export fn Renderer_deinit(renderer: *Renderer) void {
     renderer.deinit();
     wasm_allocator.destroy(renderer);
 }
-export fn Renderer_getNodeAt(renderer: *Renderer, tree: *Tree, x: f32, y: f32) u32 {
+export fn Renderer_getNodeAt(renderer: *Renderer, tree: *Tree, x: f32, y: f32, filter: u8) u32 {
     _ = renderer; // New renderer doesn't need to be involved in hit testing
-    logger.info("Renderer_getNodeAt({*}, {d}, {d})", .{ tree, x, y });
+    logger.info("Renderer_getNodeAt({*}, {d}, {d}, {d})", .{ tree, x, y, filter });
 
-    // Use the tree's hit testing functionality with pointer-events filtering
-    const hit_result = tree.hitTest(.{ .x = x, .y = y }, .{
-        .include_text = true,
-        .include_boxes = true,
-        .include_selections = false,
-        .include_line_boxes = false,
-        .pointer_events_only = true, // Only return elements that can receive pointer events
-    }) orelse return NULL;
+    // Use the tree's hit testing functionality with the provided filter
+    const hit_result = tree.hitTest(.{ .x = x, .y = y }, filter) orelse return NULL;
 
-    return @intCast(hit_result.node_id);
+    return @intCast(hit_result.external_id);
 }
 
 export const EventBuffer = [_]u8{1} ** 128;

@@ -78,7 +78,6 @@ pub fn computeFlexboxLayout(allocator: std.mem.Allocator, node_id: Node.NodeId, 
     const vertical_margins_are_collapsible = inputs.vertical_margins_are_collapsible;
     _ = vertical_margins_are_collapsible; // autofix
 
-    const aspect_ratio = style.aspect_ratio;
     const min_size = style.min_size.maybeResolve(parent_size).maybeApplyAspectRatio(aspect_ratio);
     const max_size = style.max_size.maybeResolve(parent_size).maybeApplyAspectRatio(aspect_ratio);
     const clamped_style_size = blk: {
@@ -160,7 +159,6 @@ pub fn computePreliminary(allocator: std.mem.Allocator, tree: *Tree, node_id: No
     // 9.2. Line Length Determination
 
     // 2. Determine the available main and cross space for the flex items
-    // debug_log!("determineAvailableSpace");
     const available_space = determineAvailableSpace(
         inputs.known_dimensions,
         inputs.available_space,
@@ -280,7 +278,7 @@ pub fn computePreliminary(allocator: std.mem.Allocator, tree: *Tree, node_id: No
         const child_style = tree.getComputedStyle(child_id);
         if (child_style.display.outside == .none) {
             tree.setUnroundedLayout(child_id, .{ .order = @as(u32, @intCast(order)), .margin = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 } });
-            _ = try performChildLayout(
+            var layout = try performChildLayout(
                 allocator,
                 child_id,
                 tree,
@@ -290,6 +288,7 @@ pub fn computePreliminary(allocator: std.mem.Allocator, tree: *Tree, node_id: No
                 .inherent_size,
                 Line.FALSE,
             );
+            defer layout.deinit();
         }
     }
     // 8.5. Flex Container Baselines: calculate the flex container's first baseline

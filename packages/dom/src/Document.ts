@@ -1,27 +1,42 @@
+import * as inspector from "node:inspector/promises";
+import { inspect } from "node:util";
+import { HitTestFilter } from "@term-ui/core/constants";
 import type { Module } from "@term-ui/core/node";
-import {
-  DEFAULT_CURSOR,
-  cursorShapeByInt,
-} from "@term-ui/shared/cmd/cursor-shape";
+import { DEFAULT_CURSOR } from "@term-ui/shared/cmd/cursor-shape";
 import { kittyKeyboardProtocol } from "@term-ui/shared/cmd/kitty-keyboard-protocol";
 import * as sequences from "@term-ui/shared/cmd/sequences";
 import type { ReadStream } from "@term-ui/shared/types";
 import type { WriteStream } from "@term-ui/shared/types";
+import type { ServerRouter } from "@termui/devtools/router/server";
+import { createClient } from "@termui/devtools/rpc";
+import { io } from "socket.io-client";
 import { Element } from "./Element";
 import {
   type InputEvent,
-  type KeyEvent,
   InputManager,
 } from "./InputManager";
 import { Renderer } from "./Renderer";
+import { Selection } from "./Selection";
 import { TextElement } from "./TextElement";
 import { Tree } from "./Tree";
 import type {
+  DOMEventByType,
+  EventTarget,
+  WheelEvent,
+} from "./types";
+// import {
+//   MouseEventHandler,
+//   type RawMouseInput,
+// } from "./handlers/MouseEventHandler";
+import type {
+  DOMEvent,
   DocumentOptions,
+  MouseEvent,
   RenderingSize,
   Size,
 } from "./types";
-import { Selection } from "./Selection";
+import type { KeyboardEvent } from "./types";
+
 const resolvePercentage = (
   size:
     | number
@@ -40,6 +55,105 @@ const resolvePercentage = (
   }
   return size as "min-content" | "max-content";
 };
+
+const session = new inspector.Session();
+const client = createClient<ServerRouter>(
+  io("http://localhost:9001"),
+);
+session.connect();
+// session")
+const log = (...args: unknown[]) => {
+  let str = "";
+  for (const arg of args) {
+    if (typeof arg === "string") {
+      str += `${arg} `;
+    } else {
+      str += `${inspect(arg, {
+        colors: true,
+        depth: 10,
+      })} `;
+    }
+  }
+  client.request("console", {
+    level: "log",
+    scope: "dom",
+    args: [str],
+    trace: {
+      message: "",
+      frames: [],
+    },
+  });
+};
+
+// await session.post("Console.enable");
+// {"method":"Console.messageAdded","params":{"message":{"source":"console-api","level":"log","text":"connected to devtools","url":"file:///Users/juliaortiz/Documents/dev.nosync/cpp/packages/dom/dist/Document.js","line":43,"column":9}}}
+// session.on("Console.messageAdded", (event) => {
+//   const { message } = event.params;
+
+//   const {
+//     url,
+//     line,
+//     column,
+//     text,
+//     source,
+//     level,
+//   } = message;
+
+//   if (level === "log" || level === "info") {
+//     client.request("console", {
+//       level,
+//       scope: "dom",
+//       args: [text],
+//       trace: {
+//         message: "",
+//         frames: [
+//           {
+//             column: column ?? null,
+//             lineNumber: line ?? null,
+//             file: url?.toString() ?? null,
+//             methodName: null,
+//             arguments: [],
+//             isTerm: false,
+//           },
+//         ],
+//       },
+//     });
+//     return;
+//   }
+//   if (level === "warning") {
+//     client.request("console", {
+//       level: "warn",
+//       scope: "dom",
+//       args: [text],
+//       trace: {
+//         message: "",
+//         frames: [
+//           {
+//             column: column ?? null,
+//             lineNumber: line ?? null,
+//             file: url?.toString() ?? null,
+//             methodName: null,
+//             arguments: [],
+//             isTerm: false,
+//           },
+//         ],
+//       },
+//     });
+//     return;
+//   }
+//   if (level === "error") {
+//     client.request("console", {
+//       level,
+//       scope: "dom",
+//       args: [],
+//       trace: parseTrace(text),
+//     });
+//     return;
+//   }
+// });
+// console.warn("connected to devtools", 2, 3, {
+//   a: 4,
+// });
 
 export class Document {
   module: Module;
@@ -64,14 +178,24 @@ export class Document {
   exitOnCtrlC: boolean;
   enableAlternateScreen: boolean;
   selection: Selection | null = null;
+  listeners: Map<
+    DOMEvent["type"],
+    Set<(event: DOMEvent) => void>
+  > = new Map();
+
+  // New event system
   private nodes: Map<
     number,
     Element | TextElement
   > = new Map();
   private state = {
-    hovered: 0,
+    activeElementId: 1, // root element
     cursorShape: DEFAULT_CURSOR,
-    clicked: null as number | null,
+    hoveredElements: new Set<number>(),
+    activeMouseButtons: new Set<
+      MouseEvent["button"]
+    >(),
+    isDragging: true,
   };
 
   private cleanups: ((this: Document) => void)[] =
@@ -104,6 +228,7 @@ export class Document {
     this.reportLeaksOnExit = reportLeaksOnExit;
     this.exitOnCtrlC = exitOnCtrlC;
     this.enableInputs = enableInputs;
+
     this.enableAlternateScreen =
       enableAlternateScreen;
     this.module = module;
@@ -112,6 +237,7 @@ export class Document {
     this.readStream = readStream ?? process.stdin;
 
     this.tree = Tree.init(module);
+
     this.pushCleanup(() => this.tree.dispose());
 
     this.initInputs();
@@ -137,6 +263,13 @@ export class Document {
       width: this.writeStream.columns,
       height: this.writeStream.rows,
     };
+
+    // Initialize event system
+    // this.inputState = new InputState();
+    // this.mouseEventHandler =
+    //   new MouseEventHandler(this.inputState);
+    // this.keyboardEventHandler =
+    //   new KeyboardEventHandler(this.inputState);
 
     process.on("resize", this.onResize);
     this.pushCleanup(() =>
@@ -166,190 +299,228 @@ export class Document {
     this.cleanups.push(cleanup.bind(this));
   };
   private onInput = (event: InputEvent) => {
-    // debug.log(event);
-    if (
-      this.exitOnCtrlC &&
-      event.kind === "key"
-    ) {
-      if (event.key === "c" && event.ctrl) {
-        this.dispose();
-        process.exit(0);
-      }
-    }
-    if (event.kind === "mouse") {
-      this.emitCursorEvents(event);
-    }
+    // if (event.kind === "mouse") {
+    //   this.emitCursorEvents(event);
+    //     }
     if (event.kind === "key") {
       this.emitKeyEvents(event);
     }
-    if (this.paintRequested) {
-      this.paintRequested = false;
-      this.paint();
+    if (
+      event.kind === "mouse" ||
+      event.kind === "mouse-legacy"
+    ) {
+      this.emitMouseEvents(event);
     }
   };
-  
 
-  private emitCursorEvents = (
-    event: Extract<InputEvent, { kind: "mouse" }>,
-  ) => {
-    if (
-      event.action === "release" &&
-      this.state.clicked !== null
-    ) {
-      const clickedNode = this.nodes.get(
-        this.state.clicked,
-      );
-      clickedNode?.emitEvent({
-        kind: "mouse-up",
-        target: clickedNode as Element,
-        document: this,
-        x: event.x,
-        y: event.y,
-      });
-      return;
-    }
-    const hovered = this.renderer.getNodeAt(
-      event.x,
-      event.y,
-    );
+  // private getEventTarget = (
+  //   x: number,
+  //   y: number,
+  // ): Element | TextElement | null => {
+  //   const hitTestResult = this.renderer.hitTest(
+  //     this.tree,
+  //     x,
+  //     y,
+  //     HitTestFilter.BOX |
+  //       HitTestFilter.TEXT_FRAGMENT |
+  //       HitTestFilter.LINE_BOX,
+  //   );
 
-    const currentNode = this.nodes.get(hovered);
+  //   if (!hitTestResult) return null;
+  //   return (
+  //     this.nodes.get(hitTestResult.id) || null
+  //   );
+  // };
 
-    if (!currentNode) {
-      throw new Error("Current node not found");
-    }
-    if (event.action === "press") {
-      this.state.clicked = currentNode.id;
-      currentNode.emitEvent({
-        kind: "mouse-down",
-        target: currentNode as Element,
-        document: this,
-        x: event.x,
-        y: event.y,
-      });
-      currentNode.emitEvent({
-        kind: "click",
-        target: currentNode as Element,
-        document: this,
-        x: event.x,
-        y: event.y,
-      });
+  // private dispatchEvent = (event: DOMEvent) => {
+  //   const target = event.target;
+  //   if (!target) return;
 
-      return;
-    }
-    let defaultPrevented = false;
-    const preventDefault = () => {
-      defaultPrevented = true;
-    };
+  //   // Map new event types to old event system
+  //   let eventKind: string;
+  //   switch (event.type) {
+  //     case "mousedown":
+  //       eventKind = "mousedown";
+  //       break;
+  //     case "mouseup":
+  //       eventKind = "mouseup";
+  //       break;
+  //     case "mousemove":
+  //       eventKind = "mousemove";
+  //       break;
+  //     case "click":
+  //       eventKind = "click";
+  //       break;
+  //     case "dblclick":
+  //       eventKind = "double-click";
+  //       break;
+  //     case "keydown":
+  //       eventKind = "keydown";
+  //       break;
+  //     case "keyup":
+  //       eventKind = "keyup";
+  //       break;
+  //     case "keypress":
+  //       eventKind = "keypress";
+  //       break;
+  //     default:
+  //       return;
+  //   }
 
-    if (event.action === "wheel_up") {
-      currentNode.emitEvent({
-        kind: "scroll",
-        target: currentNode as Element,
-        document: this,
-        deltaX: 0,
-        deltaY: 1,
-        preventDefault,
-      });
-      if (defaultPrevented) return;
-      if (currentNode instanceof Element) {
-        currentNode.scrollTop -= 1;
-        this.requestPaint();
-      }
-      return;
-    }
-    if (event.action === "wheel_down") {
-      currentNode.emitEvent({
-        kind: "scroll",
-        target: currentNode as Element,
-        document: this,
-        deltaX: 0,
-        deltaY: -1,
-        preventDefault,
-      });
-      if (defaultPrevented) return;
-      if (currentNode instanceof Element) {
-        currentNode.scrollTop += 1;
-        this.requestPaint();
-      }
-      return;
-    }
-    if (event.action === "wheel_left") {
-      currentNode.emitEvent({
-        kind: "scroll",
-        target: currentNode as Element,
-        document: this,
-        deltaX: -1,
-        deltaY: 0,
-        preventDefault,
-      });
-      if (defaultPrevented) return;
-      if (currentNode instanceof Element) {
-        currentNode.scrollLeft -= 1;
-        this.requestPaint();
-      }
-      return;
-    }
-    if (event.action === "wheel_right") {
-      currentNode.emitEvent({
-        kind: "scroll",
-        target: currentNode as Element,
-        document: this,
-        deltaX: 1,
-        deltaY: 0,
-        preventDefault,
-      });
-      if (defaultPrevented) return;
-      if (currentNode instanceof Element) {
-        currentNode.scrollLeft += 1;
-        this.requestPaint();
-      }
-      return;
-    }
-    currentNode.emitEvent({
-      kind: "mouse-move",
-      target: currentNode as Element,
-      document: this,
-      x: event.x,
-      y: event.y,
-    });
-    if (hovered === this.state.hovered) return;
-    const oldHovered = this.nodes.get(
-      this.state.hovered,
-    );
-    this.state.hovered = hovered;
-    if (!oldHovered) {
-      throw new Error(
-        "Old hovered node not found",
-      );
-    }
-    oldHovered.emitEvent({
-      kind: "mouse-leave",
-      target: oldHovered as Element,
-      document: this,
-    });
+  //   // Handle mouse events
 
-    const cursorShapeInt =
-      this.tree.module.Tree_getNodeCursorStyle(
-        this.tree.ptr,
-        currentNode.id,
-      );
-    if (
-      cursorShapeInt !== this.state.cursorShape &&
-      this.writeStream
-    ) {
-      this.writeStream.write(
-        // cursorShape(''),
-        cursorShapeByInt(cursorShapeInt),
-      );
-      this.state.cursorShape = cursorShapeInt;
-    }
-    currentNode.emitEvent({
-      kind: "mouse-enter",
-      target: currentNode as Element,
-      document: this,
-    });
-  };
+  //   // Handle selection on mousedown
+  //   if (event.type === "mousedown") {
+  //     const bp = this.caretPositionFromPoint(
+  //       event.x,
+  //       event.y,
+  //     );
+  //     if (bp) {
+  //       this.createSelection({
+  //         node: bp.node,
+  //         offset: bp.offset,
+  //       });
+  //       this.requestPaint();
+  //     }
+  //   }
+
+  //   // Handle selection drag on mousemove
+  //   if (
+  //     event.type === "mousemove" &&
+  //     this.inputState.isDragging()
+  //   ) {
+  //     const selection = this.selection;
+  //     if (selection) {
+  //       const bp = this.caretPositionFromPoint(
+  //         event.x,
+  //         event.y,
+  //       );
+  //       if (bp) {
+  //         selection.setFocus(bp.node, bp.offset);
+  //         this.requestPaint();
+  //       }
+  //     }
+  //   }
+
+  //   // Update cursor shape on hover
+  //   if (event.type === "mousemove") {
+  //     const cursorShapeInt =
+  //       this.tree.module.Tree_getNodeCursorStyle(
+  //         this.tree.ptr,
+  //         target.id,
+  //       );
+  //     if (
+  //       cursorShapeInt !==
+  //         this.state.cursorShape &&
+  //       this.writeStream
+  //     ) {
+  //       this.writeStream.write(
+  //         cursorShapeByInt(cursorShapeInt),
+  //       );
+  //       this.state.cursorShape = cursorShapeInt;
+  //     }
+  //   }
+
+  //   if (
+  //     event.type === "mousedown" ||
+  //     event.type === "mouseup" ||
+  //     event.type === "mousemove" ||
+  //     event.type === "click" ||
+  //     event.type === "dblclick"
+  //   ) {
+  //     // Emit event on target
+  //     target.emitEvent({
+  //       type: event.type,
+  //       target: target,
+  //       document: this,
+  //       x: event.x,
+  //       y: event.y,
+  //       preventDefault:
+  //         event.preventDefault.bind(event),
+  //     });
+  //   }
+  //   // Handle keyboard events
+
+  //   if ("key" in event) {
+  //     const keyEvent = event as KeyboardEvent;
+  //     target.emitEvent({
+  //       type: event.type,
+  //       target: target,
+  //       document: this,
+  //       key: keyEvent.key,
+  //       codepoint: keyEvent.charCode || 0,
+  //       text: keyEvent.key || "",
+  //       shift: keyEvent.shiftKey,
+  //       ctrl: keyEvent.ctrlKey,
+  //       alt: keyEvent.altKey,
+  //       super: keyEvent.metaKey,
+  //       meta: keyEvent.metaKey,
+  //       repeat: keyEvent.repeat || false,
+  //       preventDefault:
+  //         event.preventDefault.bind(event),
+  //     });
+
+  //     // Handle default keyboard behavior if not prevented
+  //     if (!event.defaultPrevented) {
+  //       this.handleDefaultKeyBehavior(
+  //         event,
+  //         target,
+  //       );
+  //     }
+  //   }
+  // };
+
+  // private handleScrollWheel = (
+  //   event: Extract<InputEvent, { kind: "mouse" }>,
+  //   target: Element | TextElement,
+  // ) => {
+  //   let defaultPrevented = false;
+  //   const preventDefault = () => {
+  //     defaultPrevented = true;
+  //   };
+
+  //   let deltaX = 0;
+  //   let deltaY = 0;
+
+  //   switch (event.action) {
+  //     case "wheel_up":
+  //       deltaY = 1;
+  //       break;
+  //     case "wheel_down":
+  //       deltaY = -1;
+  //       break;
+  //     case "wheel_left":
+  //       deltaX = -1;
+  //       break;
+  //     case "wheel_right":
+  //       deltaX = 1;
+  //       break;
+  //     default:
+  //       return;
+  //   }
+
+  //   target.emitEvent({
+  //     kind: "scroll",
+  //     target: target as Element,
+  //     document: this,
+  //     deltaX,
+  //     deltaY,
+  //     preventDefault,
+  //   });
+
+  //   if (
+  //     !defaultPrevented &&
+  //     target instanceof Element
+  //   ) {
+  //     if (deltaY !== 0) {
+  //       target.scrollTop -= deltaY;
+  //     }
+  //     if (deltaX !== 0) {
+  //       target.scrollLeft -= deltaX;
+  //     }
+  //     this.requestPaint();
+  //   }
+  // };
   private initInputs = async () => {
     if (!this.enableInputs) return;
     const inputManager = InputManager.init(
@@ -421,6 +592,26 @@ export class Document {
   getElement = (id: number) => {
     return this.nodes.get(id);
   };
+  getOrAddElement = (id: number) => {
+    const element = this.nodes.get(id);
+    if (element) return element;
+    const nodeKind =
+      this.tree.module.Tree_getNodeKind(
+        this.tree.ptr,
+        id,
+      );
+    if (nodeKind === 1) {
+      const element = Element.fromNode(this, id);
+      this.addElement(element);
+      return element;
+    }
+    const textElement = TextElement.fromNode(
+      this,
+      id,
+    );
+    this.addElement(textElement);
+    return textElement;
+  };
   addElement = (
     element: Element | TextElement,
   ) => {
@@ -452,22 +643,19 @@ export class Document {
       this.renderingSize.height,
       this.viewportSize.height,
     );
+
+    this.tree.computeStyles();
+    this.tree.buildLayoutTree();
     this.tree.computeLayout(width, height);
   };
 
-  paint = (
-    clear = this.clearScreenBeforePaint,
-  ) => {
-    this.renderer.renderToStdout(
-      this.tree,
-      clear,
-    );
+  paint = () => {
+    this.renderer.paint(this.tree);
   };
-  render = (
-    clear = this.clearScreenBeforePaint,
-  ) => {
+  render = () => {
     this.computeLayout();
-    this.paint(clear);
+    this.paint();
+    this.tree.dump();
   };
   dispose = () => {
     this.cleanup();
@@ -516,10 +704,11 @@ export class Document {
     this.onPaintRequest();
   };
 
-  createSelection = (start: {
-    node: number;
-    offset: number;
-  },
+  createSelection = (
+    start: {
+      node: number;
+      offset: number;
+    },
     end?: {
       node: number;
       offset: number;
@@ -546,141 +735,537 @@ export class Document {
     this.selection = null;
   };
 
-  caretPositionFromPoint = (x: number, y: number) => {
+  caretPositionFromPoint = (
+    x: number,
+    y: number,
+  ) => {
     return this.module.Tree_caretPositionFromPoint(
       this.tree.ptr,
-      this.viewportSize.width,
-      this.viewportSize.height,
+
       x,
       y,
     );
   };
 
-  private emitKeyEvents = (
-    event: Extract<InputEvent, { kind: "key" }>
+  // private handleDefaultKeyBehavior = (
+  //   event: DOMEvent,
+  //   element: Element,
+  // ) => {
+  //   if (!("key" in event)) return;
+  //   const keyEvent = event as KeyboardEvent;
+  //   // Only handle on initial press (not repeat or release)
+  //   if (
+  //     !keyEvent.willRelease &&
+  //     keyEvent.type !== "keydown"
+  //   )
+  //     return;
+
+  //   // Handle selection movement with Shift+Arrow keys
+  //   if (
+  //     keyEvent.shiftKey &&
+  //     (keyEvent.key === "up" ||
+  //       keyEvent.key === "down" ||
+  //       keyEvent.key === "left" ||
+  //       keyEvent.key === "right")
+  //   ) {
+  //     // Create selection if it doesn't exist
+  //     if (!this.selection) {
+  //       // Get caret position from current position or use the first position
+  //       const caretPosition =
+  //         this.caretPositionFromPoint(0, 0);
+  //       if (caretPosition) {
+  //         this.createSelection({
+  //           node: caretPosition.node,
+  //           offset: caretPosition.offset,
+  //         });
+  //       }
+  //     }
+
+  //     // If we have a selection, extend it in the direction of the arrow key
+  //     if (this.selection) {
+  //       // Determine direction (forward or backward)
+  //       const direction: "forward" | "backward" =
+  //         keyEvent.key === "down" ||
+  //         keyEvent.key === "right"
+  //           ? "forward"
+  //           : "backward";
+
+  //       // Use line granularity for up/down, character granularity for left/right
+  //       const granularity: "character" | "line" =
+  //         keyEvent.key === "up" ||
+  //         keyEvent.key === "down"
+  //           ? "line"
+  //           : "character";
+
+  //       // Extend the selection with the appropriate granularity and direction
+  //       this.selection.extendBy(
+  //         granularity,
+  //         direction,
+  //       );
+  //       this.requestPaint();
+  //       return;
+  //     }
+  //   }
+
+  //   // Basic arrow key navigation (when shift is not pressed)
+  //   if (
+  //     !keyEvent.shiftKey &&
+  //     (keyEvent.key === "up" ||
+  //       keyEvent.key === "down" ||
+  //       keyEvent.key === "left" ||
+  //       keyEvent.key === "right")
+  //   ) {
+  //     // Clear any existing selection when navigating without shift
+  //     if (this.selection) {
+  //       this.removeSelection();
+  //     }
+
+  //     // Handle arrow key navigation
+  //     if (keyEvent.key === "up") {
+  //       element.scrollTop -= 1;
+  //     } else if (keyEvent.key === "down") {
+  //       element.scrollTop += 1;
+  //     } else if (keyEvent.key === "left") {
+  //       element.scrollLeft -= 1;
+  //     } else if (keyEvent.key === "right") {
+  //       element.scrollLeft += 1;
+  //     }
+  //     this.requestPaint();
+  //   }
+  // };
+  private emitMouseEvents = (
+    input: Extract<
+      InputEvent,
+      { kind: "mouse" | "mouse-legacy" }
+    >,
   ) => {
-    // Always use the root element since we don't have focused elements yet
-    const targetElement = this.root;
-    
-    let defaultPrevented = false;
-    const preventDefault = () => {
-      defaultPrevented = true;
-    };
-    
-    // Common properties for keyboard events
-    const commonProps = {
-      target: targetElement,
-      document: this,
-      key: event.key,
-      codepoint: event.codepoint,
-      text: event.text,
-      shift: event.shift,
-      ctrl: event.ctrl,
-      alt: event.alt,
-      super: event.super,
-      meta: event.meta,
-      preventDefault
-    };
-    
-    // Handle keydown - for both initial press and repeats
-    if (event.action === "press" || event.action === "repeat") {
-      targetElement.emitEvent({
-        kind: "keydown",
-        ...commonProps,
-        // Set repeat flag to true for repeat events, false for initial press
-        repeat: event.action === "repeat"
-      });
-      
-      // Emit keypress only for printable characters on any press or repeat
-      if (event.text) {
-        targetElement.emitEvent({
-          kind: "keypress",
-          ...commonProps,
-          repeat: event.action === "repeat"
-        });
-      }
-    } 
-    // Handle keyup
-    else if (event.action === "release") {
-      targetElement.emitEvent({
-        kind: "keyup",
-        ...commonProps,
-        repeat: false // keyup is never a repeat
-      });
-    }
-    
-    // If event wasn't prevented, handle default behavior
-    if (!defaultPrevented) {
-      this.handleDefaultKeyBehavior(event, targetElement);
-    }
-  };
-  
-  private handleDefaultKeyBehavior = (
-    event: Extract<InputEvent, { kind: "key" }>,
-    element: Element
-  ) => {
-    // Only handle on initial press (not repeat or release)
-    if (event.action !== "press") return;
-    
-    // Handle selection movement with Shift+Arrow keys
-    if (event.shift && (
-        event.key === "up" || event.key === "down" || 
-        event.key === "left" || event.key === "right")) {
-      
-      // Create selection if it doesn't exist
-      if (!this.selection) {
-        // Get caret position from current position or use the first position
-        const caretPosition = this.caretPositionFromPoint(0, 0);
-        if (caretPosition) {
-          this.createSelection({
-            node: caretPosition.node,
-            offset: caretPosition.offset
-          });
+    const { x, y } = input;
+    const hitTestListResult =
+      this.tree.module.Tree_hitTestList(
+        this.tree.ptr,
+        x,
+        y,
+        HitTestFilter.BOX |
+          HitTestFilter.TEXT_FRAGMENT,
+        // HitTestFilter.LINE_BOX,
+      );
+    // log(hitTesListResult.map((r) => r.id));
+    // log("hitTesListResult", hitTestListResult);
+    // return;
+    const targets: EventTarget[] = [];
+
+    const hoveredElements: number[] = [];
+    for (const hitTestResult of hitTestListResult) {
+      const node = this.nodes.get(
+        hitTestResult.id,
+      );
+
+      if (node instanceof Element) {
+        hoveredElements.push(node.id);
+        targets.push(node);
+      } else if (node instanceof TextElement) {
+        // hoveredElements.push(node.id);
+        const parent = node.parent;
+        if (parent) {
+          hoveredElements.push(parent.id);
+          targets.push(parent as EventTarget);
         }
       }
-      
-      // If we have a selection, extend it in the direction of the arrow key
-      if (this.selection) {
-        // Determine direction (forward or backward)
-        const direction: "forward" | "backward" = 
-          (event.key === "down" || event.key === "right") 
-            ? "forward" 
-            : "backward";
-        
-        // Use line granularity for up/down, character granularity for left/right
-        const granularity: "character" | "line" = 
-          (event.key === "up" || event.key === "down") 
-            ? "line" 
-            : "character";
-        
-        // Extend the selection with the appropriate granularity and direction
-        this.selection.extendBy(granularity, direction);
-        this.requestPaint();
-        return;
+    }
+    targets.reverse();
+    hoveredElements.reverse();
+    const self = this;
+    targets.push(self);
+
+    const initialTarget = targets.at(0) ?? this;
+
+    const event = this.createMouseEvent(
+      input,
+      initialTarget,
+    );
+    const eventTemplate: MouseEvent | WheelEvent =
+      {
+        ...event,
+      };
+
+    const notVisited = new Set(
+      this.state.hoveredElements,
+    );
+    if (event.type === "mousemove") {
+      const previousHoveredElements =
+        this.state.hoveredElements;
+      // emit mouseenter and mouseleave events
+
+      for (const hoveredElementId of hoveredElements) {
+        const hoveredElement = this.nodes.get(
+          hoveredElementId,
+        ) as Element;
+        // elements currently hovered that were not hovered before
+        if (
+          !previousHoveredElements.has(
+            hoveredElementId,
+          )
+        ) {
+          notVisited.delete(hoveredElementId);
+          const enterEvent: MouseEvent = {
+            ...eventTemplate,
+            type: "mouseenter",
+            target: hoveredElement,
+            currentTarget: hoveredElement,
+            preventDefault: () => {
+              enterEvent.defaultPrevented = true;
+            },
+            stopPropagation: () => {
+              enterEvent.bubbles = false;
+            },
+          };
+
+          hoveredElement.emitEvent(enterEvent);
+        }
       }
     }
-    
-    // Basic arrow key navigation (when shift is not pressed)
-    if (!event.shift && (
-        event.key === "up" || event.key === "down" || 
-        event.key === "left" || event.key === "right")) {
-      
-      // Clear any existing selection when navigating without shift
-      if (this.selection) {
-        this.removeSelection();
+    this.state.hoveredElements = new Set(
+      hoveredElements,
+    );
+
+    for (const target of targets) {
+      event.currentTarget = target;
+      target.emitEvent(event);
+      if (event.bubbles === false) {
+        break;
       }
-      
-      // Handle arrow key navigation
-      if (event.key === "up") {
-        element.scrollTop -= 1;
-      } else if (event.key === "down") {
-        element.scrollTop += 1; 
-      } else if (event.key === "left") {
-        element.scrollLeft -= 1;
-      } else if (event.key === "right") {
-        element.scrollLeft += 1;
-      }
-      this.requestPaint();
     }
+    if (event.type === "mousemove") {
+      // nodes that are not visited but were hovered before
+      for (const hoveredElementId of notVisited) {
+        const hoveredElement = this.nodes.get(
+          hoveredElementId,
+        ) as Element;
+        const leaveEvent: MouseEvent = {
+          ...eventTemplate,
+          type: "mouseleave",
+          target: hoveredElement,
+          currentTarget: hoveredElement,
+          preventDefault: () => {
+            leaveEvent.defaultPrevented = true;
+          },
+          stopPropagation: () => {
+            leaveEvent.bubbles = false;
+          },
+        };
+        hoveredElement.emitEvent(leaveEvent);
+      }
+    }
+    if (event.defaultPrevented) {
+
+      return;
+    }
+    this.handleDefaultMouseBehavior(event);
+  };
+
+  createMouseEvent = (
+    input: Extract<
+      InputEvent,
+      { kind: "mouse" | "mouse-legacy" }
+    >,
+    initialTarget: EventTarget,
+  ) => {
+    if (input.kind === "mouse") {
+      let type: MouseEvent["type"] = "mousemove";
+      if (input.action === "press") {
+        type = "mousedown";
+      } else if (input.action === "release") {
+        type = "mouseup";
+      } else if (input.action === "motion") {
+        type = "mousemove";
+      }
+
+      const event: MouseEvent = {
+        type,
+        target: initialTarget,
+        currentTarget: initialTarget,
+        bubbles: true,
+        defaultPrevented: false,
+        button: input.button,
+        clientX: input.x,
+        clientY: input.y,
+        altKey: input.alt,
+        ctrlKey: input.ctrl,
+        shiftKey: input.shift,
+        metaKey: input.super,
+
+        preventDefault: () => {
+          event.defaultPrevented = true;
+        },
+        stopPropagation: () => {
+          event.bubbles = false;
+        },
+      };
+      if (input.action.startsWith("wheel")) {
+        const wheelEvent: WheelEvent = {
+          ...event,
+          type: "wheel",
+          deltaX:
+            input.action === "wheel_left"
+              ? -1
+              : input.action === "wheel_right"
+                ? 1
+                : 0,
+          deltaY:
+            input.action === "wheel_up"
+              ? -1
+              : input.action === "wheel_down"
+                ? 1
+                : 0,
+        };
+        return wheelEvent;
+      }
+      return event;
+    }
+
+    let type: MouseEvent["type"] = "mousemove";
+    let button = "none";
+
+    // Map legacy mouse actions to event types and buttons
+    switch (input.action) {
+      case "left_press":
+        type = "mousedown";
+        button = "left";
+        break;
+      case "middle_press":
+        type = "mousedown";
+        button = "middle";
+        break;
+      case "right_press":
+        type = "mousedown";
+        button = "right";
+        break;
+      case "release":
+        type = "mouseup";
+        button = "none"; // Legacy doesn't specify which button was released
+        break;
+      default:
+        // For wheel events, we'll handle them as wheel events
+        if (input.action.startsWith("wheel")) {
+          const wheelEvent: WheelEvent = {
+            type: "wheel",
+            target: initialTarget,
+            currentTarget: initialTarget,
+            bubbles: true,
+            defaultPrevented: false,
+            button: "wheel",
+            clientX: input.x,
+            clientY: input.y,
+            altKey: input.alt,
+            ctrlKey: input.ctrl,
+            shiftKey: input.shift,
+            metaKey: input.super,
+            deltaX:
+              input.action === "wheel_tilt_left"
+                ? -1
+                : input.action ===
+                    "wheel_tilt_right"
+                  ? 1
+                  : 0,
+            deltaY:
+              input.action === "wheel_forward"
+                ? -1
+                : input.action === "wheel_back"
+                  ? 1
+                  : 0,
+            preventDefault: () => {
+              wheelEvent.defaultPrevented = true;
+            },
+            stopPropagation: () => {
+              wheelEvent.bubbles = false;
+            },
+          };
+          return wheelEvent;
+        }
+        break;
+    }
+
+    const event: MouseEvent = {
+      type,
+      target: initialTarget,
+      currentTarget: initialTarget,
+      bubbles: true,
+      defaultPrevented: false,
+      button,
+      clientX: input.x,
+      clientY: input.y,
+      altKey: input.alt,
+      ctrlKey: input.ctrl,
+      shiftKey: input.shift,
+      metaKey: input.super,
+
+      preventDefault: () => {
+        event.defaultPrevented = true;
+      },
+      stopPropagation: () => {
+        event.bubbles = false;
+      },
+    };
+
+    return event;
+  };
+  private emitKeyEvents = (
+    input: Extract<InputEvent, { kind: "key" }>,
+  ) => {
+    // input.
+    const type =
+      input.action === "release"
+        ? "keyup"
+        : "keydown";
+
+    const target = this.nodes.get(
+      this.state.activeElementId,
+    );
+    // log(input);
+
+    if (!target) {
+      return;
+    }
+
+    if (target instanceof TextElement) {
+      throw new Error(
+        "TextElement is not a valid target",
+      );
+    }
+    // let currentTarget = target;
+    const event: KeyboardEvent = {
+      target,
+      currentTarget: target,
+      type,
+      key: input.key || "",
+      code: input.text || input.key || "",
+      bubbles: true,
+      defaultPrevented: false,
+      text: input.text,
+      preventDefault: () => {
+        event.defaultPrevented = true;
+      },
+      stopPropagation: () => {
+        event.bubbles = false;
+      },
+      shiftKey: input.shift,
+      ctrlKey: input.ctrl,
+      altKey: input.alt,
+      metaKey: input.super,
+      repeat: input.action === "repeat",
+    };
+
+    let maxDepth = 100;
+    while (maxDepth > 0) {
+      maxDepth--;
+      if (
+        event.currentTarget instanceof Document
+      ) {
+        event.currentTarget.emitEvent(event);
+        break;
+      }
+      event.currentTarget.emitEvent(event);
+      if (event.bubbles === false) {
+        break;
+      }
+      const parent =
+        event.currentTarget.parent || this;
+      event.currentTarget = parent;
+    }
+
+    if (event.defaultPrevented) {
+      return;
+    }
+
+    this.handleDefaultKeyBehavior(event);
+  };
+  // private emitMouseEvents = (
+  //   event: Extract<InputEvent, { kind: "mouse" }>,
+  // ) => {
+  //   // event.
+  // };
+
+  emitEvent = (event: DOMEvent) => {
+    const set = this.listeners.get(event.type);
+    if (set) {
+      for (const listener of set) {
+        listener(event);
+      }
+    }
+  };
+
+  private handleDefaultKeyBehavior = (
+    event: KeyboardEvent,
+  ) => {
+    if (
+      event.type === "keydown" &&
+      event.key === "c" &&
+      event.ctrlKey
+    ) {
+      this.dispose();
+      process.exit(0);
+    }
+  };
+
+  private handleDefaultMouseBehavior = (
+    event: MouseEvent | WheelEvent,
+  ) => {
+    if (event.type === "mousedown") {
+      this.state.activeMouseButtons.add(event.button);
+      log(event.button);
+      const bp = this.caretPositionFromPoint(
+        event.clientX,
+        event.clientY,
+      );
+      if (bp) {
+        this.createSelection(bp);
+        this.requestPaint()
+      }
+    } else if (event.type === "mouseup") {
+      this.state.activeMouseButtons.delete(event.button);
+    } else if (event.type === "mousemove") {
+      if (this.state.activeMouseButtons.has("left") && this.selection) {
+        this.state.isDragging = true;
+        const bp = this.caretPositionFromPoint(
+          event.clientX,
+          event.clientY,
+        );
+        const selection = this.selection;
+        if (bp && selection) {
+       
+          selection.setFocus(bp.node, bp.offset)
+          this.requestPaint();
+        }
+      }
+    }
+  };
+
+  addEventListener = <
+    const K extends DOMEvent["type"],
+  >(
+    event: K,
+    listener: (
+      event: DOMEventByType<K>,
+    ) => void,
+  ) => {
+    const set =
+      this.listeners.get(event) ?? new Set();
+    set.add(
+      listener as (event: DOMEvent) => void,
+    );
+    this.listeners.set(event, set);
+  };
+  removeEventListener = <
+    K extends DOMEvent["type"],
+  >(
+    event: K,
+    listener: (
+      event: Extract<DOMEvent, { type: K }>,
+    ) => void,
+  ) => {
+    const set = this.listeners.get(event);
+    set?.delete(
+      listener as (event: DOMEvent) => void,
+    );
   };
 }

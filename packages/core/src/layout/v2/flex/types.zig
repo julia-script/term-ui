@@ -35,7 +35,7 @@ pub const AlgoConstants = struct {
     /// The align_content property of this node
     align_content: css_types.AlignContent,
     /// The justify_content property of this node
-    justify_content: css_types.JustifyContent,
+    justify_content: ?css_types.JustifyContent,
 
     /// The border-box size of the node being laid out (if known)
     node_outer_size: mod.CSSMaybePoint,
@@ -78,11 +78,11 @@ pub const FlexItem = struct {
     resolved_minimum_main_size: f32,
 
     /// The final offset of this item
-    inset: css_types.LengthPercentageAutoRect,
+    inset: mod.RectOf(?f32),
     /// The margin of this item
     margin: mod.CSSRect,
     /// Whether each margin is an auto margin or not
-    margin_is_auto: mod.CSSRect,
+    margin_is_auto: mod.RectOf(bool),
     /// The padding of this item
     padding: mod.CSSRect,
     /// The border of this item
@@ -116,13 +116,25 @@ pub const FlexItem = struct {
     offset_main: f32,
     /// A temporary value for the cross offset
     offset_cross: f32,
-    
+
     pub fn marginIsAuto(self: *const FlexItem) mod.CSSRectBool {
         return mod.CSSRectBool{
-            .top = switch (self.inset.top) { .auto => true, else => false },
-            .right = switch (self.inset.right) { .auto => true, else => false },
-            .bottom = switch (self.inset.bottom) { .auto => true, else => false },
-            .left = switch (self.inset.left) { .auto => true, else => false },
+            .top = switch (self.inset.top) {
+                .auto => true,
+                else => false,
+            },
+            .right = switch (self.inset.right) {
+                .auto => true,
+                else => false,
+            },
+            .bottom = switch (self.inset.bottom) {
+                .auto => true,
+                else => false,
+            },
+            .left = switch (self.inset.left) {
+                .auto => true,
+                else => false,
+            },
         };
     }
 };

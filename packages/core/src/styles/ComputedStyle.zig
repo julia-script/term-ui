@@ -44,7 +44,8 @@ pub const ComputedStyleCache = struct {
         self.styles.deinit();
     }
     pub fn computeRootStyle(self: *ComputedStyleCache, tree: *Tree) StyleError!void {
-        try self.computeStyle(tree, 0, ROOT_STYLE);
+        self.styles.clearAndFree();
+        try self.computeStyle(tree, Tree.ROOT_NODE_ID, ROOT_STYLE);
     }
 
     pub fn computeStyle(self: *ComputedStyleCache, tree: *Tree, node_id: NodeId, parent_style: Style) StyleError!void {

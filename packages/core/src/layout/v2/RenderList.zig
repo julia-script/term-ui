@@ -6,6 +6,7 @@ const Style = @import("../../tree/Style.zig");
 const styles = @import("../../styles/styles.zig");
 const Color = @import("../../colors/Color.zig");
 const Canvas = @import("../../renderer/v2/Canvas.zig");
+const NodeId = @import("../../tree/Tree.zig").Node.NodeId;
 pub const TextFormat = Canvas.TextFormat;
 
 /// A flat list of render items representing the paint order of the layout tree
@@ -36,10 +37,10 @@ pub const Rect = struct {
         };
     }
 
-    pub fn fromBox(box: mod.Box) Rect {
+    pub fn fromBox(box: mod.Box, abs_pos: mod.CSSPoint) Rect {
         return .{
-            .x = box.location.x,
-            .y = box.location.y,
+            .x = abs_pos.x + box.location.x,
+            .y = abs_pos.y + box.location.y,
             .width = box.size.x,
             .height = box.size.y,
         };
@@ -49,7 +50,7 @@ pub const Rect = struct {
         return point.x >= self.x and point.x < self.x + self.width and
             point.y >= self.y and point.y < self.y + self.height;
     }
-    
+
     pub fn containsXY(self: Rect, x: f32, y: f32) bool {
         return x >= self.x and x < self.x + self.width and
             y >= self.y and y < self.y + self.height;
@@ -75,6 +76,11 @@ pub const Rect = struct {
             .height = @max(0, y2 - y1),
         };
     }
+    pub fn format(self: Rect, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+        _ = options;
+        try writer.print("Rect(x={d:.1}, y={d:.1}, width={d:.1}, height={d:.1})", .{ self.x, self.y, self.width, self.height });
+    }
 };
 
 pub fn init(allocator: std.mem.Allocator) Self {
@@ -88,14 +94,28 @@ pub fn deinit(self: *Self) void {
     self.items.deinit(self.allocator);
 }
 
+pub fn slice(self: *Self) []RenderItem {
+    return self.items.items;
+}
 /// Clear all items but retain allocated capacity for reuse
-pub fn clearRetainingCapacity(self: *Self) void {
+pub fn clear(self: *Self) void {
     // Deinit existing items
     for (self.items.items) |*item| {
         item.deinit(self.allocator);
     }
     // Clear the list but keep the allocated memory
     self.items.clearRetainingCapacity();
+}
+
+/// Format function for RenderList that shows each item with its index
+pub fn format(self: *const Self, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+    _ = fmt;
+    _ = options;
+    
+    for (self.items.items, 0..) |item, i| {
+        if (i > 0) try writer.print("\n", .{});
+        try writer.print("#{d} {}", .{ i, item });
+    }
 }
 
 /// Render item types for TUI rendering
@@ -120,13 +140,86 @@ pub const RenderItem = union(enum) {
             else => {}, // Other items don't allocate
         }
     }
+    pub fn format(self: RenderItem, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: std.io.AnyWriter) !void {
+        _ = fmt; // autofix
+        _ = options; // autofix
+        
+        switch (self) {
+            .box => |box| {
+                try writer.print("[box bb={{{d:.1}, {d:.1}, {d:.1}, {d:.1}}} nid={d} lid={d}", .{
+                    box.bounds.x,
+                    box.bounds.y,
+                    box.bounds.width,
+                    box.bounds.height,
+                    box.doc_node_id,
+                    box.node_id,
+                });
+                if (box.background) |bg| {
+                    switch (bg) {
+                        .solid => |color| try writer.print(" bg=#{x:0>6}", .{color.toHex() & 0xFFFFFF}),
+                        .linear_gradient => try writer.print(" bg=linear-gradient", .{}),
+                        .radial_gradient => try writer.print(" bg=radial-gradient", .{}),
+                    }
+                }
+                try writer.print("]", .{});
+            },
+            .text_fragment => |text| {
+                try writer.print("[text_fragment bb={{{d:.1}, {d:.1}, {d:.1}, {d:.1}}} nid={d} lid={d} range={d}~{d} text=\"{s}\"]", .{
+                    text.bounds.x,
+                    text.bounds.y,
+                    text.bounds.width,
+                    text.bounds.height,
+                    text.doc_node_id,
+                    text.node_id,
+                    text.dom_range.start,
+                    text.dom_range.end,
+                    text.text,
+                });
+            },
+            .push_clip => |clip| {
+                try writer.print("[push_clip rect={{{d:.1}, {d:.1}, {d:.1}, {d:.1}}}]", .{
+                    clip.rect.x,
+                    clip.rect.y,
+                    clip.rect.width,
+                    clip.rect.height,
+                });
+            },
+            .pop_clip => {
+                try writer.print("[pop_clip]", .{});
+            },
+            .selection_overlay => |sel| {
+                try writer.print("[selection_overlay bb={{{d:.1}, {d:.1}, {d:.1}, {d:.1}}} id={d}]", .{
+                    sel.bounds.x,
+                    sel.bounds.y,
+                    sel.bounds.width,
+                    sel.bounds.height,
+                    sel.selection_id,
+                });
+            },
+            .line_box => |line| {
+                try writer.print("[line_box bb={{{d:.1}, {d:.1}, {d:.1}, {d:.1}}} nid={d} lid={d} fragments={{", .{
+                    line.bounds.x,
+                    line.bounds.y,
+                    line.bounds.width,
+                    line.bounds.height,
+                    line.doc_node_id,
+                    line.node_id,
+                });
+                for (line.fragment_indexes, 0..) |idx, i| {
+                    if (i > 0) try writer.print(", ", .{});
+                    try writer.print("{d}", .{idx});
+                }
+                try writer.print("}}]", .{});
+            },
+        }
+    }
 };
 
 pub const BoxItem = struct {
     /// Bounding box for painting and hit testing
     bounds: Rect,
-    /// Content bounds (inside padding/border) for hit testing children
-    content_bounds: Rect,
+    // /// Content bounds (inside padding/border) for hit testing children
+    // content_bounds: Rect,
     /// Background color/gradient
     background: ?styles.background.Background,
     /// Border styles
@@ -136,6 +229,7 @@ pub const BoxItem = struct {
     z_index: i32 = 0,
     /// Layout node ID for debugging and hit testing
     node_id: LayoutTree.LayoutNode.Id,
+    doc_node_id: NodeId,
     /// Whether this element can receive click events
     is_clickable: bool = true,
 };
@@ -143,8 +237,6 @@ pub const BoxItem = struct {
 pub const TextFragmentItem = struct {
     /// Bounding box for hit testing
     bounds: Rect,
-    /// Text baseline position
-    position: mod.CSSPoint,
     /// Reference to text in layout tree (not owned)
     text: []const u8,
     /// Text color
@@ -153,12 +245,15 @@ pub const TextFragmentItem = struct {
     format: TextFormat,
     /// For getting styles and hit testing
     node_id: LayoutTree.LayoutNode.Id,
+    doc_node_id: NodeId,
     /// Z-index for stacking context
     z_index: i32 = 0,
     /// Range in the original DOM text node (for caret positioning)
     dom_range: DomRange,
     /// Whether this element can receive click events (usually false for text)
     is_clickable: bool = false,
+    linebox_index: usize,
+    is_atomic: bool = false,
 };
 
 pub const ClipItem = struct {
@@ -178,21 +273,24 @@ pub const SelectionOverlayItem = struct {
 pub const LineBoxItem = struct {
     /// Bounding box spanning the full line width
     bounds: Rect,
-    /// Indices of text fragments within this line box
-    fragment_indices: []const usize,
     /// Layout node ID of the inline container
     node_id: LayoutTree.LayoutNode.Id,
+    doc_node_id: NodeId,
+    fragment_indexes: []const usize,
     /// Allocator for fragment indices
     allocator: std.mem.Allocator,
-    
+
+    /// Allocator for fragment indices
     pub fn deinit(self: *LineBoxItem) void {
-        self.allocator.free(self.fragment_indices);
+        // self.fragment_indexes.deinit(self.allocator);
+        self.allocator.free(self.fragment_indexes);
     }
 };
 
 /// Add a render item to the list
-pub fn addItem(self: *Self, item: RenderItem) !void {
+pub fn addItem(self: *Self, item: RenderItem) !usize {
     try self.items.append(self.allocator, item);
+    return self.items.items.len - 1;
 }
 
 /// Sort items by paint order (z-index and tree order)
@@ -316,83 +414,107 @@ pub fn print(self: *Self, writer: std.io.AnyWriter) !void {
 /// Hit test result containing the render item and its node ID
 pub const HitTestResult = struct {
     item_index: usize,
-    node_id: LayoutTree.LayoutNode.Id,
-    item_type: enum { box, text_fragment, selection_overlay, line_box },
+    external_id: u32,
+    item_type: enum(u8) { box = 1, text_fragment = 2, line_box = 3, selection_overlay = 4 },
+    bounds: Rect,
 };
 
-/// Hit test filtering options
-pub const HitTestOptions = struct {
-    /// Include text fragments in hit testing
-    include_text: bool = true,
-    /// Include boxes in hit testing  
-    include_boxes: bool = true,
-    /// Include selection overlays in hit testing
-    include_selections: bool = false,
-    /// Include line boxes in hit testing
-    include_line_boxes: bool = true,
-    /// Only hit test elements with pointer events enabled (requires layout tree context)
-    pointer_events_only: bool = false,
+pub const HitTestFilter = struct {
+    pub const BOX: u8 = 0b0001;
+    pub const INCLUDE_DISABLED_POINTER_EVENTS: u8 = 0b0010;
+    pub const TEXT_FRAGMENT: u8 = 0b0100;
+    pub const SELECTION_OVERLAY: u8 = 0b1000;
+    pub const LINE_BOX: u8 = 0b10000;
+
+    pub fn matches(self: u8, matcher: u8) bool {
+        return (self & matcher) == matcher;
+    }
 };
+test "HitTestFilter" {
+    try std.testing.expect(HitTestFilter.matches(
+        HitTestFilter.BOX,
+        HitTestFilter.BOX,
+    ));
+    try std.testing.expect(HitTestFilter.matches(
+        HitTestFilter.BOX | HitTestFilter.TEXT_FRAGMENT,
+        HitTestFilter.BOX,
+    ));
+    try std.testing.expect(!HitTestFilter.matches(HitTestFilter.BOX, HitTestFilter.TEXT_FRAGMENT));
+    try std.testing.expect(HitTestFilter.matches(
+        HitTestFilter.BOX | HitTestFilter.TEXT_FRAGMENT,
+        HitTestFilter.BOX,
+    ));
+    try std.testing.expect(HitTestFilter.matches(
+        HitTestFilter.BOX | HitTestFilter.TEXT_FRAGMENT,
+        HitTestFilter.TEXT_FRAGMENT,
+    ));
+    try std.testing.expect(HitTestFilter.matches(
+        HitTestFilter.BOX | HitTestFilter.TEXT_FRAGMENT,
+        HitTestFilter.BOX | HitTestFilter.TEXT_FRAGMENT,
+    ));
+    try std.testing.expect(HitTestFilter.matches(
+        HitTestFilter.BOX | HitTestFilter.TEXT_FRAGMENT,
+        HitTestFilter.BOX,
+    ));
+    try std.testing.expect(HitTestFilter.matches(
+        HitTestFilter.BOX | HitTestFilter.TEXT_FRAGMENT,
+        HitTestFilter.TEXT_FRAGMENT,
+    ));
+}
 
 /// Perform hit testing at the given coordinates
 /// Returns the topmost item that contains the point, respecting z-order and filters
-pub fn hitTest(self: *const Self, point: mod.CSSPoint, options: HitTestOptions) ?HitTestResult {
+pub fn hitTest(self: *const Self, point: mod.CSSPoint, filter: u8) ?HitTestResult {
     var result: ?HitTestResult = null;
-    var highest_z: i32 = std.math.minInt(i32);
-    
+
     // Iterate through all items to find hits
     for (self.items.items, 0..) |item, i| {
         switch (item) {
             .box => |box| {
-                if (options.include_boxes and box.bounds.contains(point)) {
+                if (HitTestFilter.matches(filter, HitTestFilter.BOX) and box.bounds.contains(point)) {
                     // Skip non-clickable boxes when filtering for pointer events
-                    if (options.pointer_events_only and !box.is_clickable) continue;
-                    
-                    if (box.z_index >= highest_z) {
-                        highest_z = box.z_index;
-                        result = .{
-                            .item_index = i,
-                            .node_id = box.node_id,
-                            .item_type = .box,
-                        };
-                    }
+                    if (!box.is_clickable and !HitTestFilter.matches(filter, HitTestFilter.INCLUDE_DISABLED_POINTER_EVENTS)) continue;
+
+                    result = .{
+                        .item_index = i,
+                        .external_id = @intCast(box.doc_node_id),
+                        .item_type = .box,
+                        .bounds = box.bounds,
+                    };
                 }
             },
             .text_fragment => |text| {
-                if (options.include_text and text.bounds.contains(point)) {
+                if (HitTestFilter.matches(filter, HitTestFilter.TEXT_FRAGMENT) and text.bounds.contains(point)) {
                     // Skip non-clickable text when filtering for pointer events
-                    if (options.pointer_events_only and !text.is_clickable) continue;
-                    
-                    if (text.z_index >= highest_z) {
-                        highest_z = text.z_index;
-                        result = .{
-                            .item_index = i,
-                            .node_id = text.node_id,
-                            .item_type = .text_fragment,
-                        };
-                    }
+                    if (!text.is_clickable and !HitTestFilter.matches(filter, HitTestFilter.INCLUDE_DISABLED_POINTER_EVENTS)) continue;
+
+                    result = .{
+                        .item_index = i,
+                        .external_id = @intCast(text.doc_node_id),
+                        .item_type = .text_fragment,
+                        .bounds = text.bounds,
+                    };
                 }
             },
             .selection_overlay => |sel| {
-                if (options.include_selections and sel.bounds.contains(point)) {
+                if (HitTestFilter.matches(filter, HitTestFilter.SELECTION_OVERLAY) and sel.bounds.contains(point)) {
                     // Selection overlays typically have high z-index
                     result = .{
                         .item_index = i,
-                        .node_id = 0, // Selection overlays don't have node IDs
+                        .external_id = @intCast(sel.selection_id),
                         .item_type = .selection_overlay,
+                        .bounds = sel.bounds,
                     };
                 }
             },
             .line_box => |line| {
-                if (options.include_line_boxes and line.bounds.contains(point)) {
-                    if (0 >= highest_z) { // Line boxes have z-index 0
-                        highest_z = 0;
-                        result = .{
-                            .item_index = i,
-                            .node_id = line.node_id,
-                            .item_type = .line_box,
-                        };
-                    }
+                if (HitTestFilter.matches(filter, HitTestFilter.LINE_BOX) and line.bounds.contains(point)) {
+                    result = .{
+                        .item_index = i,
+                        .external_id = @intCast(line.doc_node_id),
+                        .item_type = .line_box,
+                        .bounds = line.bounds,
+                    };
                 }
             },
             .push_clip, .pop_clip => {
@@ -400,158 +522,56 @@ pub fn hitTest(self: *const Self, point: mod.CSSPoint, options: HitTestOptions) 
             },
         }
     }
-    
+
     return result;
 }
 
-/// Get all items that contain the given point (useful for debugging)
-pub fn hitTestAll(self: *const Self, allocator: std.mem.Allocator, point: mod.CSSPoint, options: HitTestOptions) !std.ArrayList(HitTestResult) {
-    var results = std.ArrayList(HitTestResult).init(allocator);
+pub fn hitTestList(self: *const Self, list: *std.ArrayList(HitTestResult), point: mod.CSSPoint, filter: u8) !void {
     for (self.items.items, 0..) |item, i| {
         switch (item) {
             .box => |box| {
-                if (options.include_boxes and box.bounds.contains(point)) {
-                    try results.append(.{
+                if (HitTestFilter.matches(filter, HitTestFilter.BOX) and box.bounds.contains(point)) {
+                    try list.append(.{
                         .item_index = i,
-                        .node_id = box.node_id,
+                        .external_id = @intCast(box.doc_node_id),
                         .item_type = .box,
+                        .bounds = box.bounds,
                     });
                 }
             },
             .text_fragment => |text| {
-                if (options.include_text and text.bounds.contains(point)) {
-                    try results.append(.{
+                if (HitTestFilter.matches(filter, HitTestFilter.TEXT_FRAGMENT) and text.bounds.contains(point)) {
+                    try list.append(.{
                         .item_index = i,
-                        .node_id = text.node_id,
+                        .external_id = @intCast(text.doc_node_id),
                         .item_type = .text_fragment,
+                        .bounds = text.bounds,
                     });
                 }
             },
             .selection_overlay => |sel| {
-                if (options.include_selections and sel.bounds.contains(point)) {
-                    try results.append(.{
+                if (HitTestFilter.matches(filter, HitTestFilter.SELECTION_OVERLAY) and sel.bounds.contains(point)) {
+                    try list.append(.{
                         .item_index = i,
-                        .node_id = 0,
+                        .external_id = @intCast(sel.selection_id),
                         .item_type = .selection_overlay,
+                        .bounds = sel.bounds,
                     });
                 }
             },
             .line_box => |line| {
-                if (options.include_line_boxes and line.bounds.contains(point)) {
-                    try results.append(.{
+                if (HitTestFilter.matches(filter, HitTestFilter.LINE_BOX) and line.bounds.contains(point)) {
+                    try list.append(.{
                         .item_index = i,
-                        .node_id = line.node_id,
+                        .external_id = @intCast(line.doc_node_id),
                         .item_type = .line_box,
+                        .bounds = line.bounds,
                     });
                 }
             },
-            .push_clip, .pop_clip => {},
+            .push_clip, .pop_clip => {
+                // These don't participate in hit testing
+            },
         }
     }
-    return results;
-}
-
-test "RenderList hit testing" {
-    var list = init(std.testing.allocator);
-    defer list.deinit();
-
-    // Add test items
-    try list.addItem(.{
-        .box = .{
-            .bounds = .{ .x = 10, .y = 10, .width = 20, .height = 15 },
-            .content_bounds = .{ .x = 11, .y = 11, .width = 18, .height = 13 },
-            .background = null,
-            .border_style = .{ .top = .{}, .right = .{}, .bottom = .{}, .left = .{} },
-            .border_color = .{ .top = .{ .solid = Color.tw.gray_500 }, .right = .{ .solid = Color.tw.gray_500 }, .bottom = .{ .solid = Color.tw.gray_500 }, .left = .{ .solid = Color.tw.gray_500 } },
-            .z_index = 1,
-            .node_id = 1,
-        },
-    });
-    
-    try list.addItem(.{
-        .text_fragment = .{
-            .bounds = .{ .x = 5, .y = 5, .width = 10, .height = 5 },
-            .position = .{ .x = 5, .y = 8 },
-            .text = "Hello",
-            .color = Color.tw.blue_500,
-            .format = .{},
-            .node_id = 2,
-            .z_index = 2,
-            .dom_range = .{ .start = 0, .end = 5 },
-        },
-    });
-
-    // Test hit testing with different options
-    const options_all = HitTestOptions{ .include_text = true, .include_boxes = true };
-    const options_boxes_only = HitTestOptions{ .include_text = false, .include_boxes = true };
-
-    // Hit the text (higher z-index, should win)
-    const hit1 = list.hitTest(.{ .x = 8, .y = 7 }, options_all);
-    try std.testing.expect(hit1 != null);
-    try std.testing.expectEqual(@as(usize, 2), hit1.?.node_id);
-    try std.testing.expectEqual(@as(@TypeOf(hit1.?.item_type), .text_fragment), hit1.?.item_type);
-
-    // Hit the box only
-    const hit2 = list.hitTest(.{ .x = 25, .y = 20 }, options_all);
-    try std.testing.expect(hit2 != null);
-    try std.testing.expectEqual(@as(usize, 1), hit2.?.node_id);
-    try std.testing.expectEqual(@as(@TypeOf(hit2.?.item_type), .box), hit2.?.item_type);
-
-    // Hit text area but with text filtering disabled
-    const hit3 = list.hitTest(.{ .x = 8, .y = 7 }, options_boxes_only);
-    try std.testing.expect(hit3 == null); // Should miss because text is filtered out
-
-    // Hit outside any item
-    const hit4 = list.hitTest(.{ .x = 100, .y = 100 }, options_all);
-    try std.testing.expect(hit4 == null);
-
-    // Test hitTestAll
-    var all_hits = try list.hitTestAll(std.testing.allocator, .{ .x = 12, .y = 12 }, options_all);
-    defer all_hits.deinit();
-    try std.testing.expectEqual(@as(usize, 1), all_hits.items.len); // Only the box should be hit
-    try std.testing.expectEqual(@as(usize, 1), all_hits.items[0].node_id);
-}
-
-test "RenderList" {
-    var list = init(std.testing.allocator);
-    defer list.deinit();
-
-    // Add some test items
-    try list.addItem(.{
-        .box = .{
-            .bounds = .{ .x = 0, .y = 0, .width = 20, .height = 10 },
-            .content_bounds = .{ .x = 1, .y = 1, .width = 18, .height = 8 },
-            .background = .{ .solid = Color.tw.blue_500 },
-            .border_style = .{ .top = .{}, .right = .{}, .bottom = .{}, .left = .{} },
-            .border_color = .{
-                .top = .{ .solid = Color.tw.white },
-                .right = .{ .solid = Color.tw.white },
-                .bottom = .{ .solid = Color.tw.white },
-                .left = .{ .solid = Color.tw.white },
-            },
-            .z_index = 0,
-            .node_id = 1,
-        },
-    });
-
-    try list.addItem(.{
-        .text_fragment = .{
-            .bounds = .{ .x = 5, .y = 5, .width = 5, .height = 1 },
-            .position = .{ .x = 5, .y = 5 },
-            .text = "Hello", // Just a reference, not owned
-            .color = Color.tw.white,
-            .format = .{},
-            .node_id = 2,
-            .z_index = 1,
-            .dom_range = .{ .start = 0, .end = 5 },
-        },
-    });
-
-    // Test sorting
-    list.sortByPaintOrder();
-
-    // Verify order
-    try std.testing.expectEqual(@as(usize, 2), list.items.items.len);
-    try std.testing.expectEqual(@as(i32, 0), getZIndex(list.items.items[0]));
-    try std.testing.expectEqual(@as(i32, 1), getZIndex(list.items.items[1]));
 }

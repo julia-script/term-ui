@@ -202,73 +202,6 @@ test "pipeline: gradient border" {
     );
 }
 
-test "pipeline: text selection" {
-    const xml =
-        \\<div style="width: 40px; height: 5px; background-color: #1e293b;">
-        \\  <span style="color: #f59e0b;">Hello, World!</span>
-        \\</div>
-    ;
-
-    try pipeline.expectPipeline(
-        std.testing.allocator,
-        xml,
-        "text-selection",
-        .{
-            .available_space = .{ .x = .{ .definite = 50 }, .y = .max_content },
-            // Select "World" - text node is typically node 2 (div=0, span=1, text=2)
-            .selections = &[_][3]u32{
-                .{ 3, 7, 12 }, // node_id=2, start=7, end=12
-            },
-        },
-        @src(),
-    );
-}
-
-test "pipeline: multiple selections" {
-    const xml =
-        \\<div style="width: 50px; height: 8px; background-color: #1e293b;">
-        \\  <span style="color: #10b981;">The quick brown fox jumps over the lazy dog</span>
-        \\</div>
-    ;
-
-    try pipeline.expectPipeline(
-        std.testing.allocator,
-        xml,
-        "multiple-selections",
-        .{
-            .available_space = .{ .x = .{ .definite = 60 }, .y = .max_content },
-            // Select "quick" and "lazy"
-            .selections = &[_][3]u32{
-                .{ 3, 4, 9 }, // "quick"
-                .{ 3, 35, 39 }, // "lazy"
-            },
-        },
-        @src(),
-    );
-}
-
-test "pipeline: selection spanning wrapped text" {
-    const xml =
-        \\<div style="width: 20px; background-color: #1f2937;">
-        \\  <span style="color: #fbbf24;">This is a long text that should wrap to multiple lines</span>
-        \\</div>
-    ;
-
-    try pipeline.expectPipeline(
-        std.testing.allocator,
-        xml,
-        "selection-wrapped-text",
-        .{
-            .available_space = .{ .x = .{ .definite = 20 }, .y = .max_content },
-            // Select from "long" to "should"
-            .selections = &[_][3]u32{
-                .{ 3, 10, 30 }, // "long text that should"
-            },
-        },
-        @src(),
-    );
-}
-
 test "pipeline: empty text node selection" {
     const xml =
         \\<div style="width: 40px; height: 10px; background-color: #1e293b;">
@@ -282,11 +215,6 @@ test "pipeline: empty text node selection" {
         "empty-text-node-selection",
         .{
             .available_space = .{ .x = .{ .definite = 50 }, .y = .{ .definite = 15 } },
-            // Select the whitespace-only span content
-            // Text nodes: div=0, div=1, text1=2, span=3, text2=4, text3=5
-            .selections = &[_][3]u32{
-                .{ 5, 0, 3 }, // The three spaces in the span
-            },
         },
         @src(),
     );

@@ -406,7 +406,7 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
     for (children) |child_id| {
         const child_css_display = context.getStyleValue(css_types.Display, child_id, .display);
         if (child_css_display.outside == .none) {
-            context.setBox(child_id, .{
+            try context.setBox(child_id, .{
                 .size = mod.CSSPoint{ .x = 0, .y = 0 },
                 .location = mod.CSSPoint{ .x = 0, .y = 0 },
                 .margin = mod.CSSRect{ .top = 0, .right = 0, .bottom = 0, .left = 0 },
@@ -415,7 +415,7 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
                 .content_size = mod.CSSPoint{ .x = 0, .y = 0 },
                 .scrollbar_size = mod.CSSPoint{ .x = 0, .y = 0 },
             }, null);
-            _ = try mod.performChildLayout(
+            var layout = try mod.performChildLayout(
                 context,
                 child_id,
                 mod.CSSMaybePoint.NULL,
@@ -424,6 +424,7 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
                 .inherent_size,
                 .{ .start = false, .end = false },
             );
+            defer layout.deinit();
         }
     }
 
@@ -595,7 +596,7 @@ pub fn determineContentBasedContainerWidth(
             };
             const item_x_margin_sum = item_margin.sumHorizontal();
 
-            const size_and_baselines = try mod.performChildLayout(
+            var size_and_baselines = try mod.performChildLayout(
                 context,
                 item.node_id,
 
@@ -608,6 +609,7 @@ pub fn determineContentBasedContainerWidth(
                 .inherent_size,
                 .{ .start = true, .end = true },
             );
+            defer size_and_baselines.deinit();
             //     .parent_size = mod.CSSMaybePoint{ .x = null, .y = null },
             //     .available_space = item_available_space,
             //     .sizing_mode = .inherent_size,
@@ -638,7 +640,9 @@ fn performFinalLayoutOnInFlowChildren(
     _ = l_node_id; // autofix
 
     // Resolve container_inner_width for sizing child nodes using initial content_box_inset
+
     const container_inner_width: f32 = container_outer_width - content_box_inset.sumHorizontal();
+
     const parent_size = mod.CSSMaybePoint{
         .x = container_outer_width,
         .y = null,
@@ -698,7 +702,7 @@ fn performFinalLayoutOnInFlowChildren(
             .y = available_space.y,
         };
 
-        const item_layout = try mod.performChildLayout(
+        var item_layout = try mod.performChildLayout(
             context,
             item.node_id,
             known_dimensions,
@@ -707,6 +711,7 @@ fn performFinalLayoutOnInFlowChildren(
             .inherent_size,
             .{ .start = true, .end = true },
         );
+        defer item_layout.deinit();
 
         const final_size = item_layout.size;
         const top_margin_value = item_margin.top orelse 0;
@@ -763,11 +768,11 @@ fn performFinalLayoutOnInFlowChildren(
         };
 
         const content_size = mod.CSSPoint{
-            .x = container_inner_width,
+            .x = item_layout.content_size.x,
             .y = item_layout.content_size.y,
         };
 
-        context.setBox(item.node_id, .{
+        try context.setBox(item.node_id, .{
             .size = item_layout.size,
             .scrollbar_size = item_layout.scrollbar_size,
             .location = location,
@@ -940,7 +945,7 @@ pub fn performAbsoluteLayoutOnAbsoluteChildren(
             known_dimensions.y = mod.math.maybeClamp(known_dimensions.y, min_size.y, max_size.y);
         };
 
-        const layout_output = try mod.performChildLayout(
+        var layout_output = try mod.performChildLayout(
             context,
             child_id,
             known_dimensions,
@@ -952,6 +957,7 @@ pub fn performAbsoluteLayoutOnAbsoluteChildren(
             .content_size,
             .{ .start = false, .end = false },
         );
+        defer layout_output.deinit();
         const measured_size = layout_output.size;
 
         const final_size = mod.CSSPoint{
@@ -1045,7 +1051,7 @@ pub fn performAbsoluteLayoutOnAbsoluteChildren(
             },
         };
 
-        context.setBox(child_id, .{
+        try context.setBox(child_id, .{
             .size = final_size,
             .content_size = layout_output.content_size,
             .scrollbar_size = layout_output.scrollbar_size,

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <style>
+    body {
+      font-family: monospace;
+      line-height: 10px;
+      font-size: 10px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    #root {
+      width: 500px;
+      height: 500px;
+      background-color: red;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+      white-space: pre-wrap;
+      tab-size: 8;
+    }
+
+    .boc {
+      width: 30ch;
+      background-color: lightblue;
+      text-align: center;
+      white-space: normal;
+      resize: both;
+      
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="boc">Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quos.</div>
+  <input type="number" id="width" value="30" onchange="updateWidth(this.value)">
+  <select id="white-space" onchange="updateWhiteSpace(this.value)">
+    <option value="normal">normal</option>
+    <option value="nowrap">nowrap</option>
+    <option value="pre">pre</option>
+    <option value="pre-wrap">pre-wrap</option>
+    <option value="pre-line">pre-line</option>
+    <option value="break-spaces">break-spaces</option>
+  </select>
+  <select id="text-align" onchange="updateTextAlign(this.value)">
+    <option value="left">left</option>
+    <option value="center">center</option>
+    <option value="right">right</option>
+    <option value="justify">justify</option>
+  </select>
+  <script>  
+
+    function updateWidth(value) {
+      document.querySelector('.boc').style.width = value + 'ch';
+    }
+    function updateWhiteSpace(value) {
+      document.querySelector('.boc').style.whiteSpace = value;
+    }
+    function updateTextAlign(value) {
+      document.querySelector('.boc').style.textAlign = value;
+    }
+  </script>
+
+</body>
+
+</html>

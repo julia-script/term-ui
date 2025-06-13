@@ -4,7 +4,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { camelCase, upperFirst } from "lodash-es";
-import dedent from "ts-dedent";
+import { dedent } from "ts-dedent";
 
 const upperCamelCase = (str: string) =>
   upperFirst(camelCase(str));
@@ -32,14 +32,26 @@ const files: {
     defaultValue: "Other",
     name: "GraphemeBreak",
   },
-  // {
-  //   path: "data/16.0.0/ucd/auxiliary/WordBreakProperty.txt",
-  //   url: "https://www.unicode.org/Public/16.0.0/ucd/auxiliary/WordBreakProperty.txt",
-  // },
-  // {
-  //   path: "data/16.0.0/ucd/auxiliary/SentenceBreakProperty.txt",
-  //   url: "https://www.unicode.org/Public/16.0.0/ucd/auxiliary/SentenceBreakProperty.txt",
-  // },
+  {
+    path: path.join(
+      __dirname,
+      "data/16.0.0/ucd/auxiliary/WordBreakProperty.txt",
+    ),
+    url: "https://www.unicode.org/Public/16.0.0/ucd/auxiliary/WordBreakProperty.txt",
+    type: "enum",
+    defaultValue: "Other",
+    name: "WordBreak",
+  },
+  {
+    path: path.join(
+      __dirname,
+      "data/16.0.0/ucd/auxiliary/SentenceBreakProperty.txt",
+    ),
+    url: "https://www.unicode.org/Public/16.0.0/ucd/auxiliary/SentenceBreakProperty.txt",
+    type: "enum",
+    defaultValue: "Other",
+    name: "SentenceBreak",
+  },
   {
     path: path.join(
       __dirname,
@@ -540,7 +552,6 @@ async function main() {
   console.error(
     `Output written to ${path.join(__dirname, "lookups.zig")}`,
   );
-  
 }
 
 await downloadFiles();

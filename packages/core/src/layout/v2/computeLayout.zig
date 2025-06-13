@@ -16,7 +16,7 @@ pub fn computeLayout(context: *LayoutContext, available_space: mod.PointOf(mod.c
         },
     };
 
-    const root_layout = try mod.performChildLayout(
+    var root_layout = try mod.performChildLayout(
         context,
         viewport_id,
         viewport_size,
@@ -25,6 +25,7 @@ pub fn computeLayout(context: *LayoutContext, available_space: mod.PointOf(mod.c
         .inherent_size,
         .{ .start = false, .end = false },
     );
+    defer root_layout.deinit();
 
     // If available space is not definite, size should be based on the child
     const final_size = mod.CSSPoint{
@@ -32,7 +33,7 @@ pub fn computeLayout(context: *LayoutContext, available_space: mod.PointOf(mod.c
         .y = if (viewport_size.y) |y| y else root_layout.size.y,
     };
 
-    context.setBox(viewport_id, .{
+    try context.setBox(viewport_id, .{
         .size = final_size,
         .content_size = final_size,
         .location = .{ .x = 0, .y = 0 },

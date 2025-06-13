@@ -5,6 +5,7 @@ const xml = @import("../../xml.zig");
 const std = @import("std");
 const Tree = @import("../../tree/Tree.zig");
 const s = @import("../../styles/styles.zig");
+const BoundaryPoint = @import("../../tree/BoundaryPoint.zig");
 
 /// Simple configuration options used when converting XML into a test DOM tree.
 pub const Options = struct {
@@ -20,6 +21,7 @@ pub const Options = struct {
 /// the layout code. The resulting DOM tree is independent of the XML parser
 /// after this function returns.
 pub fn docFromXml(allocator: std.mem.Allocator, xml_string: []const u8, options: Options) !Tree {
+    _ = options; // autofix
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const arena_allocator = arena.allocator();
@@ -27,7 +29,14 @@ pub fn docFromXml(allocator: std.mem.Allocator, xml_string: []const u8, options:
     const doc = try xml.parse(arena_allocator, xml_string);
     var tree = try Tree.init(allocator);
     errdefer tree.deinit();
-    _ = try nodeFromXmlElement(&tree, doc.root, options);
+    var ctx = BuilderContext{
+        .selection_start = null,
+        .selection_end = null,
+    };
+    _ = try nodeFromXmlElement(&tree, doc.root, &ctx);
+    if (ctx.selection_start) |start| {
+        _ = try tree.createSelection(start, ctx.selection_end);
+    }
     return tree;
 }
 
@@ -56,8 +65,15 @@ fn trimText(text: []const u8) []const u8 {
     return std.mem.trim(u8, text, " \n\t\r");
 }
 
+const SELECTION_START = "$S[";
+const SELECTION_END = "]$S";
+
+const BuilderContext = struct {
+    selection_start: ?BoundaryPoint = null,
+    selection_end: ?BoundaryPoint = null,
+};
 /// Recursively build the Tree representation from a parsed XML element.
-fn nodeFromXmlElement(tree: *Tree, element: *xml.Element, options: Options) TreeFromXmlError!Tree.Node.NodeId {
+fn nodeFromXmlElement(tree: *Tree, element: *xml.Element, ctx: *BuilderContext) TreeFromXmlError!Tree.Node.NodeId {
     // Create a DOM node corresponding to this element.
     const node_id = try tree.createNode();
 
@@ -65,23 +81,46 @@ fn nodeFromXmlElement(tree: *Tree, element: *xml.Element, options: Options) Tree
     for (element.children) |child| {
         switch (child) {
             .char_data => {
-                // Text nodes may be dropped or split according to the options.
-                if (options.ignore_empty_text and isEmpty(child.char_data)) {
-                    continue;
-                }
-                if (options.split_lines) {
-                    var iter = std.mem.splitScalar(u8, child.char_data, '\n');
-
-                    while (iter.next()) |line| {
-                        const text = if (options.trim_text) trimText(line) else line;
-                        if (text.len == 0) continue;
-                        const text_node_id = try tree.createTextNode(text);
-                        _ = try tree.appendChild(node_id, text_node_id);
+                const text_node_id = try tree.createTextNode("");
+                _ = try tree.appendChild(node_id, text_node_id);
+                var str = std.ArrayList(u8).init(tree.allocator);
+                defer str.deinit();
+                
+                var current_index: usize = 0;
+                const text = child.char_data;
+                
+                // Find selection markers
+                const selection_start_idx = std.mem.indexOf(u8, text, SELECTION_START);
+                const selection_end_idx = std.mem.indexOf(u8, text, SELECTION_END);
+                
+                // Process text and markers in order
+                if (selection_start_idx) |start_idx| {
+                    // Add text before selection start marker
+                    try str.appendSlice(text[current_index..start_idx]);
+                    ctx.selection_start = .{ .node_id = text_node_id, .offset = @intCast(str.items.len) };
+                    current_index = start_idx + SELECTION_START.len;
+                    
+                    if (selection_end_idx) |end_idx| {
+                        if (end_idx > start_idx) {
+                            // Add text between markers
+                            try str.appendSlice(text[current_index..end_idx]);
+                            ctx.selection_end = .{ .node_id = text_node_id, .offset = @intCast(str.items.len) };
+                            current_index = end_idx + SELECTION_END.len;
+                        }
                     }
-                } else {
-                    const text_node_id = try tree.createTextNode(if (options.trim_text) trimText(child.char_data) else child.char_data);
-                    _ = try tree.appendChild(node_id, text_node_id);
+                } else if (selection_end_idx) |end_idx| {
+                    // Only end marker present
+                    try str.appendSlice(text[current_index..end_idx]);
+                    ctx.selection_end = .{ .node_id = text_node_id, .offset = @intCast(str.items.len) };
+                    current_index = end_idx + SELECTION_END.len;
                 }
+                
+                // Add remaining text after all markers
+                if (current_index < text.len) {
+                    try str.appendSlice(text[current_index..]);
+                }
+                
+                try tree.setText(text_node_id, str.items);
             },
             .comment => {
                 // Comments are ignored entirely.
@@ -90,7 +129,8 @@ fn nodeFromXmlElement(tree: *Tree, element: *xml.Element, options: Options) Tree
                 // Recursively build the subtree for the child element and
                 // assign inline style hints for some HTML-like tags used in the
                 // tests.
-                const child_id = try nodeFromXmlElement(tree, child.element, options);
+                const child_id = try nodeFromXmlElement(tree, child.element, ctx);
+                _ = try tree.appendChild(node_id, child_id);
                 var child_node = tree.getNode(child_id);
                 if (std.mem.eql(u8, child.element.tag, "span")) {
                     child_node.styles.display = .{ .outside = .@"inline", .inside = .flow };
@@ -101,7 +141,6 @@ fn nodeFromXmlElement(tree: *Tree, element: *xml.Element, options: Options) Tree
                     child_node.styles.display = .{ .outside = .@"inline", .inside = .flow };
                     child_node.styles.font_style = .italic;
                 }
-                _ = try tree.appendChild(node_id, child_id);
             },
         }
     }
@@ -120,24 +159,7 @@ fn nodeFromXmlElement(tree: *Tree, element: *xml.Element, options: Options) Tree
             tree.getNode(node_id).scroll_offset.x = std.fmt.parseFloat(f32, attr.value) catch unreachable;
             continue;
         }
-        if (std.mem.eql(u8, attr.name, "selectionStart")) {
-            const offset: u32 = try std.fmt.parseInt(u32, attr.value, 10);
-            if (tree.getFirstSelection()) |selection| {
-                try selection.setAnchor(tree, .{ .node_id = node_id, .offset = offset });
-            } else {
-                _ = try tree.createSelection(.{ .node_id = node_id, .offset = offset }, null);
-            }
-            continue;
-        }
-        if (std.mem.eql(u8, attr.name, "selectionEnd")) {
-            const offset: u32 = try std.fmt.parseInt(u32, attr.value, 10);
-            if (tree.getFirstSelection()) |selection| {
-                try selection.setFocus(tree, .{ .node_id = node_id, .offset = offset });
-            } else {
-                _ = try tree.createSelection(.{ .node_id = node_id, .offset = offset }, null);
-            }
-            continue;
-        }
+
         if (std.mem.eql(u8, attr.name, "id")) {
             try tree.setElementId(node_id, attr.value);
             continue;

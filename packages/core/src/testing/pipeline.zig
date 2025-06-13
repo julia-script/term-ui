@@ -9,8 +9,6 @@ pub const PipelineOptions = struct {
     show_escape_sequences: bool = true,
     /// Available space for layout computation
     available_space: layout_v2.constants.AvailableSpacePoint,
-    /// Selections to create (each selection is [node_id, start_offset, end_offset])
-    selections: ?[]const [3]u32 = null,
 };
 
 /// Captures the entire rendering pipeline for testing
@@ -43,16 +41,6 @@ pub fn expectPipeline(
 
     try doc_tree.print(writer.any());
     try writer.writeAll("\n");
-
-    // Create selections if specified
-    if (options.selections) |selections| {
-        try writer.writeAll("--- Selections ---\n");
-        for (selections, 0..) |sel, i| {
-            const selection_id = try doc_tree.createSelection(.{ .node_id = sel[0], .offset = sel[1] }, .{ .node_id = sel[0], .offset = sel[2] });
-            try writer.print("Selection {d}: node={d}, range=[{d},{d}), id={d}\n", .{ i, sel[0], sel[1], sel[2], selection_id });
-        }
-        try writer.writeAll("\n");
-    }
 
     // 3. Compute styles
     try writer.writeAll("--- Computing Styles ---\n");

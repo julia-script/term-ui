@@ -42,11 +42,17 @@ pub fn info(self: *Self, l_node_id: mod.LayoutNode.Id, comptime format: []const 
     }
 }
 
-pub fn setBox(self: *Self, l_node_id: mod.LayoutNode.Id, box: mod.Box, line_boxes: ?mod.LineBox.LineBoxList) void {
+pub fn setBox(self: *Self, l_node_id: mod.LayoutNode.Id, box: mod.Box, line_boxes: ?mod.LineBox.LineBoxList) !void {
     self.layout_tree.getNodePtr(l_node_id).box = box;
-    if (line_boxes) |lb| {
-        self.layout_tree.getNodePtr(l_node_id).data.inline_container_node.line_boxes.deinit();
-        self.layout_tree.getNodePtr(l_node_id).data.inline_container_node.line_boxes = lb;
+    var node = self.layout_tree.getNodePtr(l_node_id);
+    switch (node.data) {
+        .inline_container_node => {
+            node.data.inline_container_node.line_boxes.deinit();
+            if (line_boxes) |*lb| {
+                node.data.inline_container_node.line_boxes = try lb.dupe(self.allocator);
+            }
+        },
+        else => {},
     }
 }
 pub const StyleProperty = enum {
@@ -139,16 +145,16 @@ pub fn getStyleValue(self: *Self, T: type, l_node_id: mod.LayoutNode.Id, comptim
             return node_styles.flex_shrink;
         },
         .align_items => {
-            return node_styles.align_items orelse .stretch;
+            return node_styles.align_items;
         },
         .align_self => {
-            return node_styles.align_self orelse .auto;
+            return node_styles.align_self;
         },
         .justify_content => {
-            return node_styles.justify_content orelse .flex_start;
+            return node_styles.justify_content;
         },
         .align_content => {
-            return node_styles.align_content orelse .stretch;
+            return node_styles.align_content;
         },
         .gap => {
             return node_styles.gap;

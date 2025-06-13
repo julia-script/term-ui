@@ -7,7 +7,6 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
-
     "./node": {
       "import": "./dist/node.js",
       "types": "./dist/node.d.ts"
@@ -20,20 +19,28 @@
     "./core-debug.wasm": "./dist/core-debug.wasm"
   },
   "scripts": {
-    "build:wasm:debug": "zig build wasm",
     "cleanup": "rm -rf dist zig-out .zig-cache",
-    "build:wasm": "zig build wasm --release=safe",
-    "dev:wasm": "watchexec -e zig -- zig build wasm",
-    "build:js": "tsc -p tsconfig.build.json && wasm-opt -Oz --strip-dwarf -o dist/core.wasm zig-out/bin/core.wasm && cp zig-out/bin/core-debug.wasm dist/core-debug.wasm ",
-    "build": "rm -rf dist && pnpm run build:wasm && pnpm run build:wasm:debug && pnpm run build:js",
-    "dev": "pnpm run build:wasm --watch  && pnpm run build:js"
+    "build:wasm:debug": "zig build wasm",
+    "build:wasm:release": "zig build wasm --release=safe",
+    "build:wasm:all": "pnpm build:wasm:debug && pnpm build:wasm:release",
+    "build:ts": "tsc -p tsconfig.build.json",
+    "postbuild:wasm:all": "cp zig-out/bin/core-debug.wasm dist/core-debug.wasm && wasm-opt -Oz --strip-dwarf -o dist/core.wasm zig-out/bin/core.wasm",
+    "build": "rm -rf dist && mkdir -p dist && pnpm build:wasm:all && pnpm build:ts",
+    "test": "vitest run .",
+    "predev": "pnpm build:wasm:all",
+    "dev": "pnpm dev:wasm & pnpm dev:ts",
+    "dev:wasm": "watchexec -e zig -- pnpm build:wasm:all",
+    "dev:ts": "tsc --watch --preserveWatchOutput -p tsconfig.build.json"
   },
   "devDependencies": {
-    "@term-ui/shared": "workspace:*"
+    "@term-ui/shared": "workspace:*",
+    "@types/chrome-remote-interface": "^0.31.14",
+    "concurrently": "^8.2.2"
   },
   "dependencies": {
     "@types/lodash-es": "catalog:",
     "@types/node": "catalog:",
+    "chrome-remote-interface": "^0.33.3",
     "lodash-es": "catalog:",
     "ts-dedent": "catalog:",
     "valibot": "catalog:"
@@ -41,8 +48,5 @@
   "publishConfig": {
     "access": "public"
   },
-  "files": [
-    "dist",
-    "README.md"
-  ]
+  "files": ["dist", "README.md"]
 }

@@ -9,9 +9,6 @@
 // const computeChildLayout = @import("computeChildLayout.zig").computeChildLayout;
 const mod = @import("../mod.zig");
 const css_types = @import("../../../css/types.zig");
-const MeasureChildError = error{
-    FailedToComputeChildLayout,
-};
 
 const std = @import("std");
 
@@ -22,13 +19,11 @@ pub fn measureChildSize(
     parent_size: mod.CSSMaybePoint,
     available_space: mod.constants.AvailableSpacePoint,
     sizing_mode: mod.constants.SizingMode,
-    axis: mod.constants.RequestedAxis,
+    axis: mod.constants.AbsoluteAxis,
     vertical_margins_are_collapsible: mod.Line(bool),
-) MeasureChildError!f32 {
-    const child_layout = try mod.computeLayout(
+) mod.ComputeLayoutError!f32 {
+    const child_layout = try mod.computeChildLayout(
         context,
-        available_space,
-        node_id,
         .{
             .known_dimensions = known_dimensions,
             .parent_size = parent_size,
@@ -38,7 +33,8 @@ pub fn measureChildSize(
             .run_mode = .compute_size,
             .vertical_margins_are_collapsible = vertical_margins_are_collapsible,
         },
-    ) catch return error.FailedToComputeChildLayout;
+        node_id,
+    );
 
     return axis.getAxis(child_layout.size);
 }

@@ -11,12 +11,12 @@
 </div>
 
 --- DOM Tree ---
-[node#0 block flow_root Regenerate]
-    [text #1 Regenerate] "\n  "
-    [node#2 block flow_root Regenerate]
-    [text #3 Regenerate] "\n  "
-    [node#4 block flow_root Regenerate]
-    [text #5 Regenerate] "\n"
+[node#1 block flow_root Regenerate]
+    [text #2 Regenerate] "\n  "
+    [node#3 block flow_root Regenerate]
+    [text #4 Regenerate] "\n  "
+    [node#5 block flow_root Regenerate]
+    [text #6 Regenerate] "\n"
 
 --- Computing Styles ---
 Styles computed successfully
@@ -25,51 +25,51 @@ Styles computed successfully
 Layout tree built successfully
 
 --- Layout Tree (before computation) ---
-[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
-└── [block_container_node #1 ref={doc#0} children={5} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
-    ├── [inline_container_node #3 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
-    │   └── [text_node #2 gen={1} cache_empty={true}]
-    ├── [block_container_node #4 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
-    │   └── [inline_container_node #5 ref={doc#2} children={0} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
-    ├── [inline_container_node #7 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
-    │   └── [text_node #6 gen={1} cache_empty={true}]
-    ├── [block_container_node #8 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
-    │   └── [inline_container_node #9 ref={doc#4} children={0} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
-    └── [inline_container_node #11 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
-        └── [text_node #10 gen={1} cache_empty={true}]
+[block_container_node #1 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+└── [block_container_node #2 ref={doc#1} children={5} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+    ├── [inline_container_node #4 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+    │   └── [text_node #3 ref={doc#2} gen={1} cache_empty={true}]
+    ├── [block_container_node #5 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+    │   └── [inline_container_node #6 ref={doc#3} children={0} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+    ├── [inline_container_node #8 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+    │   └── [text_node #7 ref={doc#4} gen={1} cache_empty={true}]
+    ├── [block_container_node #9 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+    │   └── [inline_container_node #10 ref={doc#5} children={0} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+    └── [inline_container_node #12 ref={anon} children={1} lines={0} box={[loc: (0.00, 0.00) size: (0.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={true}]
+        └── [text_node #11 ref={doc#6} gen={1} cache_empty={true}]
 
 --- Layout Computation ---
 Available space: [definite: 40] x [max_content]
 
 --- Layout Tree (after computation) ---
-[block_container_node #0 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (40.00, 10.00) content: (40.00, 10.00)]} gen={1} cache_empty={false}]
-└── [block_container_node #1 ref={doc#0} children={5} box={[loc: (0.00, 0.00) size: (30.00, 10.00) content: (40.00, 7.00)]} gen={1} cache_empty={false}]
-    ├── [inline_container_node #3 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (30.00, 0.00) content: (30.00, 0.00)]} gen={1} cache_empty={false}]
-    │   ├── [line_box #0 fragments=2 size={(0.00, 0.00)}]
-    │   │   ├── [fragment node={#2} range=0-1 pos={(0.00, 0.00)} size={(0.00, 0.00)} text=""]
-    │   │   └── [fragment node={#2} range=1-3 pos={(0.00, 0.00)} size={(0.00, 0.00)} text=""]
-    │   └── [text_node #2 gen={1} cache_empty={true}]
-    ├── [block_container_node #4 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (30.00, 3.00) content: (30.00, 3.00)]} gen={1} cache_empty={false}]
-    │   └── [inline_container_node #5 ref={doc#2} children={0} lines={0} box={[loc: (0.00, 0.00) size: (10.00, 3.00) content: (30.00, 0.00)]} gen={1} cache_empty={false}]
-    ├── [inline_container_node #7 ref={anon} children={1} lines={1} box={[loc: (0.00, 3.00) size: (30.00, 0.00) content: (30.00, 0.00)]} gen={1} cache_empty={false}]
-    │   ├── [line_box #0 fragments=2 size={(0.00, 0.00)}]
-    │   │   ├── [fragment node={#6} range=0-1 pos={(0.00, 0.00)} size={(0.00, 0.00)} text=""]
-    │   │   └── [fragment node={#6} range=1-3 pos={(0.00, 0.00)} size={(0.00, 0.00)} text=""]
-    │   └── [text_node #6 gen={1} cache_empty={true}]
-    ├── [block_container_node #8 ref={anon} children={1} box={[loc: (0.00, 3.00) size: (30.00, 4.00) content: (30.00, 4.00)]} gen={1} cache_empty={false}]
-    │   └── [inline_container_node #9 ref={doc#4} children={0} lines={0} box={[loc: (0.00, 0.00) size: (15.00, 4.00) content: (30.00, 0.00)]} gen={1} cache_empty={false}]
-    └── [inline_container_node #11 ref={anon} children={1} lines={1} box={[loc: (0.00, 7.00) size: (30.00, 0.00) content: (30.00, 0.00)]} gen={1} cache_empty={false}]
-        ├── [line_box #0 fragments=1 size={(0.00, 0.00)}]
-        │   └── [fragment node={#10} range=0-1 pos={(0.00, 0.00)} size={(0.00, 0.00)} text=""]
-        └── [text_node #10 gen={1} cache_empty={true}]
+[block_container_node #1 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (40.00, 10.00) content: (40.00, 10.00)]} gen={1} cache_empty={false}]
+└── [block_container_node #2 ref={doc#1} children={5} box={[loc: (0.00, 0.00) size: (30.00, 10.00) content: (30.00, 7.00)]} gen={1} cache_empty={false}]
+    ├── [inline_container_node #4 ref={anon} children={1} lines={1} box={[loc: (0.00, 0.00) size: (30.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={false}]
+    │   ├── [line_box #0 fragments=2 size={(0.00, 0.00)} location={(0.00, 0.00)}]   
+    │   │   ├── [fragment node={#3} range=0-1 pos={(0.00, 0.00)} size={(0.00, 0.00)} text=""]
+    │   │   └── [fragment node={#3} range=1-3 pos={(0.00, 0.00)} size={(0.00, 0.00)} text=""]
+    │   └── [text_node #3 ref={doc#2} gen={1} cache_empty={true}]
+    ├── [block_container_node #5 ref={anon} children={1} box={[loc: (0.00, 0.00) size: (30.00, 3.00) content: (10.00, 3.00)]} gen={1} cache_empty={false}]
+    │   └── [inline_container_node #6 ref={doc#3} children={0} lines={0} box={[loc: (0.00, 0.00) size: (10.00, 3.00) content: (0.00, 0.00)]} gen={1} cache_empty={false}]
+    ├── [inline_container_node #8 ref={anon} children={1} lines={1} box={[loc: (0.00, 3.00) size: (30.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={false}]
+    │   ├── [line_box #0 fragments=2 size={(0.00, 0.00)} location={(0.00, 0.00)}]   
+    │   │   ├── [fragment node={#7} range=0-1 pos={(0.00, 0.00)} size={(0.00, 0.00)} text=""]
+    │   │   └── [fragment node={#7} range=1-3 pos={(0.00, 0.00)} size={(0.00, 0.00)} text=""]
+    │   └── [text_node #7 ref={doc#4} gen={1} cache_empty={true}]
+    ├── [block_container_node #9 ref={anon} children={1} box={[loc: (0.00, 3.00) size: (30.00, 4.00) content: (15.00, 4.00)]} gen={1} cache_empty={false}]
+    │   └── [inline_container_node #10 ref={doc#5} children={0} lines={0} box={[loc: (0.00, 0.00) size: (15.00, 4.00) content: (0.00, 0.00)]} gen={1} cache_empty={false}]
+    └── [inline_container_node #12 ref={anon} children={1} lines={1} box={[loc: (0.00, 7.00) size: (30.00, 0.00) content: (0.00, 0.00)]} gen={1} cache_empty={false}]
+        ├── [line_box #0 fragments=1 size={(0.00, 0.00)} location={(0.00, 0.00)}]   
+        │   └── [fragment node={#11} range=0-1 pos={(0.00, 0.00)} size={(0.00, 0.00)} text=""]
+        └── [text_node #11 ref={doc#6} gen={1} cache_empty={true}]
 
 --- Rendered Output ---
 Raw (escape sequences as \E):
-\E[48;2;59;130;246m\E[38;2;0;0;0m          \E[48;2;31;41;55m                    \E[1B\E[30D\E[48;2;59;130;246m          \E[48;2;31;41;55m                    \E[1B\E[30D\E[48;2;59;130;246m          \E[48;2;31;41;55m                    \E[1B\E[30D\E[48;2;16;185;129m               \E[48;2;31;41;55m               \E[1B\E[30D\E[48;2;16;185;129m               \E[48;2;31;41;55m               \E[1B\E[30D\E[48;2;16;185;129m               \E[48;2;31;41;55m               \E[1B\E[30D\E[48;2;16;185;129m               \E[48;2;31;41;55m               \E[1B\E[30D                              \E[1B\E[30D                              \E[1B\E[30D                              \E[1B\E[30D\E[0m
+\E[H\E[48;2;59;130;246m\E[38;2;0;0;0m          \E[48;2;31;41;55m                    \E[1B\E[30D\E[48;2;59;130;246m          \E[48;2;31;41;55m                    \E[1B\E[30D\E[48;2;59;130;246m          \E[48;2;31;41;55m                    \E[1B\E[30D\E[48;2;16;185;129m               \E[48;2;31;41;55m               \E[1B\E[30D\E[48;2;16;185;129m               \E[48;2;31;41;55m               \E[1B\E[30D\E[48;2;16;185;129m               \E[48;2;31;41;55m               \E[1B\E[30D\E[48;2;16;185;129m               \E[48;2;31;41;55m               \E[1B\E[30D                              \E[1B\E[30D                              \E[1B\E[30D                              \E[1B\E[30D\E[0m
 
 Visual:
-\E[48;2;59;130;246m\E[38;2;0;0;0m          \E[48;2;31;41;55m                    \E[1B\E[30D\E[48;2;59;130;246m          \E[48;2;31;41;55m                    \E[1B\E[30D\E[48;2;59;130;246m          \E[48;2;31;41;55m                    \E[1B\E[30D\E[48;2;16;185;129m               \E[48;2;31;41;55m               \E[1B\E[30D\E[48;2;16;185;129m               \E[48;2;31;41;55m               \E[1B\E[30D\E[48;2;16;185;129m               \E[48;2;31;41;55m               \E[1B\E[30D\E[48;2;16;185;129m               \E[48;2;31;41;55m               \E[1B\E[30D                              \E[1B\E[30D                              \E[1B\E[30D                              \E[1B\E[30D\E[0m
+\E[H\E[48;2;59;130;246m\E[38;2;0;0;0m          \E[48;2;31;41;55m                    \E[1B\E[30D\E[48;2;59;130;246m          \E[48;2;31;41;55m                    \E[1B\E[30D\E[48;2;59;130;246m          \E[48;2;31;41;55m                    \E[1B\E[30D\E[48;2;16;185;129m               \E[48;2;31;41;55m               \E[1B\E[30D\E[48;2;16;185;129m               \E[48;2;31;41;55m               \E[1B\E[30D\E[48;2;16;185;129m               \E[48;2;31;41;55m               \E[1B\E[30D\E[48;2;16;185;129m               \E[48;2;31;41;55m               \E[1B\E[30D                              \E[1B\E[30D                              \E[1B\E[30D                              \E[1B\E[30D\E[0m
 
 --- Canvas Info ---
-Dimensions: 40x10
-Total cells: 400
+Dimensions: 30x10
+Total cells: 300

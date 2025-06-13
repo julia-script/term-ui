@@ -324,7 +324,7 @@ pub fn paintFromRenderList(self: *Self, render_list: *const RenderList) !void {
                 if (!text.bounds.intersectsWith(self.clip_rect)) continue;
 
                 // Use the color and format from the text fragment
-                try self.drawText(text.position.x, text.position.y, text.text, text.color, text.format);
+                try self.drawText(text.bounds.x, text.bounds.y, text.text, text.color, text.format);
             },
             .selection_overlay => |sel| {
                 // Skip if outside clip rect
@@ -362,10 +362,10 @@ fn popClip(self: *Self) void {
 /// Fill a rectangle with a color, preserving any text content
 fn fillRectPreserveText(self: *Self, rect: Rect, color: Color) !void {
     // Convert to integer coordinates
-    const x_start = @max(0, @as(i32, @intFromFloat(@floor(rect.x))));
-    const y_start = @max(0, @as(i32, @intFromFloat(@floor(rect.y))));
-    const x_end = @min(@as(i32, @intFromFloat(@ceil(self.size.x))), @as(i32, @intFromFloat(@ceil(rect.x + rect.width))));
-    const y_end = @min(@as(i32, @intFromFloat(@ceil(self.size.y))), @as(i32, @intFromFloat(@ceil(rect.y + rect.height))));
+    const x_start = @max(0, @as(i32, @intFromFloat(@round(rect.x))));
+    const y_start = @max(0, @as(i32, @intFromFloat(@round(rect.y))));
+    const x_end = @min(@as(i32, @intFromFloat(@ceil(self.size.x))), @as(i32, @intFromFloat(@round(rect.x + rect.width))));
+    const y_end = @min(@as(i32, @intFromFloat(@ceil(self.size.y))), @as(i32, @intFromFloat(@round(rect.y + rect.height))));
 
     // Fill cells with color without clearing text
     var y: i32 = y_start;
@@ -388,10 +388,10 @@ fn fillRectPreserveText(self: *Self, rect: Rect, color: Color) !void {
 
 fn fillRect(self: *Self, rect: Rect, background: styles.background.Background) !void {
     // Convert to integer coordinates
-    const x_start = @max(0, @as(i32, @intFromFloat(@floor(rect.x))));
-    const y_start = @max(0, @as(i32, @intFromFloat(@floor(rect.y))));
-    const x_end = @min(@as(i32, @intFromFloat(@ceil(self.size.x))), @as(i32, @intFromFloat(@ceil(rect.x + rect.width))));
-    const y_end = @min(@as(i32, @intFromFloat(@ceil(self.size.y))), @as(i32, @intFromFloat(@ceil(rect.y + rect.height))));
+    const x_start = @max(0, @as(i32, @intFromFloat(@round(rect.x))));
+    const y_start = @max(0, @as(i32, @intFromFloat(@round(rect.y))));
+    const x_end = @min(@as(i32, @intFromFloat(@ceil(self.size.x))), @as(i32, @intFromFloat(@round(rect.x + rect.width))));
+    const y_end = @min(@as(i32, @intFromFloat(@ceil(self.size.y))), @as(i32, @intFromFloat(@round(rect.y + rect.height))));
 
     // Handle different background types
     switch (background) {
@@ -457,10 +457,10 @@ fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anyt
     // Ensure border char lookup is loaded
     _ = styles.border.BoxChar.load() catch {};
 
-    const x_start = @as(u32, @intFromFloat(@floor(rect.x)));
-    const y_start = @as(u32, @intFromFloat(@floor(rect.y)));
-    const x_end = @as(u32, @intFromFloat(@floor(rect.x + rect.width)));
-    const y_end = @as(u32, @intFromFloat(@floor(rect.y + rect.height)));
+    const x_start = @as(u32, @intFromFloat(@round(rect.x)));
+    const y_start = @as(u32, @intFromFloat(@round(rect.y)));
+    const x_end = @as(u32, @intFromFloat(@round(rect.x + rect.width)));
+    const y_end = @as(u32, @intFromFloat(@round(rect.y + rect.height)));
 
     // Create samplers for each border side
     var top_sampler = try Sampler.from(self.allocator, border_color.top, .{
@@ -602,7 +602,7 @@ fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anyt
 }
 
 fn drawText(self: *Self, x: f32, y: f32, text: []const u8, color: Color, format: TextFormat) !void {
-    const y_int: u32 = @intFromFloat(@floor(y));
+    const y_int: u32 = @intFromFloat(@round(y));
     var x_pos = x;
 
     // Iterate through graphemes
@@ -611,7 +611,7 @@ fn drawText(self: *Self, x: f32, y: f32, text: []const u8, color: Color, format:
         const width_usize = string_width.visible.width.exclude_ansi_colors.utf8(slice);
         const width = toType(u32, width_usize);
 
-        const x_int: u32 = @intFromFloat(@floor(x_pos));
+        const x_int: u32 = @intFromFloat(@round(x_pos));
 
         // Check if within bounds and clip rect
         const width_int = toType(u32, @ceil(self.size.x));

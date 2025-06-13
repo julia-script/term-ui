@@ -24,7 +24,7 @@ pub fn append(self: *@This(), fragment: LineBoxFragment) !void {
     try self.fragments.append(self.allocator, fragment);
 }
 
-pub fn dupe(self: *@This(), allocator: std.mem.Allocator) !Self {
+pub fn dupe(self: *const @This(), allocator: std.mem.Allocator) !Self {
     var new = @This(){
         .location = self.location,
         .size = self.size,
@@ -32,9 +32,10 @@ pub fn dupe(self: *@This(), allocator: std.mem.Allocator) !Self {
         .fragments = .{},
         .allocator = allocator,
     };
-    try new.fragments.ensureUnusedCapacity(allocator, self.fragments.items.len);
+    // try new.fragments.ensureUnusedCapacity(allocator, self.fragments.items.len);
     for (self.fragments.items) |*fragment| {
-        new.fragments.appendAssumeCapacity(try fragment.dupe(allocator));
+        const duped = try fragment.dupe(allocator);
+        try new.fragments.append(allocator, duped);
     }
     return new;
 }
@@ -68,16 +69,24 @@ pub const LineBoxList = struct {
         for (self.list.items) |*item| {
             item.deinit();
         }
+        // self.list.clearAndFree(self.allocator);
         self.list.deinit(self.allocator);
     }
+    pub fn clear(self: *@This()) void {
+        for (self.list.items) |*item| {
+            item.deinit();
+        }
+        self.list.clearAndFree(self.allocator);
+    }
 
-    pub fn dupe(self: *@This(), allocator: std.mem.Allocator) !@This() {
+    pub fn dupe(self: @This(), allocator: std.mem.Allocator) !@This() {
         var new = @This(){
             .allocator = allocator,
         };
-        try new.list.ensureUnusedCapacity(allocator, self.list.items.len);
+        // try new.list.ensureUnusedCapacity(allocator, self.list.items.len);
         for (self.list.items) |*item| {
-            new.list.appendAssumeCapacity(try item.dupe(allocator));
+            const duped = try item.dupe(allocator);
+            try new.list.append(allocator, duped);
         }
         return new;
     }

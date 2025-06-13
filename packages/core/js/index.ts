@@ -57,6 +57,7 @@ export type InitArgs = {
   readStream?: ReadStream;
   writeStream?: WriteStream;
   memory?: WebAssembly.Memory;
+  dev?: boolean;
 };
 const _init = async (
   bytes:
@@ -236,21 +237,21 @@ const _init = async (
           }
         }, 0);
       },
-      diplomat_console_error_js: notImplemented(
-        "diplomat_console_error_js",
-      ),
-      diplomat_console_warn_js: notImplemented(
-        "diplomat_console_warn_js",
-      ),
-      diplomat_console_info_js: notImplemented(
-        "diplomat_console_info_js",
-      ),
-      diplomat_console_log_js: notImplemented(
-        "diplomat_console_log_js",
-      ),
-      diplomat_console_debug_js: notImplemented(
-        "diplomat_console_debug_js",
-      ),
+      // diplomat_console_error_js: notImplemented(
+      //   "diplomat_console_error_js",
+      // ),
+      // diplomat_console_warn_js: notImplemented(
+      //   "diplomat_console_warn_js",
+      // ),
+      // diplomat_console_info_js: notImplemented(
+      //   "diplomat_console_info_js",
+      // ),
+      // diplomat_console_log_js: notImplemented(
+      //   "diplomat_console_log_js",
+      // ),
+      // diplomat_console_debug_js: notImplemented(
+      //   "diplomat_console_debug_js",
+      // ),
     },
   });
 
@@ -260,6 +261,15 @@ const _init = async (
   );
   return {
     ...exports,
+    log: (...args: unknown[]) => {
+      logFn({
+        dt: Date.now(),
+        pid: process.pid,
+        level: "log",
+        scope: "zig",
+        message: JSON.stringify(args),
+      });
+    },
     subscribe: (
       subscriber: (
         inputEvent: Uint32Array,
@@ -281,4 +291,4 @@ export type Module = Awaited<
   ReturnType<typeof _init>
 >;
 
-export * from './constants.js';
+export * from "./constants.js";

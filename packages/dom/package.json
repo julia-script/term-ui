@@ -23,17 +23,16 @@
     "url": "https://github.com/yourusername/term-ui.git",
     "directory": "packages/dom"
   },
-  "files": [
-    "dist",
-    "README.md"
-  ],
+  "files": ["dist", "README.md"],
   "publishConfig": {
     "access": "public"
   },
   "devDependencies": {
     "@term-ui/core": "workspace:*",
     "@term-ui/shared": "workspace:*",
-    "@types/bun": "latest"
+    "@termui/devtools": "workspace:*",
+    "@types/bun": "latest",
+    "dpdm": "^3.14.0"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -41,6 +40,7 @@
     "cleanup": "rm -rf dist"
   },
   "dependencies": {
-    "lodash-es": "catalog:"
+    "lodash-es": "catalog:",
+    "socket.io-client": "^4.8.1"
   }
 }

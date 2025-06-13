@@ -79,11 +79,7 @@ describe("Tree hierarchy operations", () => {
     const child1 = mod.Tree_createNode(tree, "");
     const child2 = mod.Tree_createNode(tree, "");
     mod.Tree_appendChild(tree, parent, child1);
-    mod.Tree_insertBefore(
-      tree,
-      child2,
-      child1,
-    );
+    mod.Tree_insertBefore(tree, child2, child1);
 
     const childrenCount =
       mod.Tree_getChildrenCount(tree, parent);
@@ -1455,21 +1451,33 @@ describe("Node attachment and detachment", () => {
       mod.Tree_getNodeContains(tree, root, leaf),
     ).toBe(true); // Still attached to root through new path
   });
-
-
 });
 
-describe.only("Selection", () => {
+describe("Selection", () => {
   initTreeHook();
   it("should properly track selection", () => {
     // const root = mod.Tree_createNode(tree, "");
-    const textNode = mod.Tree_createTextNode(tree, "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.");
+    const textNode = mod.Tree_createTextNode(
+      tree,
+      "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    );
     console.log("tree_id", tree);
     // mod.Tree_appendChild(tree, root, textNode);
     mod.Tree_computeLayout(tree, "100", "100");
-    const selection = mod.Tree_createSelection(tree, textNode, 0, textNode, 5);
+    const selection = mod.Tree_createSelection(
+      tree,
+      textNode,
+      0,
+      textNode,
+      5,
+    );
     // mod.Tree_dump(tree);
-    mod.Selection_setFocus(tree, selection, textNode, 10);
+    mod.Selection_setFocus(
+      tree,
+      selection,
+      textNode,
+      10,
+    );
     // // expect(mod.Tree_getSelectionStart(tree, selection)).toBe(0);
     // expect(mod.Tree_getSelectionEnd(tree, selection)).toBe(5);
   });

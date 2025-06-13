@@ -45,20 +45,20 @@ pub const AvailableSpace = union(enum) {
 
     pub fn maybeClamp(self: AvailableSpace, min: anytype, max: anytype) AvailableSpace {
         switch (self) {
-            .definite => |v| return .{ .definite = math.maybeClamp(v, min, max) },
+            .definite => |v| return .{ .definite = math.maybeClamp(v, min, max).? },
             else => return self,
         }
     }
 
     pub fn maybeMax(self: AvailableSpace, other: anytype) AvailableSpace {
         switch (self) {
-            .definite => |v| return .{ .definite = math.maybeMax(v, other) },
+            .definite => |v| return .{ .definite = math.maybeMax(v, other).? },
             else => return self,
         }
     }
     pub fn maybeMin(self: AvailableSpace, other: anytype) AvailableSpace {
         switch (self) {
-            .definite => |v| return .{ .definite = math.maybeMin(v, other) },
+            .definite => |v| return .{ .definite = math.maybeMin(v, other.?) },
             else => return self,
         }
     }
@@ -203,7 +203,7 @@ pub const AbsoluteAxis = enum {
     pub fn toRequestedAxis(self: AbsoluteAxis) RequestedAxis {
         switch (self) {
             .horizontal => return RequestedAxis.horizontal,
-            .vertical => return RequestedAxis.Vertical,
+            .vertical => return RequestedAxis.vertical,
         }
     }
     /// Returns the other variant of the enum

@@ -1,6 +1,9 @@
-import type { Document } from "./Document";
-import  { SelectionExtendGranularity, SelectionExtendDirection } from "@term-ui/core/constants";
+import {
+  SelectionExtendDirection,
+  SelectionExtendGranularity,
+} from "@term-ui/core/constants";
 import { raise } from "@term-ui/shared/raise";
+import type { Document } from "./Document";
 
 export class Selection {
   private ghostPosition: number | null = null;
@@ -53,7 +56,10 @@ export class Selection {
   ) {
     if (granularity === "line") {
       const focus = this.getFocus();
-      if (this.ghostPosition === null && focus !== null) {
+      if (
+        this.ghostPosition === null &&
+        focus !== null
+      ) {
         this.ghostPosition =
           this.document.module.Selection_getHorizontalOffset(
             this.document.tree.ptr,
@@ -67,12 +73,14 @@ export class Selection {
     return this.document.module.Selection_extendBy(
       this.document.tree.ptr,
       this.id,
-      SelectionExtendGranularity[granularity] ?? raise("Invalid granularity"),
-      SelectionExtendDirection[direction] ?? raise("Invalid direction"),
+      SelectionExtendGranularity[granularity] ??
+        raise("Invalid granularity"),
+      SelectionExtendDirection[direction] ??
+        raise("Invalid direction"),
       this.ghostPosition ?? undefined,
       // Default to the tree root when no specific node is provided so
       // selection extension can cross node boundaries.
-      rootNodeId ?? 0
+      rootNodeId ?? 0,
     );
   }
 }

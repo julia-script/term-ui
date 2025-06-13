@@ -99,4 +99,19 @@ pub fn build(b: *std.Build) !void {
         &install_step.step,
         test_debugger,
     });
+
+    // playground
+    const playground = b.addExecutable(.{
+        .name = "playground",
+        .root_source_file = b.path("src/playground.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    pipe(.{
+        &playground.step,
+        &b.addInstallArtifact(playground, .{}).step,
+        &b.addRunArtifact(playground).step,
+        b.step("playground", "Run the playground executable"),
+    });
 }
