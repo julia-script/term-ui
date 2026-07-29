@@ -722,17 +722,6 @@ pub fn interpretModeStatusReport(manager: *AnyInputManager, csi: RawCsi, raw: []
 
 // Handles CSI u sequences for extended Unicode keys and Kitty keyboard protocol
 pub fn interpretUnicodeKey(manager: *AnyInputManager, csi: RawCsi, raw: []const u8) Match {
-    // switch (csi.cmd_byte) {
-    //     'u' => {},
-    //     'A' => {},
-    //     'B' => {},
-    //     'C' => {},
-    // }
-
-    // Need at least 1 parameter (the codepoint)
-    if (csi.parameter_count < 1) {
-        return .nomatch;
-    }
     const alternates = csi.parseParamAsWithSubParams(0) orelse return .nomatch;
     const unicode_key, const shifted_key, const base_layout_key, _ = alternates.parameters;
 
@@ -911,55 +900,80 @@ pub fn interpretUnicodeKey(manager: *AnyInputManager, csi: RawCsi, raw: []const 
     return .{ .match = raw.len };
 }
 const KittySequence = @import("keys.zig").KittySequence;
-fn expectKittySequence(allocator: std.mem.Allocator, comptime seq: KittySequence, comptime expected: []const u8) !void {
+fn expectKittySequence(comptime loc: std.builtin.SourceLocation, allocator: std.mem.Allocator, comptime description: []const u8, comptime seq: KittySequence) !void {
     var buf: [128]u8 = undefined;
 
     const actual = try seq.encode(&buf);
     // std.debug.print("actual: {s}\n", .{actual[1..]});
     try expectEvents(
+        loc,
         allocator,
-        actual[1..],
-        &.{actual},
-        &.{expected},
+        description,
+        &.{actual[1..]},
     );
 }
 test "unicode" {
-    try expectKittySequence(std.testing.allocator, .{
-        .key = 'a',
-        .final = 'u',
-        .event = .press,
-        .mods = .{
-            .shift = true,
+    try expectKittySequence(
+        @src(),
+        std.testing.allocator,
+        "unicode",
+        .{
+            .key = 'a',
+            .final = 'u',
+            .event = .press,
+            .mods = .{
+                .shift = true,
+            },
         },
-    }, "[key 'A' 65 base_cp='a' 97 mod='shift']");
+    );
 
-    try expectKittySequence(std.testing.allocator, .{
-        .key = 'a',
-        .final = 'u',
-        .event = .press,
-        .mods = .{
-            .shift = true,
-            .ctrl = true,
+    try expectKittySequence(
+        @src(),
+        std.testing.allocator,
+        "unicode",
+        .{
+            .key = 'a',
+            .final = 'u',
+            .event = .press,
+            .mods = .{
+                .shift = true,
+                .ctrl = true,
+            },
         },
-    }, "[key 'A' 65 base_cp='a' 97 mod='shift+ctrl']");
+    );
 
-    try expectKittySequence(std.testing.allocator, .{
-        .key = 'a',
-        .final = 'u',
-        .event = .press,
-    }, "[key 'a' 97]");
+    try expectKittySequence(
+        @src(),
+        std.testing.allocator,
+        "unicode",
+        .{
+            .key = 'a',
+            .final = 'u',
+            .event = .press,
+        },
+    );
 
-    try expectKittySequence(std.testing.allocator, .{
-        .key = 'a',
-        .final = 'u',
-        .event = .release,
-    }, "[key .release 'a' 97]");
+    try expectKittySequence(
+        @src(),
+        std.testing.allocator,
+        "unicode",
+        .{
+            .key = 'a',
+            .final = 'u',
+            .event = .release,
+        },
+    );
 
-    try expectKittySequence(std.testing.allocator, .{
-        .key = 'a',
-        .final = 'u',
-        .event = .repeat,
-    }, "[key .repeat 'a' 97]");
+    try expectKittySequence(
+        @src(),
+        std.testing.allocator,
+        "unicode",
+        .{
+            .key = 'a',
+            .final = 'u',
+            .event = .repeat,
+        },
+    );
 }
 
 pub fn handleCsiCsi(manager: *AnyInputManager, buffer: []const u8, position: usize, intro_len: usize) Match {
@@ -1119,233 +1133,233 @@ pub fn interpretCursorPositionReport(manager: *AnyInputManager, csi: RawCsi, raw
 
 test "interpretX10MouseEvent" {
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "left",
         &.{"\x1b[M" ++ [_]u8{ 32, 232, 232 }},
-        &.{"[mouse .left_press (x=200 y=200)]"},
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "middle",
         &.{"\x1b[M" ++ [_]u8{ 33, 232, 232 }},
-        &.{"[mouse .middle_press (x=200 y=200)]"},
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "right",
         &.{"\x1b[M" ++ [_]u8{ 34, 232, 232 }},
-        &.{"[mouse .right_press (x=200 y=200)]"},
     );
 
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "release",
         &.{"\x1b[M" ++ [_]u8{ 35, 232, 232 }},
-        &.{"[mouse .release (x=200 y=200)]"},
     );
 
     // Test wheel mice events - note: keeping original names for normal tracking mode
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "wheel forward",
         &.{"\x1b[M" ++ [_]u8{ 32 + 64, 232, 232 }},
-        &.{"[mouse .wheel_forward (x=200 y=200)]"},
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "wheel back",
         &.{"\x1b[M" ++ [_]u8{ 33 + 64, 232, 232 }},
-        &.{"[mouse .wheel_back (x=200 y=200)]"},
     );
 
     // Test wheel tilt events
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "wheel tilt right",
         &.{"\x1b[M" ++ [_]u8{ 34 + 64, 232, 232 }},
-        &.{"[mouse .wheel_tilt_right (x=200 y=200)]"},
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "wheel tilt left",
         &.{"\x1b[M" ++ [_]u8{ 35 + 64, 232, 232 }},
-        &.{"[mouse .wheel_tilt_left (x=200 y=200)]"},
     );
 
     // Test higher buttons (8-11)
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "button 8 (with 128 flag)",
         &.{"\x1b[M" ++ [_]u8{ 32 + 128, 232, 232 }},
-        &.{"[mouse .left_press (x=200 y=200)]"},
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "button 9 (with 128 flag)",
         &.{"\x1b[M" ++ [_]u8{ 33 + 128, 232, 232 }},
-        &.{"[mouse .middle_press (x=200 y=200)]"},
     );
 
     // Test with modifiers
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "left with shift",
         &.{"\x1b[M" ++ [_]u8{ 32 + 4, 232, 232 }},
-        &.{"[mouse .left_press (x=200 y=200) mod='shift']"},
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "wheel forward with ctrl",
         &.{"\x1b[M" ++ [_]u8{ 32 + 64 + 16, 232, 232 }},
-        &.{"[mouse .wheel_forward (x=200 y=200) mod='ctrl']"},
     );
 }
 
 test "interpretExtendedMouseEvents" {
     // Test SGR protocol (1006)
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "SGR left press",
         &.{"\x1b[<0;100;100M"},
-        &.{"[mouse .extended .press .left (x=99 y=99)]"},
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "SGR right press",
         &.{"\x1b[<2;50;60M"},
-        &.{"[mouse .extended .press .right (x=49 y=59)]"},
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "SGR left release",
         &.{"\x1b[<0;25;30m"},
-        &.{"[mouse .extended .release .left (x=24 y=29)]"},
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "SGR wheel up",
         &.{"\x1b[<64;75;80M"},
-        &.{"[mouse .extended .wheel_up .wheel (x=74 y=79)]"},
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "SGR wheel down",
         &.{"\x1b[<65;45;50M"},
-        &.{"[mouse .extended .wheel_down .wheel (x=44 y=49)]"},
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "SGR wheel left",
         &.{"\x1b[<66;120;130M"},
-        &.{"[mouse .extended .wheel_left .wheel (x=119 y=129)]"},
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "SGR wheel right",
         &.{"\x1b[<67;90;95M"},
-        &.{"[mouse .extended .wheel_right .wheel (x=89 y=94)]"},
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "SGR with shift modifier",
         &.{"\x1b[<4;10;15M"},
-        &.{"[mouse .extended .press .left (x=9 y=14) mod='shift']"},
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "SGR with ctrl modifier",
         &.{"\x1b[<16;30;35M"},
-        &.{"[mouse .extended .press .left (x=29 y=34) mod='ctrl']"},
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "SGR with alt modifier",
         &.{"\x1b[<8;50;55M"},
-        &.{"[mouse .extended .press .left (x=49 y=54) mod='alt']"},
     );
 
     // Test motion events
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "SGR motion with left button",
         &.{"\x1b[<32;60;65M"},
-        &.{"[mouse .extended .motion .left (x=59 y=64)]"},
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "SGR motion with right button",
         &.{"\x1b[<34;70;75M"},
-        &.{"[mouse .extended .motion .right (x=69 y=74)]"},
     );
 
     // Test higher buttons
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "SGR button 8",
         &.{"\x1b[<128;40;45M"},
-        &.{"[mouse .extended .press .button8 (x=39 y=44)]"},
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "SGR button 9",
         &.{"\x1b[<129;50;55M"},
-        &.{"[mouse .extended .press .button9 (x=49 y=54)]"},
     );
 
     // Test URXVT protocol (1015)
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "URXVT left press",
         &.{"\x1b[0;100;100M"},
-        &.{"[mouse .extended .press .left (x=99 y=99)]"},
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "URXVT right press",
         &.{"\x1b[2;50;60M"},
-        &.{"[mouse .extended .press .right (x=49 y=59)]"},
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "URXVT wheel up",
         &.{"\x1b[64;75;80M"},
-        &.{"[mouse .extended .wheel_up .wheel (x=74 y=79)]"},
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "URXVT with shift modifier",
         &.{"\x1b[4;10;15M"},
-        &.{"[mouse .extended .press .left (x=9 y=14) mod='shift']"},
     );
 }
 
 test "interpretCursorPositionReport" {
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "Cursor position report",
         &.{"\x1b[?10;20R"},
-        &.{"[mouse .cursor_report (row=9 col=19)]"},
     );
 
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "Cursor position with leading zero",
         &.{"\x1b[?01;05R"},
-        &.{"[mouse .cursor_report (row=0 col=4)]"},
     );
 
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "Cursor position at origin",
         &.{"\x1b[?1;1R"},
-        &.{"[mouse .cursor_report (row=0 col=0)]"},
     );
 
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "Cursor position with leading zero",
         &.{"\x1b[?1;05R"},
-        &.{"[mouse .cursor_report (row=0 col=4)]"},
     );
 }
 

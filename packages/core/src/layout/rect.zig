@@ -138,6 +138,18 @@ pub fn Rect(comptime T: type) type {
 
         pub const ZERO = Self{ .left = 0, .right = 0, .top = 0, .bottom = 0 };
         pub const NULL = Self{ .left = null, .right = null, .top = null, .bottom = null };
+        pub fn format(self: @This(), comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: std.io.AnyWriter) !void {
+            _ = fmt; // autofix
+            _ = options; // autofix
+            _ = fmt;
+            _ = options;
+            try writer.print("Rect({s}) {{", .{@typeName(T)});
+            switch (@typeInfo(ConcreteT)) {
+                .int, .float, .comptime_int, .comptime_float => try writer.print("l: {?d:.2}, r: {?d:.2}, t: {?d:.2}, b: {?d:.2}", .{ self.left, self.right, self.top, self.bottom }),
+                else => try writer.print("l: {any}, r: {any}, t: {any}, b: {any}", .{ self.left, self.right, self.top, self.bottom }),
+            }
+            try writer.print("}}", .{});
+        }
     };
 }
 

@@ -5,6 +5,7 @@
     "module": "ESNext",
     "allowJs": true,
 
+    "jsx": "react-jsx",
     // Bundler mode
     "moduleResolution": "bundler",
     "verbatimModuleSyntax": true,
@@ -24,5 +25,5 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "src/components/DevTools.tsx", "src/components/DevToolsContent.tsx"]
 }

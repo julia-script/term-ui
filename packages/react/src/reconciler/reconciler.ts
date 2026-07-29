@@ -1,11 +1,11 @@
 import {
   Document,
-  type DomEvent,
+  type DOMEvent,
   type Element,
   TextElement,
 } from "@term-ui/dom";
 import kebabCase from "lodash-es/kebabCase";
-import createReconciler from "react-reconciler";
+import _createReconciler from "react-reconciler";
 import {
   DefaultEventPriority,
   type EventPriority,
@@ -16,7 +16,7 @@ const noop =
   <T>(value?: T) =>
   () =>
     value;
-type ElementType = "term-text" | "term-view";
+type ElementType = "text" | "view";
 type Props = Record<string, unknown>;
 type HostContext = {};
 const NO_CONTEXT: HostContext = {};
@@ -24,12 +24,12 @@ const NO_CONTEXT: HostContext = {};
 // Types for event handling
 type MouseEventName =
   | "click"
-  | "mouse-enter"
-  | "mouse-leave"
-  | "mouse-move"
-  | "mouse-down"
-  | "mouse-up";
-type EventHandler = (event: DomEvent) => void;
+  | "mouseenter"
+  | "mouseleave"
+  | "mousemove"
+  | "mousedown"
+  | "mouseup";
+type EventHandler = (event: DOMEvent) => void;
 
 // Map from React prop names to DOM event names
 const propToEventMap: Record<
@@ -37,19 +37,28 @@ const propToEventMap: Record<
   MouseEventName
 > = {
   onClick: "click",
-  onMouseEnter: "mouse-enter",
-  onMouseLeave: "mouse-leave",
-  onMouseMove: "mouse-move",
-  onMouseDown: "mouse-down",
-  onMouseUp: "mouse-up",
+  onMouseEnter: "mouseenter",
+  onMouseLeave: "mouseleave",
+  onMouseMove: "mousemove",
+  onMouseDown: "mousedown",
+  onMouseUp: "mouseup",
 };
 
+const createReconciler: typeof _createReconciler =
+  (options) => {
+    return _createReconciler(logCalls(options));
+  };
 // Function to attach event handlers
 const attachEventHandlers = (
-  instance: Element,
+  instance: TextElement | Element,
   props: Props,
   oldProps?: Props,
 ) => {
+  if (instance instanceof TextElement) {
+    throw new Error(
+      "attachEventHandlers: instance is a TextElement",
+    );
+  }
   // instance.removeEventListener("scroll", oldProps?.onScroll);
   // For each possible event prop
   for (const [
@@ -97,7 +106,7 @@ const normalizeStyle = (
   propStyles?: unknown,
 ) => {
   const styles: Record<string, unknown> = {};
-  if (kind === "term-text") {
+  if (kind === "text") {
     return {
       display: "inline flow",
       ...(isPlainObject(propStyles)
@@ -131,10 +140,77 @@ const isPlainObject = (
     !Array.isArray(value)
   );
 };
+import fs from "node:fs";
+import { inspect } from "node:util";
+const logFile = fs.createWriteStream(
+  "./reconciler.log",
+);
+const stringify = (value: unknown) => {
+  const refs = new Set<unknown>();
+  return JSON.stringify(
+    value,
+    (key, value) => {
+      if (typeof value === "function") {
+        return `[Function ${value.name || "anonymous"}]`;
+      }
+      if (typeof value === "symbol") {
+        return `[Symbol ${value.toString()}]`;
+      }
+ 
+      if (typeof value === "object" && value !== null) {
+        if (refs.has(value)) {
+          return "[Ref]";
+        }
+        refs.add(value);
+        return value;
+      }
+      if (Array.isArray(value)) {
+        if (refs.has(value)) {
+          return "[Circular Array]";
+        }
+        refs.add(value);
+        return value;
+      }
+
+      return value;
+    },
+    2,
+  );
+};
+const logCalls = <T>(obj: T) => {
+  // @ts-expect-error
+  const entries = Object.entries(obj).map(
+    ([key, value]) => {
+      if (typeof value === "function") {
+        return [
+          key,
+          // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+          (...args: any[]) => {
+            try {
+              
+              logFile.write(
+                `${key} ${inspect(args, { depth: 1, colors: true })}\n`,
+              );
+              const res = value.apply(obj, args);
+              return res;
+            } catch (e) {
+              logFile.write(
+                `ERROR: ${key} ${inspect(args, { depth: 2, colors: true })}\n\n${e}\n`,
+              );
+              throw e;
+            }
+          },
+        ];
+      }
+      return [key, value];
+    },
+  );
+  return Object.fromEntries(entries) as T;
+};
 
 let currentUpdatePriority: EventPriority =
   DefaultEventPriority;
-export const reconciler = createReconciler({
+const _reconciler = createReconciler({
   supportsMutation: true,
   supportsPersistence: false,
   supportsMicrotasks: true,
@@ -149,9 +225,16 @@ export const reconciler = createReconciler({
     type: ElementType,
     props: Props,
     termUi: TermUi,
-    hostContext: HostContext,
-    internalHandle: unknown,
+    _hostContext: HostContext,
+    _internalHandle: unknown,
   ) => {
+    // console.log("createInstance", type, props);
+    // if (type === "term-text") {
+    //   // console.log("createTextInstance", props);
+    //   return termUi.document.createElement(
+    //     "text",
+    //   );
+    // }
     const styles = normalizeStyle(
       type,
       props?.style,
@@ -159,7 +242,7 @@ export const reconciler = createReconciler({
 
     const style = stringifyStyles(styles);
     const node =
-      termUi.document.createElement("view");
+      termUi.document.createElement(type);
     node.setStyle(style);
 
     // Attach event handlers on instance creation
@@ -171,9 +254,9 @@ export const reconciler = createReconciler({
   createTextInstance: (
     text: string,
     termUi: TermUi,
-    hostContext: HostContext,
+    _hostContext: HostContext,
   ) => {
-    // debug.log("createTextInstance", text);
+    // console.log("createTextInstance", text);
     const node =
       termUi.document.createTextNode(text);
     return node;
@@ -189,7 +272,10 @@ export const reconciler = createReconciler({
   },
   getPublicInstance: (instance) => instance,
 
-  shouldSetTextContent: () => false,
+  shouldSetTextContent: (type, props) => {
+    // console.log("shouldSetTextContent", type, props);
+    return false 
+  },
 
   getRootHostContext: () => NO_CONTEXT,
   getChildHostContext: (parentContext) =>
@@ -197,16 +283,25 @@ export const reconciler = createReconciler({
   finalizeInitialChildren: () => false,
   prepareForCommit: () => null,
   resetAfterCommit: (tui) => {
-    tui.render();
+    try {
+      tui.render();
+    } catch (e) {
+      console.error(e);
+    }
   },
   detachDeletedInstance: (instance) => {
+    // if (instance instanceof TextElement) {
+    //   instance.dispose();
+    //   return ;
+    // }
     if (instance.isDisposed()) {
-      return true;
+      return;
     }
-    instance.disposeRecursively();
+    // instance.dispose();
   },
 
   appendInitialChild: (parent, child) => {
+    // console.log("appendInitialChild", parent, child);
     if (parent instanceof TextElement) {
       throw new Error(
         "appendInitialChild: parent is not a NodeWithProps",
@@ -219,9 +314,11 @@ export const reconciler = createReconciler({
     tui.document.root.appendChild(child);
   },
   appendChild: (parent, child) => {
+    // console.log("appendChild", parent, child);
     parent.appendChild(child);
   },
   insertBefore: (parent, child, before) => {
+    // console.log("insertBefore", parent, child, before);
     parent.insertBefore(child, before);
   },
   removeChild: (parentInstance, child) => {
@@ -232,6 +329,8 @@ export const reconciler = createReconciler({
     }
 
     parentInstance.removeChild(child);
+
+    // console.log("removeChild", parentInstance);
   },
 
   removeChildFromContainer: (tui, child) => {
@@ -241,9 +340,13 @@ export const reconciler = createReconciler({
   clearContainer: (tui) => {
     tui.document.root.removeChildren();
   },
-  resetTextContent(instance) {
-    instance.setText("");
-  },
+  // resetTextContent(instance) {
+  //   if (instance instanceof TextElement) {
+  //     instance.setText("");
+  //   }
+  //   // if (instance instanceof TextElement) {
+  //   // }
+  // },
 
   commitTextUpdate: (
     instance,
@@ -301,8 +404,15 @@ export const reconciler = createReconciler({
     );
   },
 
-  hideInstance: noop(false),
-  unhideInstance: noop(false),
+  hideInstance: (instance) => {
+    // instance.setStyle("display: none");
+
+    return false;
+  },
+  unhideInstance: (instance) => {
+    // instance.setStyle("display: block");
+    return false;
+  },
 
   maySuspendCommit: () => false,
 
@@ -311,3 +421,5 @@ export const reconciler = createReconciler({
   suspendInstance: noop(null),
   waitForCommitToBeReady: () => null,
 });
+
+export const reconciler = _reconciler;

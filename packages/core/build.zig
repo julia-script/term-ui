@@ -19,12 +19,14 @@ pub fn build(b: *std.Build) !void {
             .Debug => "core-debug",
             else => "core",
         },
-        .root_source_file = b.path("src/wasm.zig"),
-        .target = b.resolveTargetQuery(.{
-            .cpu_arch = .wasm32,
-            .os_tag = .wasi,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/wasm.zig"),
+            .target = b.resolveTargetQuery(.{
+                .cpu_arch = .wasm32,
+                .os_tag = .wasi,
+            }),
+            .optimize = optimize,
         }),
-        .optimize = optimize,
     });
 
     wasm.entry = .disabled;
@@ -42,9 +44,11 @@ pub fn build(b: *std.Build) !void {
     // Build and install the native executable
     const exe = b.addExecutable(.{
         .name = "core",
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     b.installArtifact(exe);
@@ -64,21 +68,30 @@ pub fn build(b: *std.Build) !void {
         run_cmd.addArgs(args);
     }
 
-    const test_filter = b.option([]const u8, "test-filter", "Skip tests that do not match filter");
-    const update_snapshots = b.option(bool, "update-snapshots", "Regenerate snapshot files") orelse false;
+    const test_filter = b.option([]const u8, "filter", "Skip tests that do not match filter");
+    const update_snapshots = b.option(bool, "update", "Regenerate snapshot files") orelse false;
+    const scopes = b.option([]const []const u8, "scopes", "Run tests with these scopes");
+    const options = b.addOptions();
+    options.addOption([]const u8, "filter", test_filter orelse "");
+    options.addOption(bool, "update", update_snapshots);
+    options.addOption([]const []const u8, "scopes", scopes orelse &[0][]const u8{});
 
     const exe_unit_tests = b.addTest(.{
-        .root_source_file = b.path("src/wasm.zig"),
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/tests.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
         .name = "test",
 
-        .target = target,
-        .optimize = optimize,
-        .filter = test_filter,
+        // .filter = test_filter,
         .test_runner = .{
             .path = b.path("test_runner.zig"),
-            .mode = .simple,
+            .mode = .server,
         },
     });
+
+    exe_unit_tests.root_module.addOptions("test_options", options);
 
     const install_step = b.addInstallArtifact(exe_unit_tests, .{});
 
@@ -103,9 +116,11 @@ pub fn build(b: *std.Build) !void {
     // playground
     const playground = b.addExecutable(.{
         .name = "playground",
-        .root_source_file = b.path("src/playground.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/playground.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     pipe(.{
@@ -114,4 +129,37 @@ pub fn build(b: *std.Build) !void {
         &b.addRunArtifact(playground).step,
         b.step("playground", "Run the playground executable"),
     });
+
+    // demo system
+    const demo_name = b.option([]const u8, "demo", "Name of the demo to run");
+    if (demo_name) |name| {
+        // const main_module = b.createModule(.{ .root_source_file = b.path("src/main.zig") });
+        // _ = main_module; // autofix
+
+        // const demo_module = b.createModule(.{ .root_source_file = b.path(b.fmt("src/demo/{s}.zig", .{name})) });
+        const demo = b.addExecutable(.{
+            .name = b.fmt("demo-{s}", .{name}),
+            // .root_source_file = b.path(demo_path),
+
+            .root_module = b.createModule(.{
+                .root_source_file = b.path(b.fmt("src/demo.{s}.zig", .{name})),
+                .target = target,
+                .optimize = optimize,
+            }),
+            // .target = target,
+            // .optimize = optimize,
+        });
+
+        // demo.import
+
+        const run_demo = b.addRunArtifact(demo);
+
+        const demo_step = b.step("demo", "Run a demo");
+        pipe(.{
+            &demo.step,
+            &b.addInstallArtifact(demo, .{}).step,
+            &run_demo.step,
+            demo_step,
+        });
+    }
 }

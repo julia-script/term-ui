@@ -265,8 +265,9 @@ pub fn resolveFlexibleLengths(
     const initial_free_space = mod.math.maybeSub(dir.getMainOptional(constants.node_inner_size), initial_used_space) orelse 0.0;
 
     // 4. Loop
-    var unfrozen = try std.ArrayList(*types.FlexItem).initCapacity(context.allocator, line.items.len);
-    defer unfrozen.deinit();
+    var unfrozen: std.ArrayList(*types.FlexItem) = .empty;
+    try unfrozen.ensureTotalCapacity(context.allocator, line.items.len);
+    defer unfrozen.deinit(context.allocator);
     while (true) {
         // a. Check for flexible items. If all the flex items on the line are frozen,
         //    free space has been distributed; exit this loop.

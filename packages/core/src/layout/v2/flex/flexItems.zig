@@ -13,8 +13,9 @@ pub fn generateAnonymousFlexItems(
     context: *mod.LayoutContext,
     l_node_id: mod.LayoutNode.Id,
     constants: *types.AlgoConstants,
-) !std.ArrayList(types.FlexItem) {
-    var flex_items = std.ArrayList(types.FlexItem).init(context.allocator);
+) !std.array_list.Managed(types.FlexItem) {
+    var unmanaged = std.ArrayList(types.FlexItem).empty;
+    var flex_items = unmanaged.toManaged(context.allocator);
     const children = context.layout_tree.getChildren(l_node_id);
 
     for (children, 0..) |child_id, index| {
@@ -247,7 +248,7 @@ pub fn determineFlexBaseSize(
     context: *mod.LayoutContext,
     constants: *types.AlgoConstants,
     available_space: mod.constants.AvailableSpacePoint,
-    flex_items: *std.ArrayList(types.FlexItem),
+    flex_items: *std.array_list.Managed(types.FlexItem),
 ) !void {
     const dir = DirectionHelper.init(constants.dir);
 

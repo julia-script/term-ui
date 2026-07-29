@@ -15,7 +15,7 @@ pub fn performChildLayout(
     vertical_margins_are_collapsible: mod.Line(bool),
 ) mod.ComputeLayoutError!mod.LayoutResult {
     context.info(l_node_id, "performChildLayout", .{});
-    return mod.computeChildLayout(
+    const result = try mod.computeChildLayout(
         context,
         .{
             .available_space = available_space,
@@ -28,4 +28,6 @@ pub fn performChildLayout(
         },
         l_node_id,
     );
+    context.info(l_node_id, "Result {any}", .{result});
+    return result;
 }

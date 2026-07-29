@@ -18,9 +18,12 @@ export const startServer = (port: number) => {
 
   const host = createHost(io, serverRouter);
 
+
+
   server.listen(port, () => {
     console.log(
       `server running at http://localhost:${port}`,
     );
   });
+
 };

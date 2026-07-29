@@ -57,7 +57,7 @@ test "compute" {
     try doc.computeLayout(std.testing.allocator, .{ .x = .{ .definite = 30 }, .y = .max_content });
 }
 
-const snapshot = @import("../../../testing/snapshot.zig");
+const snapshot = @import("../../../tests/utils/snapshot.zig");
 
 pub fn testFullPipeline(
     comptime name: []const u8,
@@ -145,6 +145,7 @@ pub fn testFullPipeline(
         std.testing.allocator,
         name,
         output.items,
+        .{},
     );
 }
 
@@ -229,7 +230,6 @@ fn tokensToLineBoxes(allocator: std.mem.Allocator, tokens: []const Token, width:
     var line_boxes = LineBox.LineBoxList{
         .allocator = allocator,
     };
-
     if (tokens.len == 0) {
         return line_boxes;
     }
@@ -243,19 +243,6 @@ fn tokensToLineBoxes(allocator: std.mem.Allocator, tokens: []const Token, width:
         while (current_line_index < token.line_index) : (current_line_index += 1) {
             try line_boxes.breakLine();
         }
-
-        // // Break to new line if line index changed, creating empty lines if needed
-        // if (current_line_index) |prev_line| {
-        //     if (prev_line != token.line_index) {
-        //         std.debug.print("  Breaking line: {d} -> {d}\n", .{ prev_line, token.line_index });
-        //         // Create empty lines for any skipped line indices
-        //         var line_idx = prev_line + 1;
-        //         while (line_idx <= token.line_index) : (line_idx += 1) {
-        //             try line_boxes.breakLine();
-        //         }
-        //     }
-        // }
-        // current_line_index = token.line_index;
 
         // // Handle atomic tokens separately
         if (token.kind == .atomic) {
@@ -286,10 +273,12 @@ fn tokensToLineBoxes(allocator: std.mem.Allocator, tokens: []const Token, width:
         });
     }
 
-    for (line_boxes.list.items) |*line| {
-        line.available_width = width;
-        for (line.fragments.items) |*fragment| {
-            fragment.position.y = line.size.y - fragment.size.y;
+    if (line_boxes.list.items.len > 1) {
+        for (line_boxes.list.items) |*line| {
+            line.size.x = width;
+            for (line.fragments.items) |*fragment| {
+                fragment.position.y = line.size.y - fragment.size.y;
+            }
         }
     }
 

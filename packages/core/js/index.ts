@@ -52,21 +52,27 @@ export type Log = {
   message: string;
 };
 export type LogFn = (log: Log) => void;
+export type WasmLoader = ({
+  dev,
+}: {
+  dev: boolean;
+}) => Promise<Bytes>;
 export type InitArgs = {
   logFn?: LogFn;
   readStream?: ReadStream;
   writeStream?: WriteStream;
   memory?: WebAssembly.Memory;
   dev?: boolean;
+  loader: WasmLoader;
 };
-const _init = async (
-  bytes:
-    | Response
-    | PromiseLike<Response>
-    | ArrayBuffer
-    | Uint8Array,
-  args: InitArgs = {},
-) => {
+
+type Bytes =
+  | Response
+  | PromiseLike<Bytes>
+  | ArrayBuffer
+  | Uint8Array;
+
+const _init = async (args: InitArgs) => {
   // readStream: ReadStream = process.stdin,
   // writeStream: WriteStream = process.stdout,
   // memory: WebAssembly.Memory = new WebAssembly.Memory(
@@ -79,6 +85,7 @@ const _init = async (
     logFn = (log: Log) => {
       console.log(log);
     },
+    loader,
     readStream = process.stdin,
     writeStream = process.stdout,
     memory = new WebAssembly.Memory({
@@ -88,6 +95,11 @@ const _init = async (
   const eventSubscribers = new Set<
     (inputEvent: Uint32Array) => void
   >();
+  const bytes = await loader({
+    dev:
+      args.dev ??
+      process.env.NODE_ENV === "development",
+  });
 
   const module = await instantiate(bytes, {
     wasi_snapshot_preview1: {
@@ -282,6 +294,7 @@ const _init = async (
     },
     module,
     memory,
+    isDev: args.dev ?? process.env.NODE_ENV === "development",
   };
 };
 

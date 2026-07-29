@@ -13,21 +13,33 @@
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsc --watch --preserveWatchOutput -p tsconfig.build.json",
     "cleanup": "rm -rf dist",
-    "cli": "tsx src/cli.ts"
+    "cli": "tsx src/cli.ts",
+    "dev:cli": "tsx --watch src/cli.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@tanstack/react-query": "^5.81.5",
+    "@trpc/client": "^11.4.3",
+    "@trpc/server": "^11.4.3",
     "@types/express": "^5.0.3",
+    "@types/react": "catalog:",
+    "@types/ws": "^8.18.1",
     "cmd-ts": "^0.13.0",
     "express": "^5.1.0",
+    "react": "catalog:",
+    "react-error-boundary": "^6.0.0",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "stacktrace-parser": "^0.1.11",
-    "valibot": "catalog:"
+    "valibot": "catalog:",
+    "ws": "^8.18.2",
+    "zod": "^3.25.67"
   },
   "devDependencies": {
+    "@term-ui/dom": "workspace:*",
+    "@term-ui/react": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   }

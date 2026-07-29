@@ -284,7 +284,7 @@ describe("Text operations", () => {
       tree,
       "Original text",
     );
-    mod.Tree_setText(
+    mod.Node_setText(
       tree,
       textNode,
       "Updated text",

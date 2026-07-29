@@ -283,6 +283,7 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
     var items = try generateItemList(context, l_node_id, container_content_box_size);
     defer items.deinit();
 
+    context.info(l_node_id, "content_box_inset: {}", .{content_box_inset});
     // 2. Compute container width
     const container_outer_width: f32 = inputs.known_dimensions.x orelse blk: {
         const available_width = switch (inputs.available_space.x) {
@@ -290,6 +291,7 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
             else => inputs.available_space.x,
         };
         const intrinsic_width = (try determineContentBasedContainerWidth(context, l_node_id, &items, available_width)) + content_box_inset.sumHorizontal();
+        context.info(l_node_id, "intrinsic_width: {}", .{intrinsic_width});
         break :blk @max(mod.math.maybeClamp(intrinsic_width, min_size.x, max_size.x) orelse intrinsic_width, padding_border_size.x);
     };
 
@@ -359,6 +361,7 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
         .x = container_outer_width,
         .y = container_outer_height,
     };
+    context.info(l_node_id, "final_outer_size: {any}", .{final_outer_size});
 
     if (inputs.run_mode == .compute_size) {
         // Resolve basic margins for compute_size mode
@@ -399,7 +402,7 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
         .y = absolute_position_inset.top,
     };
 
-    const absolute_content_size = try performAbsoluteLayoutOnAbsoluteChildren(context, items, absolute_position_area, absolute_position_offset);
+    const absolute_content_size = try performAbsoluteLayoutOnAbsoluteChildren(context, &items, absolute_position_area, absolute_position_offset);
 
     // 5. Perform hidden layout on hidden children
     const children = context.layout_tree.getChildren(l_node_id);
@@ -481,8 +484,9 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
     };
 }
 
-pub fn generateItemList(context: *LayoutContext, l_node_id: LayoutNode.Id, nodeInnerSize: mod.CSSMaybePoint) !std.ArrayList(BlockItem) {
-    var items = std.ArrayList(BlockItem).init(context.allocator);
+pub fn generateItemList(context: *LayoutContext, l_node_id: LayoutNode.Id, nodeInnerSize: mod.CSSMaybePoint) !std.array_list.Managed(BlockItem) {
+    var unmanaged = std.ArrayList(BlockItem).empty;
+    var items = unmanaged.toManaged(context.allocator);
     const children = context.layout_tree.getChildren(l_node_id);
 
     for (children, 0..) |child_id, order| {
@@ -562,7 +566,7 @@ pub fn generateItemList(context: *LayoutContext, l_node_id: LayoutNode.Id, nodeI
 pub fn determineContentBasedContainerWidth(
     context: *LayoutContext,
     l_node_id: LayoutNode.Id,
-    items: *std.ArrayList(BlockItem),
+    items: *std.array_list.Managed(BlockItem),
     available_width: mod.constants.AvailableSpace,
 ) !f32 {
     _ = l_node_id; // autofix
@@ -631,7 +635,7 @@ pub fn determineContentBasedContainerWidth(
 fn performFinalLayoutOnInFlowChildren(
     context: *LayoutContext,
     l_node_id: LayoutNode.Id,
-    items: *std.ArrayList(BlockItem),
+    items: *std.array_list.Managed(BlockItem),
     container_outer_width: f32,
     content_box_inset: mod.CSSRect,
     resolved_content_box_inset: mod.CSSRect,
@@ -831,7 +835,7 @@ fn performFinalLayoutOnInFlowChildren(
 
 pub fn performAbsoluteLayoutOnAbsoluteChildren(
     context: *LayoutContext,
-    items: std.ArrayList(BlockItem),
+    items: *std.array_list.Managed(BlockItem),
     area_size: mod.CSSPoint,
     area_offset: mod.CSSPoint,
 ) !mod.CSSPoint {
@@ -923,9 +927,11 @@ pub fn performAbsoluteLayoutOnAbsoluteChildren(
         //  - Width is not already known
         //  - Item has both left and right inset properties set
         if (known_dimensions.x == null) if (left) |_left| if (right) |_right| {
-            var new_width_raw = area_width - _left - _right;
-            if (margin.left) |ml| new_width_raw -= ml;
-            if (margin.right) |mr| new_width_raw -= mr;
+            // var new_width_raw = area_width - _left - _right;
+            // new_width_raw = mod.math.maybeSub()
+            // if (margin.left) |ml| new_width_raw -= ml;
+            // if (margin.right) |mr| new_width_raw -= mr;
+            const new_width_raw = mod.math.maybeSub(mod.math.maybeSub(area_width, margin.left), margin.right).? - _left - _right;
             known_dimensions.x = @max(new_width_raw, 0);
             known_dimensions = mod.math.maybeApplyAspectRatio(known_dimensions, css_aspect_ratio);
             known_dimensions.x = mod.math.maybeClamp(known_dimensions.x, min_size.x, max_size.x);
@@ -944,6 +950,14 @@ pub fn performAbsoluteLayoutOnAbsoluteChildren(
             known_dimensions.x = mod.math.maybeClamp(known_dimensions.x, min_size.x, max_size.x);
             known_dimensions.y = mod.math.maybeClamp(known_dimensions.y, min_size.y, max_size.y);
         };
+        context.info(child_id, "area_width: {any}\n", .{area_width});
+        context.info(child_id, "area_height: {any}\n", .{area_height});
+        context.info(child_id, "area_size: {any}\n", .{area_size});
+        context.info(child_id, "area_offset: {any}\n", .{area_offset});
+        context.info(child_id, "known_dimensions: {any}\n", .{known_dimensions});
+        context.info(child_id, "min_size: {any}\n", .{min_size});
+        context.info(child_id, "max_size: {any}\n", .{max_size});
+        context.info(child_id, "style_size: {any}\n", .{style_size});
 
         var layout_output = try mod.performChildLayout(
             context,

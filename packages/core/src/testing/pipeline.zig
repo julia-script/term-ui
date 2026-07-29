@@ -2,7 +2,7 @@ const std = @import("std");
 const Tree = @import("../tree/Tree.zig");
 const layout_v2 = @import("../layout/v2/mod.zig");
 const renderer_v2 = @import("../renderer/v2/mod.zig");
-const snapshot = @import("snapshot.zig");
+const snapshot = @import("../tests/utils/snapshot.zig");
 
 pub const PipelineOptions = struct {
     /// Show escape sequences in visual output (replaced with \E)

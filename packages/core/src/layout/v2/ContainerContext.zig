@@ -139,3 +139,17 @@ pub const RequestedAxis = enum {
     /// Both axes
     both,
 };
+
+pub fn format(self: @This(), comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: std.io.AnyWriter) !void {
+    _ = fmt; // autofix
+    _ = options; // autofix
+    try writer.print("ContainerContext {{\n", .{});
+    try writer.print("  available_space: {any},\n", .{self.available_space});
+    try writer.print("  run_mode: {any},\n", .{self.run_mode});
+    try writer.print("  sizing_mode: {any},\n", .{self.sizing_mode});
+    try writer.print("  axis: {any},\n", .{self.axis});
+    try writer.print("  known_dimensions: {any},\n", .{self.known_dimensions});
+    try writer.print("  parent_size: {any},\n", .{self.parent_size});
+    try writer.print("  vertical_margins_are_collapsible: {any},\n", .{self.vertical_margins_are_collapsible});
+    try writer.print("}}\n", .{});
+}

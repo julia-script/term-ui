@@ -271,6 +271,7 @@ pub fn performAbsoluteLayoutOnAbsoluteChildren(
     const container_width: f32 = constants.container_size.x;
     const container_height = constants.container_size.y;
     const inset_relative_size = constants.container_size.sub(constants.border.sumAxes()).sub(constants.scrollbar_gutter);
+    context.info(l_node_id, "inset_relative_size: {}", .{inset_relative_size});
 
     var content_size: mod.CSSPoint = .{ .x = 0.0, .y = 0.0 };
 
@@ -278,6 +279,8 @@ pub fn performAbsoluteLayoutOnAbsoluteChildren(
         const child_css_display = context.getStyleValue(css_types.Display, child_id, .display);
         const child_css_position = context.getStyleValue(css_types.Position, child_id, .position);
 
+        context.info(child_id, "child_css_display: {any}", .{child_css_display});
+        context.info(child_id, "child_css_position: {any}", .{child_css_position});
         if (child_css_display.outside == .none or child_css_position != .absolute) {
             continue;
         }
@@ -343,6 +346,10 @@ pub fn performAbsoluteLayoutOnAbsoluteChildren(
             known_dimensions.y = @max(new_height_raw, 0.0);
             known_dimensions = known_dimensions.maybeApplyAspectRatio(aspect_ratio).maybeClamp(min_size, max_size);
         }
+        context.info(child_id, "known_dimensions: {any}", .{known_dimensions});
+        context.info(child_id, "min_size: {any}", .{min_size});
+        context.info(child_id, "max_size: {any}", .{max_size});
+        context.info(child_id, "container_width: {any}", .{container_width});
 
         var layout_output = try mod.performChildLayout(
             context,

@@ -75,11 +75,12 @@ pub fn tokenizeLayoutNode(
     inputs: mod.ContainerContext,
     l_node_id: mod.LayoutNode.Id,
     collapse_mode: WhiteSpaceCollapse,
-) Error!std.ArrayList(Token) {
+) Error!std.array_list.Managed(Token) {
     const l_node = context.layout_tree.getNodePtr(l_node_id);
     var linebreak_iter = LineBreakStream.init(allocator);
     defer linebreak_iter.deinit();
-    var tokens = std.ArrayList(Token).init(allocator);
+    var tokens_unmanaged = std.ArrayList(Token).empty;
+    var tokens = tokens_unmanaged.toManaged(allocator);
 
     switch (l_node.data) {
         .inline_container_node => |inline_container_node| {
@@ -106,7 +107,7 @@ pub fn tokenizeLayoutNodeInner(
     inputs: mod.ContainerContext,
     l_node_id: mod.LayoutNode.Id,
     collapse_mode: WhiteSpaceCollapse,
-    tokens: *std.ArrayList(Token),
+    tokens: *std.array_list.Managed(Token),
     linebreak_iter: *LineBreakStream,
 ) Error!void {
     const l_node = context.layout_tree.getNodePtr(l_node_id);
@@ -203,7 +204,7 @@ pub fn tokenizeLayoutNodeInner(
 }
 
 pub fn tokenizeAndAppend(
-    tokens: *std.ArrayList(Token),
+    tokens: *std.array_list.Managed(Token),
     segment: []const u8,
     l_node_id: mod.LayoutNode.Id,
     dom_range: struct { start: u32, end: u32 },

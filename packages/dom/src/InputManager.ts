@@ -318,6 +318,25 @@ export const isPrintable = (
   return printableRegex.test(input);
 };
 
+const getTextFromCodepoint = (
+  codepoint: number,
+) => {
+  switch (codepoint) {
+    case 0x0:
+      return "";
+    case 57346:
+      return "\t";
+    case 57345:
+      return "\n";
+  }
+  const text = String.fromCodePoint(codepoint);
+  if (isPrintable(text)) {
+    return text;
+  }
+
+  return "";
+};
+
 export class InputManager {
   buffer: ByteArrayList;
   consumed = 0;
@@ -363,7 +382,6 @@ export class InputManager {
     if (this.isDisposed) {
       return;
     }
-    // console.log("onData", data);
     this.buffer.appendSlice(data);
     this.consumeEvents();
   };
@@ -401,8 +419,6 @@ export class InputManager {
             : rawAction === 1
               ? "repeat"
               : "release";
-        const text =
-          String.fromCodePoint(codepoint);
 
         const keyEvent: KeyEvent = {
           kind: "key",
@@ -416,8 +432,8 @@ export class InputManager {
           rawModifiers: modifiers,
           source: data.slice(0, 6),
           text:
-            rawAction === 0 && isPrintable(text)
-              ? text
+            rawAction === 0
+              ? getTextFromCodepoint(codepoint)
               : "",
           shift: (modifiers & SHIFT) !== 0,
           ctrl: (modifiers & CTRL) !== 0,

@@ -3,6 +3,7 @@ import {
   type PropsWithChildren,
   useState,
 } from "react";
+import { devtools } from "@term-ui/dom/devtools";
 
 const VerticalSegment = ({
   x,
@@ -17,15 +18,15 @@ const VerticalSegment = ({
     return null;
   }
   return (
-    <term-text
+    <view
       style={{
         position: "absolute",
+        whiteSpace: "pre",
         left: x,
         top: y,
       }}
-    >
-      {"█\n▀"}
-    </term-text>
+      children={"█\n▀"}
+    />
   );
 };
 const HorizontalSegment = ({
@@ -41,15 +42,15 @@ const HorizontalSegment = ({
     return null;
   }
   return (
-    <term-text
+    <view
       style={{
         position: "absolute",
         left: x,
         top: y,
+        whiteSpace: "pre"
       }}
-    >
-      {"▄▄▄▄"}
-    </term-text>
+      children={"▄▄▄▄"}
+    />
   );
 };
 const SEGMENT_MAP: Record<
@@ -100,29 +101,31 @@ const SegmentDisplay = ({
   ] ?? [0, 0, 0, 0, 0, 0, 0];
   if (char === ".") {
     return (
-      <term-view
+      <view
         style={{
           height: 5,
           width: 2,
         }}
       >
         {/* DP */}
-        <term-text
+        <text
           style={{
             position: "absolute",
+            whiteSpace: "pre",
             left: 1,
             top: 4,
             color,
           }}
         >
           {"▄"}
-        </term-text>
-      </term-view>
+        </text>
+      </view>
     );
   }
   return (
-    <term-view
+    <view
       style={{
+        whiteSpace: "pre",
         height: 5,
         width: 6,
         color,
@@ -142,7 +145,7 @@ const SegmentDisplay = ({
       <VerticalSegment x={0} y={1} on={!!f} />
       {/* G */}
       <HorizontalSegment x={1} y={2} on={!!g} />
-    </term-view>
+    </view>
   );
 };
 const borderColor = "rgba(74, 0, 91, 0.5)";
@@ -167,7 +170,7 @@ const SegmentDisplayPanel = ({
   color?: string;
 }) => {
   return (
-    <term-view
+    <view
       style={{
         display: "flex",
         flexDirection: "row",
@@ -185,7 +188,7 @@ const SegmentDisplayPanel = ({
           />
         );
       })}
-    </term-view>
+    </view>
   );
 };
 
@@ -213,7 +216,7 @@ const CalculatorButton = ({
     useState(false);
 
   return (
-    <term-view
+    <view
       onMouseDown={() => setIsActive(true)}
       onMouseUp={() => setIsActive(false)}
       onMouseEnter={() => setIsHovered(true)}
@@ -239,8 +242,8 @@ const CalculatorButton = ({
       }}
       onClick={onClick}
     >
-      <term-text>{children}</term-text>
-    </term-view>
+      <text>{children}</text>
+    </view>
   );
 };
 const Calculator = () => {
@@ -464,7 +467,7 @@ const Calculator = () => {
   };
 
   return (
-    <term-view
+    <view
       style={{
         width: "100%",
         display: "flex",
@@ -479,7 +482,7 @@ const Calculator = () => {
         padding: "1",
       }}
     >
-      <term-text
+      <text
         style={{
           position: "absolute",
           top: 0,
@@ -489,8 +492,8 @@ const Calculator = () => {
         }}
       >
         @term-ui/react
-      </term-text>
-      <term-view
+      </text>
+      <view
         style={{
           padding: "1",
           backgroundColor: displayBackgroundColor,
@@ -512,8 +515,8 @@ const Calculator = () => {
               : digitsColor
           }
         />
-      </term-view>
-      <term-view
+      </view>
+      <view
         style={{
           display: "flex",
           flexDirection: "row",
@@ -538,8 +541,8 @@ const Calculator = () => {
             </CalculatorButton>
           ),
         )}
-      </term-view>
-      <term-view
+      </view>
+      <view
         style={{
           display: "flex",
         }}
@@ -560,8 +563,8 @@ const Calculator = () => {
             {text}
           </CalculatorButton>
         ))}
-      </term-view>
-      <term-view
+      </view>
+      <view
         style={{
           display: "flex",
         }}
@@ -582,8 +585,8 @@ const Calculator = () => {
             {text}
           </CalculatorButton>
         ))}
-      </term-view>
-      <term-view
+      </view>
+      <view
         style={{
           display: "flex",
         }}
@@ -604,8 +607,8 @@ const Calculator = () => {
             {text}
           </CalculatorButton>
         ))}
-      </term-view>
-      <term-view
+      </view>
+      <view
         style={{
           display: "flex",
           color: "rgba(74, 0, 91, 0.8)",
@@ -629,14 +632,14 @@ const Calculator = () => {
             </CalculatorButton>
           );
         })}
-      </term-view>
-    </term-view>
+      </view>
+    </view>
   );
 };
 
 const App = () => {
   return (
-    <term-view
+    <view
       style={{
         width: "100%",
         height: "100%",
@@ -648,7 +651,8 @@ const App = () => {
       }}
     >
       <Calculator />
-    </term-view>
+      
+    </view>
   );
 };
 
@@ -657,4 +661,5 @@ await TermUi.createRoot(<App />, {
     width: "100%",
     height: "100%",
   },
+  dev: true,
 });

@@ -226,7 +226,6 @@ pub fn clearCache(self: *Self, node_id: LayoutNode.Id) void {
 }
 pub fn computeIncremental(self: *Self, tree: *DocTree) !void {
     self.current_generation += 1;
-    tree.propagateNodeRecomputeStatus();
 
     // Check if this is the first build (no nodes exist)
     if (self.nodes.count() == 0) {
@@ -308,14 +307,12 @@ fn getEffectiveDomStatus(self: *Self, tree: *DocTree, layout_node_id: LayoutNode
 
 pub fn buildIncremental(self: *Self, tree: *DocTree, doc_node_id: DocNodeId) !LayoutNode.Id {
 
-    // Check if we already have a layout node for this DOM node
+    // check if we already have a layout node for this DOM node
     const existing_layout_node_id = self.doc_to_layout.get(doc_node_id) orelse {
-
-        // No existing layout node - build from scratch
         return try self.build(tree, doc_node_id);
     };
 
-    // Process the existing layout node
+    // process the existing layout node
     return try self.buildIncrementalNode(tree, existing_layout_node_id);
 }
 
@@ -491,7 +488,7 @@ const MixedContextBuilder = struct {
             return;
         }
         if (isAtomicInline(self.doc_tree, node_id)) {
-            const id = try self.layout_tree.buildInsideBlock(self.doc_tree, node_id);
+            const id = try self.layout_tree.buildInside(self.doc_tree, node_id);
             try self.appendNode(id);
             return;
         }
@@ -510,9 +507,13 @@ const MixedContextBuilder = struct {
         }
 
         // otherwise it's a block
-        const block_container_id = if (self.isCurrentContainerInline()) try self.createBlockContainer() else self.current_container_id;
+        // const block_container_id = if (self.isCurrentContainerInline()) try self.createBlockContainer() else self.current_container_id;
+        // _ = block_container_id; // autofix
         const block_node = try self.layout_tree.buildIncremental(self.doc_tree, node_id);
-        try self.layout_tree.appendNode(block_container_id, block_node);
+        try self.layout_tree.appendNode(self.root_container_id, block_node);
+        self.current_container_id = block_node;
+
+        return;
     }
 
     pub fn deinit(self: *MixedContextBuilder) void {
@@ -549,7 +550,7 @@ fn build(self: *Self, tree: *DocTree, node_id: DocNodeId) BuildError!LayoutNode.
     }
     const style = tree.getComputedStyle(node_id);
     if (style.display.inside != .flow) {
-        return self.buildInsideBlock(tree, node_id);
+        return self.buildInside(tree, node_id);
     }
 
     // 2. Atomic inline elements produce an `InlineNode`, right now we dont have other types of atomic inline elements besides inline-block or inline-flex
@@ -564,6 +565,121 @@ fn build(self: *Self, tree: *DocTree, node_id: DocNodeId) BuildError!LayoutNode.
         return id;
     }
     unreachable;
+}
+pub fn buildInside(self: *Self, tree: *DocTree, node_id: DocNodeId) !LayoutNode.Id {
+    const style = tree.getComputedStyle(node_id);
+    if (style.display.inside == .flow_root) {
+        return self.buildInsideBlock(tree, node_id);
+    }
+    if (style.display.inside == .flex) {
+        return self.buildInsideFlex(tree, node_id);
+    }
+    unreachable;
+}
+fn isAllWhitespace(tree: *DocTree, node_id: DocNodeId) bool {
+    // for (children) |child| {
+    //     if (tree.getNodeKind(child) != .text) return false;
+    // }
+    const text = tree.getText(node_id).bytes.items;
+    for (text) |c| {
+        if (std.ascii.isWhitespace(c)) continue;
+        return false;
+    }
+    return true;
+}
+pub fn buildInsideFlex(self: *Self, tree: *DocTree, node_id: DocNodeId) !LayoutNode.Id {
+    // https://www.w3.org/TR/css-flexbox-1/#flex-items
+    // Each in-flow child of a flex container becomes a flex item,
+    // and each contiguous sequence of child text runs is wrapped in
+    // an anonymous block container flex item. However,
+    // if the entire sequence of child text runs contains only white space
+    // (i.e. characters that can be affected by the white-space property) it is instead not rendered
+    // (just as if its text nodes were display:none).
+
+    //TODO: inline non-text nodes need to be "blockified"
+    const children = tree.getNodeChildren(node_id);
+    // FIXME: should we create a new flex_container type?
+    const flex_node = try self.createNode(.{ .block_container_node = .{} }, .{ .doc_node = node_id });
+
+    var i: usize = 0;
+    while (i < children.len) : (i += 1) {
+        const child = children[i];
+        if (isDisplayNone(tree, child)) {
+            continue;
+        }
+        if (tree.getNodeKind(child) == .text) {
+            var last_text_child_index = i;
+            var j = i + 1;
+            var has_non_whitespace = !isAllWhitespace(tree, child);
+            while (j < children.len) {
+                const next_child = children[j];
+                if (isDisplayNone(tree, next_child)) {
+                    continue;
+                }
+
+                if (tree.getNodeKind(next_child) != .text) {
+                    break;
+                }
+                has_non_whitespace = has_non_whitespace or !isAllWhitespace(tree, next_child);
+                last_text_child_index = j;
+                j += 1;
+            }
+            i = last_text_child_index;
+
+            // we ignore whitespace only runs
+            if (!has_non_whitespace) {
+                continue;
+            }
+            if (last_text_child_index == j) {
+                // if only one text child in this run, just append it directly
+                const text_node = try self.buildIncremental(tree, child);
+                try self.appendNode(flex_node, text_node);
+            } else {
+                // otherwise we need to create an anonymous block container
+                const block_container_id = try self.createNode(.{ .inline_container_node = .{
+                    .line_boxes = .{
+                        .allocator = self.allocator,
+                    },
+                } }, .anonymous);
+                try self.appendBlockifiedInline(flex_node, block_container_id);
+                for (i..last_text_child_index) |k| {
+                    if (isDisplayNone(tree, children[k])) {
+                        continue;
+                    }
+                    const child_id = children[k];
+                    const child_layout_node_id = try self.buildIncremental(tree, child_id);
+                    try self.appendNode(block_container_id, child_layout_node_id);
+                }
+            }
+
+            continue;
+        }
+
+        const child_layout_node_id = try self.buildIncremental(tree, child);
+        try self.appendBlockifiedInline(flex_node, child_layout_node_id);
+    }
+
+    return flex_node;
+}
+// FIXME: this is not correct, inline nodes need to be blockified, not wrapped in an anonymous block container
+// otherwise if it has block styling, ex, border, it will not be applied
+// but let's do this for now
+pub fn appendBlockifiedInline(self: *Self, parent_id: LayoutNode.Id, child_id: LayoutNode.Id) !void {
+    const node = self.getNodePtr(child_id);
+    switch (node.data) {
+        .inline_node => {
+            const block_container_id = try self.createNode(.{ .inline_container_node = .{
+                .line_boxes = .{
+                    .allocator = self.allocator,
+                },
+            } }, .anonymous);
+            try self.appendNode(parent_id, block_container_id);
+            try self.appendNode(block_container_id, child_id);
+        },
+        else => {
+            try self.appendNode(parent_id, child_id);
+        },
+    }
 }
 pub fn buildInsideBlock(self: *Self, tree: *DocTree, node_id: DocNodeId) !LayoutNode.Id {
     const children = tree.getNodeChildren(node_id);
@@ -595,7 +711,7 @@ pub fn buildInsideBlock(self: *Self, tree: *DocTree, node_id: DocNodeId) !Layout
     return container_id;
 }
 
-fn writeDocRef(writer: std.io.AnyWriter, ref: DocRef) !void {
+fn writeDocRef(writer: anytype, ref: DocRef) !void {
     switch (ref) {
         .anonymous => try writer.writeAll("{anon}"),
         .doc_node => |id| try writer.print("{{doc#{d}}}", .{id}),
@@ -612,7 +728,7 @@ pub fn getChildren(self: *Self, node_id: LayoutNode.Id) []const LayoutNode.Id {
     };
 }
 
-fn printNodeInternal(self: *Self, node_id: LayoutNode.Id, writer: std.io.AnyWriter, prefix: []const u8, is_root: bool, is_last: bool) !void {
+fn printNodeInternal(self: *Self, node_id: LayoutNode.Id, writer: anytype, prefix: []const u8, is_root: bool, is_last: bool) !void {
     const node = self.getNodePtr(node_id);
 
     if (!is_root) {
@@ -714,7 +830,7 @@ fn printNodeInternal(self: *Self, node_id: LayoutNode.Id, writer: std.io.AnyWrit
     }
 }
 
-fn printLineBox(_: *Self, line_box: *const mod.LineBox, index: usize, writer: std.io.AnyWriter, prefix: []const u8, is_last: bool) !void {
+fn printLineBox(_: *Self, line_box: *const mod.LineBox, index: usize, writer: anytype, prefix: []const u8, is_last: bool) !void {
     try writer.writeAll(prefix);
     if (is_last)
         try writer.writeAll("└── ")
@@ -751,15 +867,15 @@ fn printLineBox(_: *Self, line_box: *const mod.LineBox, index: usize, writer: st
     }
 }
 
-pub fn printNode(self: *Self, node_id: LayoutNode.Id, writer: std.io.AnyWriter) !void {
+pub fn printNode(self: *Self, node_id: LayoutNode.Id, writer: anytype) !void {
     try self.printNodeInternal(node_id, writer, "", true, true);
 }
-pub fn printRoot(self: *Self, writer: std.io.AnyWriter) !void {
+pub fn printRoot(self: *Self, writer: anytype) !void {
     try self.printNode(self.root_id, writer);
 }
 
 pub fn expectLayoutTree(description: []const u8, docXml: []const u8, comptime loc: std.builtin.SourceLocation) !void {
-    const snapshot = @import("../../testing/snapshot.zig");
+    const snapshot = @import("../../tests/utils/snapshot.zig");
 
     var tree = try docFromXml(std.testing.allocator, docXml, .{});
     defer tree.deinit();
@@ -778,7 +894,7 @@ pub fn expectLayoutTree(description: []const u8, docXml: []const u8, comptime lo
 
     try lt.printRoot(writer);
 
-    try snapshot.expectMatchSnapshot(loc, std.testing.allocator, description, buf.items);
+    try snapshot.expectMatchSnapshot(loc, std.testing.allocator, description, buf.items, .{});
 }
 pub fn getDocNodeId(self: *Self, node_id: LayoutNode.Id) ?DocNodeId {
     const node = self.getNodePtr(node_id);

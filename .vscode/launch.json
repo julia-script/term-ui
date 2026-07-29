@@ -2,12 +2,46 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "type": "lldb",
+      "type": "lldb-dap",
       "request": "launch",
-      "name": "Zig debug lang",
+      "name": "Debug tests for current file",
+      "program": "${workspaceFolder}/packages/core/zig-out/bin/test",
+      "args": [],
+      "cwd": "${workspaceFolder}/packages/core",
+      "preLaunchTask": "Build tests for current file",
+      "env": {
+        "TEST_FILTER": "${fileBasenameNoExtension}"
+      },
+      "sourceMap": {
+        ".": "${workspaceFolder}/packages/core"
+      },
+      "presentation": {
+        "clear": true
+      }
+    },
+    {
+      "type": "lldb-dap",
+      "request": "launch",
+      "name": "Debug all tests",
+      "program": "${workspaceFolder}/packages/core/zig-out/bin/test",
+      "args": [],
+      "cwd": "${workspaceFolder}/packages/core",
+      "preLaunchTask": "Build all tests for debug"
+    },
+    {
+      "type": "lldb-dap",
+      "request": "launch",
+      "name": "Debug with manual build",
       "program": "${workspaceFolder}/zig-out/bin/test",
       "args": [],
-      "cwd": "${workspaceFolder}"
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "TEST_FILTER": "${fileBasenameNoExtension}"
+      },
+      "sourceMap": {
+        "/Users/juliaortiz/Documents/dev.nosync/cpp": "${workspaceFolder}",
+        ".": "${workspaceFolder}"
+      }
     },
     {
       "name": "Extension",

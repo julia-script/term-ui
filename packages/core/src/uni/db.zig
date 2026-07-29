@@ -7,6 +7,7 @@ pub const GraphemeBreak = lookups.GraphemeBreak;
 pub const CoreProperty = lookups.CoreProperty;
 pub const WordBreak = lookups.WordBreak;
 pub fn getHandle(comptime T: type) usize {
+    @setEvalBranchQuota(2000);
     inline for (std.meta.fields(lookups.Columns), 0..) |field, index| {
         if (field.type == T) {
             return index;

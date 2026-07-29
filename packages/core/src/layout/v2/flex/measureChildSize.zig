@@ -22,7 +22,7 @@ pub fn measureChildSize(
     axis: mod.constants.AbsoluteAxis,
     vertical_margins_are_collapsible: mod.Line(bool),
 ) mod.ComputeLayoutError!f32 {
-    const child_layout = try mod.computeChildLayout(
+    var child_layout = try mod.computeChildLayout(
         context,
         .{
             .known_dimensions = known_dimensions,
@@ -35,6 +35,7 @@ pub fn measureChildSize(
         },
         node_id,
     );
+    defer child_layout.deinit();
 
     return axis.getAxis(child_layout.size);
 }

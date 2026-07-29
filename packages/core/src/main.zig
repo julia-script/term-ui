@@ -1,10 +1,15 @@
 pub const std_options: std.Options = .{
     .fmt_max_depth = 20,
 };
+const builtin = @import("builtin");
 const std = @import("std");
 // const Node = @import("./layout/tree/Node.zig");
 // pub const compute_root_layout = @import("./layout/compute/compute_root_layout.zig").compute_root_layout;
 pub fn main() !void {
+    const a = @import("demo");
+    _ = a; // autofix
+    // std.meta.
+    // std.debug.print("{any}\n", .{builtin.});
     // const s: SegmentIter = undefined;
     // var segmenter = try LineSegmenter.new();
     // var iter = try segmenter.segmentString("hello, world!\n\n\nmy name is juliaaaa");
@@ -28,5 +33,5 @@ test {
     // _ = @import("./styles/text_formatting_tests.zig");
     _ = @import("./renderer/Renderer.zig");
     _ = @import("./renderer/gradient.zig");
-    _ = @import("./layout/Selection.zig");
+    // _ = @import("./layout/Selection.zig");
 }

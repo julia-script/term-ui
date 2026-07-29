@@ -3,6 +3,7 @@ const Array = std.ArrayListUnmanaged;
 const Point = @import("../../layout/point.zig").Point;
 const PointF32 = Point(f32);
 const Color = @import("../../colors/Color.zig");
+const LayoutRect = @import("../../layout/rect.zig").Rect;
 const styles = @import("../../styles/styles.zig");
 const RenderList = @import("../../layout/v2/mod.zig").RenderList;
 const string_width = @import("../../uni/string-width.zig");
@@ -320,17 +321,17 @@ pub fn paintFromRenderList(self: *Self, render_list: *const RenderList) !void {
                 }
             },
             .text_fragment => |text| {
-                // Skip if outside clip rect
+                // skip if outside clip rect
                 if (!text.bounds.intersectsWith(self.clip_rect)) continue;
 
                 // Use the color and format from the text fragment
                 try self.drawText(text.bounds.x, text.bounds.y, text.text, text.color, text.format);
             },
             .selection_overlay => |sel| {
-                // Skip if outside clip rect
+                // skip if outside clip rect
                 if (!sel.bounds.intersectsWith(self.clip_rect)) continue;
 
-                // Draw semi-transparent selection overlay without clearing text
+                // draw semi-transparent selection overlay without clearing text
                 try self.fillRectPreserveText(sel.bounds, sel.color);
             },
             .push_clip => |clip| {
@@ -453,152 +454,313 @@ fn fillRect(self: *Self, rect: Rect, background: styles.background.Background) !
     }
 }
 
-fn drawBorder(self: *Self, rect: Rect, border_style: anytype, border_color: anytype) !void {
-    // Ensure border char lookup is loaded
-    _ = styles.border.BoxChar.load() catch {};
+fn drawBorder(
+    self: *Self,
+    _rect: Rect,
+    border: LayoutRect(styles.border.BoxChar.Cell),
+    border_color: LayoutRect(styles.background.Background),
+) !void {
+    if (border.top.style == .none and border.bottom.style == .none and border.left.style == .none and border.right.style == .none) {
+        return;
+    }
+    var rect = _rect.round();
 
-    const x_start = @as(u32, @intFromFloat(@round(rect.x)));
-    const y_start = @as(u32, @intFromFloat(@round(rect.y)));
-    const x_end = @as(u32, @intFromFloat(@round(rect.x + rect.width)));
-    const y_end = @as(u32, @intFromFloat(@round(rect.y + rect.height)));
+    const clamp_rect = rect.intersect(self.clip_rect).round();
+    if (clamp_rect.isZero()) {
+        return;
+    }
 
-    // Create samplers for each border side
+    // const
+
     var top_sampler = try Sampler.from(self.allocator, border_color.top, .{
         .x = rect.width,
         .y = rect.height,
     });
     defer top_sampler.deinit();
-
     var bottom_sampler = try Sampler.from(self.allocator, border_color.bottom, .{
         .x = rect.width,
         .y = rect.height,
     });
     defer bottom_sampler.deinit();
-
     var left_sampler = try Sampler.from(self.allocator, border_color.left, .{
         .x = rect.width,
         .y = rect.height,
     });
     defer left_sampler.deinit();
-
     var right_sampler = try Sampler.from(self.allocator, border_color.right, .{
         .x = rect.width,
         .y = rect.height,
     });
     defer right_sampler.deinit();
 
-    // Draw corners
-    if (x_end > x_start and y_end > y_start) {
-        // Top-left corner
-        if (self.getCell(x_start, y_start)) |cell| {
-            cell.setBorderChar(.{
-                .s = border_style.left,
-                .e = border_style.top,
+    const will_draw_corners = rect.width > 1 and rect.height > 1;
+
+    // std.debug.print("rect: {any}\nclamp_rect: {any}\n will_draw_corners: {}\n", .{ rect, clamp_rect, will_draw_corners });
+    const will_render_top_line = clamp_rect.top() == rect.top() and rect.width > 1;
+    const will_render_bottom_line = clamp_rect.bottom() == rect.bottom() and rect.width > 1;
+
+    const will_render_left_line = clamp_rect.left() == rect.left() and rect.height > 1;
+    const will_render_right_line = clamp_rect.right() == rect.right() and rect.height > 1;
+
+    const top_cell_style: styles.border.BoxChar = if (will_render_top_line) .{ .w = border.top, .e = border.top } else .{};
+    const bottom_cell_style: styles.border.BoxChar = if (will_render_bottom_line) .{ .w = border.bottom, .e = border.bottom } else .{};
+    const left_cell_style: styles.border.BoxChar = if (will_render_left_line) .{ .n = border.left, .s = border.left } else .{};
+    const right_cell_style: styles.border.BoxChar = if (will_render_right_line) .{ .n = border.right, .s = border.right } else .{};
+
+    const left = clamp_rect.left();
+    const right = @max(clamp_rect.right() - 1, 0);
+    const top = clamp_rect.top();
+    const bottom = @max(clamp_rect.bottom() - 1, 0);
+
+    if (will_draw_corners) {
+        if (will_render_left_line and will_render_top_line) {
+            // top left
+            const point: Point(f32) = .{ .x = left, .y = top };
+            if (self.clip_rect.contains(point)) if (self.getCell(toType(u32, @round(point.x)), toType(u32, @round(point.y)))) |top_left_cell| {
+
+                // top_left_cell.border.s = left_cell_style.n;
+                // top_left_cell.border.e = top_cell_style.w;
+                top_left_cell.setBorderChar(.{
+                    .s = left_cell_style.n,
+                    .e = top_cell_style.w,
+                });
+                top_left_cell.setFg(top_sampler.at(.{ .x = 0, .y = 0 }));
+            };
+        }
+
+        if (will_render_right_line and will_render_top_line) {
+            const point: Point(f32) = .{ .x = right, .y = top };
+            // top right
+            if (self.clip_rect.contains(point)) if (self.getCell(toType(u32, @round(point.x)), toType(u32, @round(point.y)))) |top_right_cell| {
+                // top_right_cell.border |= top_right_cell_style.encode();
+                top_right_cell.setBorderChar(.{
+                    .s = right_cell_style.n,
+                    .w = top_cell_style.e,
+                });
+                top_right_cell.setFg(top_sampler.at(.{ .x = rect.width, .y = 0 }));
+            };
+        }
+
+        if (will_render_left_line and will_render_bottom_line) {
+            const point: Point(f32) = .{ .x = left, .y = bottom };
+            // bottom left
+            if (self.clip_rect.contains(point)) if (self.getCell(toType(u32, @round(point.x)), toType(u32, @round(point.y)))) |bottom_left_cell| {
+                bottom_left_cell.setBorderChar(.{
+                    .n = left_cell_style.s,
+                    .e = bottom_cell_style.w,
+                });
+                bottom_left_cell.setFg(bottom_sampler.at(.{ .x = 0, .y = rect.height }));
+            };
+        }
+        if (will_render_right_line and will_render_bottom_line) {
+            const point: Point(f32) = .{ .x = right, .y = bottom };
+            if (self.clip_rect.contains(point)) if (self.getCell(toType(u32, @round(point.x)), toType(u32, @round(point.y)))) |bottom_right_cell| {
+                // bottom right
+                bottom_right_cell.setBorderChar(.{
+                    .n = right_cell_style.s,
+                    .w = bottom_cell_style.e,
+                });
+                bottom_right_cell.setFg(bottom_sampler.at(.{ .x = rect.width, .y = rect.height }));
+            };
+        }
+    }
+    var x = left;
+    if (will_render_left_line and will_draw_corners) {
+        x += 1;
+    }
+    // const x_end = right + @floatFromInt(@intFromBool(will_render_right_line));
+    var x_end = right;
+    if (will_render_right_line and will_draw_corners) {
+        x_end -= 1;
+    }
+    while (x <= x_end) : (x += 1) {
+        if (will_render_top_line) if (self.getCell(toType(u32, @round(x)), toType(u32, @round(top)))) |top_cell| {
+            top_cell.setBorderChar(.{
+                .w = top_cell_style.w,
+                .e = top_cell_style.e,
             });
-            const rel_x = @as(f32, @floatFromInt(x_start)) - rect.x;
-            const rel_y = @as(f32, @floatFromInt(y_start)) - rect.y;
-            cell.fg = top_sampler.at(.{ .x = rel_x, .y = rel_y });
-        }
-
-        // Top-right corner
-        if (x_end > x_start + 1) {
-            if (self.getCell(x_end - 1, y_start)) |cell| {
-                cell.setBorderChar(.{
-                    .s = border_style.right,
-                    .w = border_style.top,
-                });
-                const rel_x = @as(f32, @floatFromInt(x_end - 1)) - rect.x;
-                const rel_y = @as(f32, @floatFromInt(y_start)) - rect.y;
-                cell.fg = top_sampler.at(.{ .x = rel_x, .y = rel_y });
-            }
-        }
-
-        // Bottom-left corner
-        if (y_end > y_start + 1) {
-            if (self.getCell(x_start, y_end - 1)) |cell| {
-                cell.setBorderChar(.{
-                    .n = border_style.left,
-                    .e = border_style.bottom,
-                });
-                const rel_x = @as(f32, @floatFromInt(x_start)) - rect.x;
-                const rel_y = @as(f32, @floatFromInt(y_end - 1)) - rect.y;
-                cell.fg = bottom_sampler.at(.{ .x = rel_x, .y = rel_y });
-            }
-
-            // Bottom-right corner
-            if (x_end > x_start + 1) {
-                if (self.getCell(x_end - 1, y_end - 1)) |cell| {
-                    cell.setBorderChar(.{
-                        .n = border_style.right,
-                        .w = border_style.bottom,
-                    });
-                    const rel_x = @as(f32, @floatFromInt(x_end - 1)) - rect.x;
-                    const rel_y = @as(f32, @floatFromInt(y_end - 1)) - rect.y;
-                    cell.fg = bottom_sampler.at(.{ .x = rel_x, .y = rel_y });
-                }
-            }
-        }
+            top_cell.setFg(top_sampler.at(.{ .x = x - rect.left(), .y = 0 }));
+        };
+        if (will_render_bottom_line) if (self.getCell(toType(u32, @round(x)), toType(u32, @round(bottom)))) |bottom_cell| {
+            bottom_cell.setBorderChar(.{
+                .w = bottom_cell_style.w,
+                .e = bottom_cell_style.e,
+            });
+            bottom_cell.setFg(bottom_sampler.at(.{ .x = x - rect.left(), .y = rect.height }));
+        };
     }
 
-    // Draw horizontal borders
-    if (x_end > x_start + 2) {
-        var x = x_start + 1;
-        while (x < x_end - 1) : (x += 1) {
-            // Top border
-            if (self.getCell(x, y_start)) |cell| {
-                cell.setBorderChar(.{
-                    .e = border_style.top,
-                    .w = border_style.top,
-                });
-                const rel_x = @as(f32, @floatFromInt(x)) - rect.x;
-                const rel_y = @as(f32, @floatFromInt(y_start)) - rect.y;
-                cell.fg = top_sampler.at(.{ .x = rel_x, .y = rel_y });
-            }
-
-            // Bottom border
-            if (y_end > y_start + 1) {
-                if (self.getCell(x, y_end - 1)) |cell| {
-                    cell.setBorderChar(.{
-                        .e = border_style.bottom,
-                        .w = border_style.bottom,
-                    });
-                    const rel_x = @as(f32, @floatFromInt(x)) - rect.x;
-                    const rel_y = @as(f32, @floatFromInt(y_end - 1)) - rect.y;
-                    cell.fg = bottom_sampler.at(.{ .x = rel_x, .y = rel_y });
-                }
-            }
-        }
+    var y = top;
+    if (will_render_top_line and will_draw_corners) {
+        y += 1;
     }
-
-    // Draw vertical borders
-    if (y_end > y_start + 2) {
-        var y = y_start + 1;
-        while (y < y_end - 1) : (y += 1) {
-            // Left border
-            if (self.getCell(x_start, y)) |cell| {
-                cell.setBorderChar(.{
-                    .n = border_style.left,
-                    .s = border_style.left,
-                });
-                const rel_x = @as(f32, @floatFromInt(x_start)) - rect.x;
-                const rel_y = @as(f32, @floatFromInt(y)) - rect.y;
-                cell.fg = left_sampler.at(.{ .x = rel_x, .y = rel_y });
-            }
-
-            // Right border
-            if (x_end > x_start + 1) {
-                if (self.getCell(x_end - 1, y)) |cell| {
-                    cell.setBorderChar(.{
-                        .n = border_style.right,
-                        .s = border_style.right,
-                    });
-                    const rel_x = @as(f32, @floatFromInt(x_end - 1)) - rect.x;
-                    const rel_y = @as(f32, @floatFromInt(y)) - rect.y;
-                    cell.fg = right_sampler.at(.{ .x = rel_x, .y = rel_y });
-                }
-            }
-        }
+    var y_end = bottom;
+    if (will_render_bottom_line and will_draw_corners) {
+        y_end -= 1;
     }
+    while (y <= y_end) : (y += 1) {
+        if (will_render_left_line) if (self.getCell(toType(u32, @round(left)), toType(u32, @round(y)))) |left_cell| {
+            left_cell.setBorderChar(.{
+                .n = left_cell_style.n,
+                .s = left_cell_style.s,
+            });
+            left_cell.setFg(left_sampler.at(.{ .x = 0, .y = y - rect.top() }));
+        };
+        if (will_render_right_line) if (self.getCell(toType(u32, @round(right)), toType(u32, @round(y)))) |right_cell| {
+            right_cell.setBorderChar(.{
+                .n = right_cell_style.n,
+                .s = right_cell_style.s,
+            });
+            right_cell.setFg(right_sampler.at(.{ .x = rect.width, .y = y - rect.top() }));
+        };
+    }
+    // // Ensure border char lookup is loaded
+    // _ = styles.border.BoxChar.load() catch {};
+    // const clamped_rect = rect.intersect(self.clip_rect);
+
+    // std.debug.print("drawBorder {any}\n", .{clamped_rect});
+    // const x_start = @as(u32, @intFromFloat(@round(clamped_rect.x)));
+    // const y_start = @as(u32, @intFromFloat(@round(clamped_rect.y)));
+    // const x_end = @as(u32, @intFromFloat(@round(clamped_rect.x + clamped_rect.width)));
+    // const y_end = @as(u32, @intFromFloat(@round(clamped_rect.y + clamped_rect.height)));
+
+    // // Create samplers for each border side
+    // var top_sampler = try Sampler.from(self.allocator, border_color.top, .{
+    //     .x = rect.width,
+    //     .y = rect.height,
+    // });
+    // defer top_sampler.deinit();
+
+    // var bottom_sampler = try Sampler.from(self.allocator, border_color.bottom, .{
+    //     .x = rect.width,
+    //     .y = rect.height,
+    // });
+    // defer bottom_sampler.deinit();
+
+    // var left_sampler = try Sampler.from(self.allocator, border_color.left, .{
+    //     .x = rect.width,
+    //     .y = rect.height,
+    // });
+    // defer left_sampler.deinit();
+
+    // var right_sampler = try Sampler.from(self.allocator, border_color.right, .{
+    //     .x = rect.width,
+    //     .y = rect.height,
+    // });
+    // defer right_sampler.deinit();
+
+    // // Draw corners
+    // if (x_end > x_start and y_end > y_start) {
+    //     // Top-left corner
+    //     if (self.getCell(x_start, y_start)) |cell| {
+    //         cell.setBorderChar(.{
+    //             .s = border_style.left,
+    //             .e = border_style.top,
+    //         });
+    //         const rel_x = @as(f32, @floatFromInt(x_start)) - rect.x;
+    //         const rel_y = @as(f32, @floatFromInt(y_start)) - rect.y;
+    //         cell.fg = top_sampler.at(.{ .x = rel_x, .y = rel_y });
+    //     }
+
+    //     // Top-right corner
+    //     if (x_end > x_start + 1) {
+    //         if (self.getCell(x_end - 1, y_start)) |cell| {
+    //             cell.setBorderChar(.{
+    //                 .s = border_style.right,
+    //                 .w = border_style.top,
+    //             });
+    //             const rel_x = @as(f32, @floatFromInt(x_end - 1)) - rect.x;
+    //             const rel_y = @as(f32, @floatFromInt(y_start)) - rect.y;
+    //             cell.fg = top_sampler.at(.{ .x = rel_x, .y = rel_y });
+    //         }
+    //     }
+
+    //     // Bottom-left corner
+    //     if (y_end > y_start + 1) {
+    //         if (self.getCell(x_start, y_end - 1)) |cell| {
+    //             cell.setBorderChar(.{
+    //                 .n = border_style.left,
+    //                 .e = border_style.bottom,
+    //             });
+    //             const rel_x = @as(f32, @floatFromInt(x_start)) - rect.x;
+    //             const rel_y = @as(f32, @floatFromInt(y_end - 1)) - rect.y;
+    //             cell.fg = bottom_sampler.at(.{ .x = rel_x, .y = rel_y });
+    //         }
+
+    //         // Bottom-right corner
+    //         if (x_end > x_start + 1) {
+    //             if (self.getCell(x_end - 1, y_end - 1)) |cell| {
+    //                 cell.setBorderChar(.{
+    //                     .n = border_style.right,
+    //                     .w = border_style.bottom,
+    //                 });
+    //                 const rel_x = @as(f32, @floatFromInt(x_end - 1)) - rect.x;
+    //                 const rel_y = @as(f32, @floatFromInt(y_end - 1)) - rect.y;
+    //                 cell.fg = bottom_sampler.at(.{ .x = rel_x, .y = rel_y });
+    //             }
+    //         }
+    //     }
+    // }
+
+    // // Draw horizontal borders
+    // if (x_end > x_start + 2) {
+    //     var x = x_start + 1;
+    //     while (x < x_end - 1) : (x += 1) {
+    //         // Top border
+    //         if (self.getCell(x, y_start)) |cell| {
+    //             cell.setBorderChar(.{
+    //                 .e = border_style.top,
+    //                 .w = border_style.top,
+    //             });
+    //             const rel_x = @as(f32, @floatFromInt(x)) - rect.x;
+    //             const rel_y = @as(f32, @floatFromInt(y_start)) - rect.y;
+    //             cell.fg = top_sampler.at(.{ .x = rel_x, .y = rel_y });
+    //         }
+
+    //         // Bottom border
+    //         if (y_end > y_start + 1) {
+    //             if (self.getCell(x, y_end - 1)) |cell| {
+    //                 cell.setBorderChar(.{
+    //                     .e = border_style.bottom,
+    //                     .w = border_style.bottom,
+    //                 });
+    //                 const rel_x = @as(f32, @floatFromInt(x)) - rect.x;
+    //                 const rel_y = @as(f32, @floatFromInt(y_end - 1)) - rect.y;
+    //                 cell.fg = bottom_sampler.at(.{ .x = rel_x, .y = rel_y });
+    //             }
+    //         }
+    //     }
+    // }
+
+    // // Draw vertical borders
+    // if (y_end > y_start + 2) {
+    //     var y = y_start + 1;
+    //     while (y < y_end - 1) : (y += 1) {
+    //         // Left border
+    //         if (self.getCell(x_start, y)) |cell| {
+    //             cell.setBorderChar(.{
+    //                 .n = border_style.left,
+    //                 .s = border_style.left,
+    //             });
+    //             const rel_x = @as(f32, @floatFromInt(x_start)) - rect.x;
+    //             const rel_y = @as(f32, @floatFromInt(y)) - rect.y;
+    //             cell.fg = left_sampler.at(.{ .x = rel_x, .y = rel_y });
+    //         }
+
+    //         // Right border
+    //         if (x_end > x_start + 1) {
+    //             if (self.getCell(x_end - 1, y)) |cell| {
+    //                 cell.setBorderChar(.{
+    //                     .n = border_style.right,
+    //                     .s = border_style.right,
+    //                 });
+    //                 const rel_x = @as(f32, @floatFromInt(x_end - 1)) - rect.x;
+    //                 const rel_y = @as(f32, @floatFromInt(y)) - rect.y;
+    //                 cell.fg = right_sampler.at(.{ .x = rel_x, .y = rel_y });
+    //             }
+    //         }
+    //     }
+    // }
 }
 
 fn drawText(self: *Self, x: f32, y: f32, text: []const u8, color: Color, format: TextFormat) !void {
@@ -651,11 +813,13 @@ fn drawText(self: *Self, x: f32, y: f32, text: []const u8, color: Color, format:
                 }
 
                 // Now set the new content
-                cell.data = .{ .text = slice };
-                cell.setFg(color);
-                cell.format = format;
-                cell.width = width;
-                cell.is_continuation = false;
+                if (!std.mem.eql(u8, slice, " ")) {
+                    cell.data = .{ .text = slice };
+                    cell.setFg(color);
+                    cell.format = format;
+                    cell.width = width;
+                    cell.is_continuation = false;
+                }
             }
 
             // Mark subsequent cells as continuations for multi-width characters

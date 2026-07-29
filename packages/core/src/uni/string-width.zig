@@ -756,6 +756,9 @@ pub const visible = struct {
 
 pub const utf8Width = visible.width.utf8;
 pub const utf8WidthExcludingAnsiColors = visible.width.exclude_ansi_colors.utf8;
+pub fn measureText(input: []const u8) f32 {
+    return @as(f32, @floatFromInt(utf8WidthExcludingAnsiColors(input)));
+}
 test "string-width" {
     const width = utf8WidthExcludingAnsiColors("\x1b[31m😂️️️️️️\x1b[0m");
     try std.testing.expectEqual(width, 2);

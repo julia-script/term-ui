@@ -3,11 +3,13 @@ const AnyInputManager = @import("input/manager.zig").AnyInputManager;
 const Collector = @import("input/manager.zig").Collector;
 const Event = @import("input/manager.zig").Event;
 const expectEvents = @import("test-utils.zig").expectEvents;
+const dumpEvents = @import("test-utils.zig").dumpEvents;
 const Match = @import("input/manager.zig").Match;
 const escape = @import("input/manager.zig").escape;
 const handleTerminalInfo = @import("handle-term-info.zig").handleTerminalInfo;
 const handleCsi = @import("handle-csi.zig").handleCsi;
 const logger = @import("input/manager.zig").logger;
+const root = @import("root");
 
 fn matchStart(needle: []const u8, haystack: []const u8) Match {
     var i: usize = 0;
@@ -135,33 +137,16 @@ fn handleFocusEvent(manager: *AnyInputManager, buffer: []const u8, position: usi
 }
 test "focus events" {
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "focus events",
         &.{ "\x1b[I", "\x1b[O" },
-        &.{ "[focus in]", "[focus out]" },
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "focus events",
         &.{"hello\x1b[I world\x1b[O!!!"},
-        &.{
-            "[key 'h' 104]",
-            "[key 'e' 101]",
-            "[key 'l' 108]",
-            "[key 'l' 108]",
-            "[key 'o' 111]",
-            "[focus in]",
-            "[key .space ' ' 32]",
-            "[key 'w' 119]",
-            "[key 'o' 111]",
-            "[key 'r' 114]",
-            "[key 'l' 108]",
-            "[key 'd' 100]",
-            "[focus out]",
-            "[key '!' 33]",
-            "[key '!' 33]",
-            "[key '!' 33]",
-        },
     );
 }
 
@@ -203,25 +188,15 @@ const PASTE_END = "\x1b[201~";
 
 test "paste events" {
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "single buffer",
         &.{
             "hello " ++ PASTE_START ++ "world" ++ PASTE_END ++ "!!!",
         },
-        &.{
-            "[key 'h' 104]",
-            "[key 'e' 101]",
-            "[key 'l' 108]",
-            "[key 'l' 108]",
-            "[key 'o' 111]",
-            "[key .space ' ' 32]",
-            "[paste all 'world']",
-            "[key '!' 33]",
-            "[key '!' 33]",
-            "[key '!' 33]",
-        },
     );
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "multiple buffers with separate paste start and end",
         &.{
@@ -229,44 +204,42 @@ test "paste events" {
             PASTE_END,
             "!!!",
         },
-        &.{
-            "[key 'h' 104]",
-            "[key 'e' 101]",
-            "[key 'l' 108]",
-            "[key 'l' 108]",
-            "[key 'o' 111]",
-            "[key .space ' ' 32]",
-            "[paste start 'world']",
-            "[paste end '']",
-            "[key '!' 33]",
-            "[key '!' 33]",
-            "[key '!' 33]",
-        },
     );
-    try expectEvents(
-        std.testing.allocator,
-        "multiple buffers with match in the middle",
-        &.{
+    {
+        const events = try dumpEvents(std.testing.allocator, &.{
             "hello " ++ PASTE_START ++ "wor",
             "ld",
             PASTE_END,
             "!!!",
-        },
-        &.{
-            "[key 'h' 104]",
-            "[key 'e' 101]",
-            "[key 'l' 108]",
-            "[key 'l' 108]",
-            "[key 'o' 111]",
-            "[key .space ' ' 32]",
-            "[paste start 'wor']",
-            "[paste chunk 'ld']",
-            "[paste end '']",
-            "[key '!' 33]",
-            "[key '!' 33]",
-            "[key '!' 33]",
-        },
-    );
+        });
+        defer std.testing.allocator.free(events);
+        try root.matchInlineSnapshot(@src(), events,
+            \\[key 'h' 104 raw='h']
+            \\[key 'e' 101 raw='e']
+            \\[key 'l' 108 raw='l']
+            \\[key 'l' 108 raw='l']
+            \\[key 'o' 111 raw='o']
+            \\[key .space ' ' 32 raw=' ']
+            \\[paste start 'wor']
+            \\[paste chunk 'ld']
+            \\[paste end '']
+            \\[key '!' 33 raw='!']
+            \\[key '!' 33 raw='!']
+            \\[key '!' 33 raw='!']
+            \\
+        );
+        // try expectEvents(
+        //     @src(),
+        //     std.testing.allocator,
+        //     "multiple buffers with match in the middle",
+        //     &.{
+        //         "hello " ++ PASTE_START ++ "wor",
+        //         "ld",
+        //         PASTE_END,
+        //         "!!!",
+        //     },
+        // );
+    }
 }
 
 pub fn handleRawBuffer(manager: *AnyInputManager, buffer: []const u8, position: usize) usize {

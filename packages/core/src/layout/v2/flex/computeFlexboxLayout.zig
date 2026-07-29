@@ -119,7 +119,7 @@ fn computeInner(context: *LayoutContext, inputs: ContainerContext, l_node_id: La
 
     // 3. Collect flex items into flex lines
     var flex_lines = try flexLines.collectFlexLines(context.allocator, &constants, inputs.available_space, &flex_items);
-    defer flex_lines.deinit();
+    defer flex_lines.deinit(context.allocator);
 
     // If container size is undefined, determine the container's main size
     // and then re-resolve gaps based on newly determined size

@@ -27,7 +27,10 @@ pub fn iterCodepoints(self: *Self) std.unicode.Utf8Iterator {
 }
 
 pub fn append(self: *Self, allocator: std.mem.Allocator, bytes: []const u8) !void {
-    try std.unicode.utf8ValidateSlice(bytes);
+    if (!(std.unicode.utf8ValidateSlice(bytes))) {
+        return error.InvalidUTF8;
+    }
+
     try self.bytes.ensureUnusedCapacity(allocator, bytes.len);
 
     // To normalize newlines in a string, replace every U+000D CR U+000A LF code point pair with a single U+000A LF code point, and then replace every remaining U+000D CR code point with a U+000A LF code point.
@@ -46,8 +49,6 @@ pub fn append(self: *Self, allocator: std.mem.Allocator, bytes: []const u8) !voi
             },
         }
     }
-
-    try self.bytes.appendSlice(allocator, bytes);
 }
 
 pub fn concat(self: *Self, allocator: std.mem.Allocator, other: *Self) !void {
@@ -56,15 +57,9 @@ pub fn concat(self: *Self, allocator: std.mem.Allocator, other: *Self) !void {
 
 pub fn clearRetainingCapacity(self: *Self) void {
     self.bytes.clearRetainingCapacity();
-    if (self.line_breaks) |*line_breaks| {
-        line_breaks.clearRetainingCapacity();
-    }
 }
 pub fn clearAndFree(self: *Self, allocator: std.mem.Allocator) void {
     self.bytes.clearAndFree(allocator);
-    if (self.line_breaks) |*line_breaks| {
-        line_breaks.clearAndFree(allocator);
-    }
 }
 
 pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {

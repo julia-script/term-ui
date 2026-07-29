@@ -311,67 +311,27 @@ export const getSchema = (
       returns(number()),
       catchError("Tree_getNodeCursorStyle"),
     ),
-
-    Tree_getNodeScrollTop: pipe(
-      function_(),
-      args(tuple([number(), number()])),
-      returns(number()),
-      catchError("Tree_getNodeScrollTop"),
-    ),
-
-    Tree_getNodeScrollLeft: pipe(
-      function_(),
-      args(tuple([number(), number()])),
-      returns(number()),
-      catchError("Tree_getNodeScrollLeft"),
-    ),
-
-    Tree_setNodeScrollTop: pipe(
-      function_(),
-      args(tuple([number(), number(), number()])),
-      returns(void_()),
-      catchError("Tree_setNodeScrollTop"),
-    ),
-
-    Tree_setNodeScrollLeft: pipe(
-      function_(),
-      args(tuple([number(), number(), number()])),
-      returns(void_()),
-      catchError("Tree_setNodeScrollLeft"),
-    ),
-
-    Tree_getNodeScrollHeight: pipe(
-      function_(),
-      args(tuple([number(), number()])),
-      returns(number()),
-      catchError("Tree_getNodeScrollHeight"),
-    ),
-
-    Tree_getNodeScrollWidth: pipe(
-      function_(),
-      args(tuple([number(), number()])),
-      returns(number()),
-      catchError("Tree_getNodeScrollWidth"),
-    ),
-
-    Tree_getNodeClientHeight: pipe(
-      function_(),
-      args(tuple([number(), number()])),
-      returns(number()),
-      catchError("Tree_getNodeClientHeight"),
-    ),
-
-    Tree_getNodeClientWidth: pipe(
-      function_(),
-      args(tuple([number(), number()])),
-      returns(number()),
-      catchError("Tree_getNodeClientWidth"),
-    ),
-
     Tree_dump: pipe(
       function_(),
       args(tuple([number()])),
-      returns(void_()),
+      returns(
+        pipe(
+          number(),
+          transform((ptr) => {
+            const array = new Uint8Array(
+              memory.buffer,
+              ptr,
+            );
+            let end = 0;
+            while (array[end] !== 0) {
+              end++;
+            }
+            
+            return new TextDecoder().decode(array.slice(0, end));
+          }),
+        ),
+      ),
+      catchError("Tree_dump"),
     ),
     Tree_dumpLayoutTree: pipe(
       function_(),
@@ -380,13 +340,176 @@ export const getSchema = (
       catchError("Tree_dumpLayoutTree"),
     ),
 
-    Tree_setText: pipe(
+    Node_setText: pipe(
       function_(),
       args(
         tuple([number(), number(), zigString]),
       ),
       returns(void_()),
-      catchError("Tree_setText"),
+      catchError("Node_setText"),
+    ),
+    Node_getText: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(number()),
+      catchError("Node_getText"),
+    ),
+    Node_getTextLength: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(number()),
+      catchError("Node_getTextLength"),
+    ),
+    Node_appendData: pipe(
+      function_(),
+      args(
+        tuple([number(), number(), zigString]),
+      ),
+      returns(void_()),
+      catchError("Node_appendData"),
+    ),
+    Node_insertData: pipe(
+      function_(),
+      args(
+        tuple([
+          number(),
+          number(),
+          number(),
+          zigString,
+        ]),
+      ),
+      returns(void_()),
+      catchError("Node_insertData"),
+    ),
+    Node_replaceData: pipe(
+      function_(),
+      args(
+        tuple([
+          number(),
+          number(),
+          number(),
+          number(),
+          zigString,
+        ]),
+      ),
+      returns(void_()),
+      catchError("Node_replaceData"),
+    ),
+    Node_deleteData: pipe(
+      function_(),
+      args(
+        tuple([
+          number(),
+          number(),
+          number(),
+          number(),
+        ]),
+      ),
+      returns(void_()),
+      catchError("Node_deleteData"),
+    ),
+    Node_isEditingHost: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(booleanish),
+      catchError("Node_isEditingHost"),
+    ),
+    Node_isEditable: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(booleanish),
+      catchError("Node_isEditable"),
+    ),
+    Node_getEditingHost: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(number()),
+      catchError("Node_getEditingHost"),
+    ),
+    Node_inSameEditingHost: pipe(
+      function_(),
+      args(tuple([number(), number(), number()])),
+      returns(booleanish),
+      catchError("Node_inSameEditingHost"),
+    ),
+    Node_compareDocumentPosition: pipe(
+      function_(),
+      args(tuple([number(), number(), number()])),
+      returns(number()),
+      catchError("Node_compareDocumentPosition"),
+    ),
+    Node_getClientRects: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(
+        pipe(
+          number(),
+          transform((ptr) => {
+            // Read f32 array with format: [flag, x, y, width, height, ...]
+            // flag is 1.0 for valid rect, 0.0 for end
+            const rects: Array<{
+              x: number;
+              y: number;
+              width: number;
+              height: number;
+            }> = [];
+            const buffer = new Float32Array(
+              memory.buffer,
+              ptr,
+            );
+
+            let idx = 0;
+            while (buffer[idx] === 1.0) {
+              rects.push({
+                x: buffer[idx + 1] as number,
+                y: buffer[idx + 2] as number,
+                width: buffer[idx + 3] as number,
+                height: buffer[idx + 4] as number,
+              });
+              idx += 5;
+            }
+
+            // Calculate total bytes:
+            // - Each rect has 5 f32 values (flag + x + y + width + height)
+            // - Plus 1 f32 for the sentinel (0.0)
+            // - Each f32 is 4 bytes
+            const totalFloats =
+              rects.length * 5 + 1;
+            const totalBytes = totalFloats * 4;
+
+            // Free the buffer immediately since we've made a copy
+            module.freeBuffer(ptr, totalBytes);
+
+            return rects;
+          }),
+        ),
+      ),
+      catchError("Node_getClientRects"),
+    ),
+    Node_getBoundingClientRect: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(
+        pipe(
+          number(),
+          transform((ptr) => {
+            // ClientRect is 4 f32 values in a scratch buffer
+            // Must copy immediately as buffer will be reused
+            const array = new Float32Array(
+              memory.buffer,
+              ptr,
+              4,
+            );
+            return {
+              x: array[0] as number,
+              y: array[1] as number,
+              width: array[2] as number,
+              height: array[3] as number,
+            };
+          }),
+        ),
+      ),
+      catchError("Node_getBoundingClientRect"),
     ),
     Tree_computeStyles: pipe(
       function_(),
@@ -456,13 +579,134 @@ export const getSchema = (
       returns(number()),
       catchError("Tree_getElementById"),
     ),
-    Tree_setElementId: pipe(
+    Node_getAttribute: pipe(
+      function_(),
+      args(
+        tuple([number(), number(), zigString]),
+      ),
+      returns(
+        pipe(
+          // Optional returns 0 for null or the pointer value
+          union([literal(0), number()]),
+          transform((ptr): string | null => {
+            // Check for null (optional returned 0)
+            if (ptr === 0) {
+              return null;
+            }
+
+            // Read null-terminated string from memory
+            const memoryArray = new Uint8Array(
+              memory.buffer,
+            );
+            let end = ptr;
+            while (memoryArray[end] !== 0) {
+              end++;
+            }
+
+            // Decode the string
+            const decoder = new TextDecoder();
+            return decoder.decode(
+              memoryArray.slice(ptr, end),
+            );
+          }),
+        ),
+      ),
+      catchError("Node_getAttribute"),
+    ),
+    Node_setAttribute: pipe(
+      function_(),
+      args(
+        tuple([
+          number(),
+          number(),
+          zigString,
+          zigString,
+        ]),
+      ),
+      returns(void_()),
+      catchError("Node_setAttribute"),
+    ),
+    Node_hasAttribute: pipe(
+      function_(),
+      args(
+        tuple([number(), number(), zigString]),
+      ),
+      returns(booleanish),
+      catchError("Node_hasAttribute"),
+    ),
+    Node_removeAttribute: pipe(
       function_(),
       args(
         tuple([number(), number(), zigString]),
       ),
       returns(void_()),
-      catchError("Tree_setElementId"),
+      catchError("Node_removeAttribute"),
+    ),
+    Node_getScrollTop: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(number()),
+      catchError("Node_getScrollTop"),
+    ),
+    Node_getScrollLeft: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(number()),
+      catchError("Node_getScrollLeft"),
+    ),
+    Node_setScrollTop: pipe(
+      function_(),
+      args(tuple([number(), number(), number()])),
+      returns(void_()),
+      catchError("Node_setScrollTop"),
+    ),
+    Node_setScrollLeft: pipe(
+      function_(),
+      args(tuple([number(), number(), number()])),
+      returns(void_()),
+      catchError("Node_setScrollLeft"),
+    ),
+    Node_getScrollHeight: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(number()),
+      catchError("Node_getScrollHeight"),
+    ),
+    Node_getScrollWidth: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(number()),
+      catchError("Node_getScrollWidth"),
+    ),
+    Node_getClientHeight: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(number()),
+      catchError("Node_getClientHeight"),
+    ),
+    Node_getClientWidth: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(number()),
+      catchError("Node_getClientWidth"),
+    ),
+    Node_getScrollTopMax: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(number()),
+      catchError("Node_getScrollTopMax"),
+    ),
+    Node_getScrollLeftMax: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(number()),
+      catchError("Node_getScrollLeftMax"),
+    ),
+    Node_canScroll: pipe(
+      function_(),
+      args(tuple([number(), number(), number(), number()])),
+      returns(booleanish),
+      catchError("Node_canScroll"),
     ),
     Tree_hitTest: pipe(
       function_(),
@@ -570,6 +814,30 @@ export const getSchema = (
       returns(void_()),
       catchError("Tree_removeSelection"),
     ),
+    Selection_getFocusPosition: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(
+        pipe(
+          number(),
+          transform((ptr) => {
+            if (ptr === 0) {
+              return null;
+            }
+            const array = new Float32Array(
+              memory.buffer,
+              ptr,
+              2,
+            );
+            return {
+              x: array[0] as number,
+              y: array[1] as number,
+            };
+          }),
+        ),
+      ),
+      catchError("Selection_getFocusPosition"),
+    ),
     Selection_getAnchor: pipe(
       function_(),
       args(tuple([number(), number()])),
@@ -620,8 +888,51 @@ export const getSchema = (
       ),
       catchError("Selection_getDirection"),
     ),
-
-    Selection_extendBy: pipe(
+    Selection_modify: pipe(
+      function_(),
+      args(
+        tuple([
+          number(), // tree
+          number(), // selection_id
+          number(), // direction
+          number(), // granularity
+          number(), // ghost_position
+        ]),
+      ),
+      returns(void_()),
+      catchError("Selection_modify"),
+    ),
+    Selection_deleteFromDocument: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(void_()),
+      catchError("Selection_deleteFromDocument"),
+    ),
+    Selection_collapseToStart: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(void_()),
+      catchError("Selection_collapseToStart"),
+    ),
+    Selection_collapseToEnd: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(void_()),
+      catchError("Selection_collapseToEnd"),
+    ),
+    Selection_isCollapsed: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(booleanish),
+      catchError("Selection_isCollapsed"),
+    ),
+    Range_deleteContents: pipe(
+      function_(),
+      args(tuple([number(), number()])),
+      returns(void_()),
+      catchError("Range_deleteContents"),
+    ),
+    Range_setStart: pipe(
       function_(),
       args(
         tuple([
@@ -629,19 +940,59 @@ export const getSchema = (
           number(),
           number(),
           number(),
-          optional(number(), NULL),
-          optional(number(), NULL),
         ]),
       ),
       returns(void_()),
-      catchError("Selection_extendBy"),
+      catchError("Range_setStart"),
     ),
-
-    Selection_getHorizontalOffset: pipe(
+    Range_setEnd: pipe(
+      function_(),
+      args(
+        tuple([
+          number(),
+          number(),
+          number(),
+          number(),
+        ]),
+      ),
+      returns(void_()),
+      catchError("Range_setEnd"),
+    ),
+    Range_collapse: pipe(
+      function_(),
+      args(
+        tuple([number(), number(), boolean()]),
+      ),
+      returns(void_()),
+      catchError("Range_collapse"),
+    ),
+    Range_insertNode: pipe(
       function_(),
       args(tuple([number(), number(), number()])),
-      returns(number()),
-      catchError("Selection_getHorizontalOffset"),
+      returns(void_()),
+      catchError("Range_insertNode"),
+    ),
+
+    Tree_getBoundaryPointPosition: pipe(
+      function_(),
+      args(tuple([number(), number(), number()])),
+      returns(
+        pipe(
+          number(),
+          transform((ptr) => {
+            const array = new Float32Array(
+              memory.buffer,
+              ptr,
+              2,
+            );
+            return {
+              x: array[0] as number,
+              y: array[1] as number,
+            };
+          }),
+        ),
+      ),
+      catchError("Tree_getBoundaryPointPosition"),
     ),
 
     Renderer_init: pipe(

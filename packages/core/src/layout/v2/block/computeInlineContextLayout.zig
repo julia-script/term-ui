@@ -9,8 +9,8 @@ const css_types = @import("../../../css/types.zig");
 
 pub fn computeInlineContextLayout(context: *LayoutContext, inputs: ContainerContext, l_node_id: LayoutNode.Id) mod.ComputeLayoutError!mod.LayoutResult {
     context.info(l_node_id, "computeInlineContextLayout", .{});
-    const l_node = context.layout_tree.getNodePtr(l_node_id);
-    _ = l_node; // autofix
+    context.info(l_node_id, "Inputs: {any}", .{inputs});
+    // const l_node = context.layout_tree.getNodePtr(l_node_id);
     const available_space = inputs.available_space;
     const parent_size = inputs.parent_size;
 
@@ -33,6 +33,7 @@ pub fn computeInlineContextLayout(context: *LayoutContext, inputs: ContainerCont
     const css_padding = context.getStyleValue(css_types.LengthPercentageRect, l_node_id, .padding);
     const css_border = context.getStyleValue(css_types.LengthPercentageRect, l_node_id, .border_width);
     const css_display = context.getStyleValue(css_types.Display, l_node_id, .display);
+    _ = css_display; // autofix
     const css_overflow = context.getStyleValue(css_types.OverflowPoint, l_node_id, .overflow);
     const css_aspect_ratio = context.getStyleValue(?f32, l_node_id, .aspect_ratio);
 
@@ -87,18 +88,17 @@ pub fn computeInlineContextLayout(context: *LayoutContext, inputs: ContainerCont
         min_max_definite_size.y = min;
     };
 
-    // Block nodes automatically stretch fit their width to fit available space if available space is definite
-    const available_space_based_size = mod.CSSMaybePoint{
-        .x = if (css_display.outside != .@"inline") mod.math.maybeSub(switch (available_space.x) {
-            .definite => available_space.x.definite,
-            else => null,
-        }, margin.sumHorizontal()) else null,
-        .y = null,
-    };
+    // const available_space_based_size = mod.CSSMaybePoint{
+    //     .x = if (css_display.outside != .@"inline") mod.math.maybeSub(switch (available_space.x) {
+    //         .definite => available_space.x.definite,
+    //         else => null,
+    //     }, margin.sumHorizontal()) else null,
+    //     .y = null,
+    // };
 
     const styled_based_known_dimensions = mod.CSSMaybePoint{
-        .x = mod.math.maybeMax(inputs.known_dimensions.x orelse min_max_definite_size.x orelse clamped_style_size.x orelse available_space_based_size.x, padding_border_size.x),
-        .y = mod.math.maybeMax(inputs.known_dimensions.y orelse min_max_definite_size.y orelse clamped_style_size.y orelse available_space_based_size.y, padding_border_size.y),
+        .x = mod.math.maybeMax(inputs.known_dimensions.x orelse min_max_definite_size.x orelse clamped_style_size.x, padding_border_size.x),
+        .y = mod.math.maybeMax(inputs.known_dimensions.y orelse min_max_definite_size.y orelse clamped_style_size.y, padding_border_size.y),
     };
     if (inputs.run_mode == .compute_size and styled_based_known_dimensions.x != null and styled_based_known_dimensions.y != null) {
         return .{
@@ -272,6 +272,7 @@ test "computeInlineContextLayout with forced breaks" {
         \\</div> 
         \\
     ;
+
     var tree = try mod.docFromXml(allocator, doc_xml, .{});
     defer tree.deinit();
 

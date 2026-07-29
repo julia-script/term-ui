@@ -8,7 +8,7 @@ const std = @import("std");
 const mod = @import("../mod.zig");
 pub fn resolveLineWidth(tokens: []Token, available_width: mod.constants.AvailableSpace) f32 {
     switch (available_width) {
-        .max_content => return std.math.floatMax(f32),
+        .max_content => return computeMaxContentWidth(tokens),
         .min_content => return computeMinContentWidth(tokens),
         .definite => |width| return width,
     }
@@ -114,6 +114,19 @@ fn computeMinContentWidth(tokens: []const Token) f32 {
     return max_width;
 }
 
+fn computeMaxContentWidth(tokens: []const Token) f32 {
+    var max_width: f32 = 0;
+    var current_width: f32 = 0;
+    for (tokens) |token| {
+        current_width += token.size.x;
+        if (token.break_after == .mandatory) {
+            max_width = @max(max_width, current_width);
+            current_width = 0;
+        }
+    }
+    return @max(max_width, current_width);
+}
+
 /// Nowrap mode: only break on mandatory breaks (newlines)
 fn wrapNoWrap(tokens: []Token) void {
     var line_index: usize = 0;
@@ -182,7 +195,6 @@ pub fn wrapDefiniteWidth(tokens: []Token, width: f32, white_space_collapse: css_
                     if (tok.break_after != .prohibited) break;
                 }
 
-
                 // For hanging calculation, we need to check if adding this group would overflow
                 // const effective_line_width = if (should_hang) line_width_without_trailing_spaces else line_width;
                 // const effective_group_width = if (should_hang) group_width_without_trailing_spaces else group_width;
@@ -221,7 +233,7 @@ pub fn wrapDefiniteWidth(tokens: []Token, width: f32, white_space_collapse: css_
     }
 }
 
-const snapshot = @import("../../../testing/snapshot.zig");
+const snapshot = @import("../../../tests/utils/snapshot.zig");
 
 pub const TestHelper = struct {
     pub fn testWrap(
@@ -318,6 +330,7 @@ pub const TestHelper = struct {
             std.testing.allocator,
             name,
             output.items,
+            .{},
         );
     }
 };

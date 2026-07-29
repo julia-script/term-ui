@@ -1,6 +1,6 @@
 const std = @import("std");
 const Tree = @import("Tree.zig");
-const snapshot = @import("../testing/snapshot.zig");
+const snapshot = @import("../tests/utils/snapshot.zig");
 
 test "style invalidation - color change" {
     const allocator = std.testing.allocator;
@@ -158,24 +158,25 @@ test "element IDs and getElementById" {
     // Test getElementById
     const main_id = tree.getElementById("main");
     try std.testing.expect(main_id != null);
-    try std.testing.expectEqual(@as(usize, 0), main_id.?);
+    try std.testing.expectEqual(1, main_id.?);
 
     const header_id = tree.getElementById("header");
     try std.testing.expect(header_id != null);
     const header_node = tree.getNode(header_id.?);
-    try std.testing.expectEqualStrings("header", header_node.element_id);
+    try std.testing.expectEqualStrings("header", header_node.getAttribute("id").?);
 
     const title_id = tree.getElementById("title");
     try std.testing.expect(title_id != null);
     const title_node = tree.getNode(title_id.?);
-    try std.testing.expectEqualStrings("title", title_node.element_id);
+    try std.testing.expectEqualStrings("title", title_node.getAttribute("id").?);
 
     // Test non-existent ID
     const missing = tree.getElementById("nonexistent");
     try std.testing.expect(missing == null);
 
     // Test updating IDs
-    try tree.setElementId(header_id.?, "new-header");
+    const header_node_mut = tree.getNode(header_id.?);
+    try header_node_mut.setAttribute("id", "new-header");
     try std.testing.expect(tree.getElementById("header") == null);
     try std.testing.expect(tree.getElementById("new-header") != null);
 

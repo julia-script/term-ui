@@ -12,11 +12,39 @@ render_buffer: std.ArrayListUnmanaged(u8) = .{},
 
 const Self = @This();
 
+const BufferWriter = struct {
+    buffer: *std.ArrayListUnmanaged(u8),
+    allocator: std.mem.Allocator,
+
+    pub const Error = error{OutOfMemory};
+
+    pub fn print(self: BufferWriter, comptime format_str: []const u8, args: anytype) Error!void {
+        var buf: [1024]u8 = undefined;
+        const formatted = std.fmt.bufPrint(&buf, format_str, args) catch return error.OutOfMemory;
+        try self.writeAll(formatted);
+    }
+
+    pub fn writeAll(self: BufferWriter, bytes: []const u8) Error!void {
+        self.buffer.appendSlice(self.allocator, bytes) catch return error.OutOfMemory;
+    }
+
+    pub fn writeByte(self: BufferWriter, byte: u8) Error!void {
+        self.buffer.append(self.allocator, byte) catch return error.OutOfMemory;
+    }
+
+    pub fn writeByteNTimes(self: BufferWriter, byte: u8, n: usize) Error!void {
+        for (0..n) |_| {
+            try self.writeByte(byte);
+        }
+    }
+};
+
 pub const RenderMode = enum(u8) {
     /// Simple mode: render sequentially with newlines, no cursor positioning
     simple = 0,
     /// App mode: use cursor positioning and diffing for terminal apps
     app = 1,
+    svg = 2,
 };
 
 pub fn init(allocator: std.mem.Allocator) !Self {
@@ -38,7 +66,7 @@ pub fn deinit(self: *Self) void {
 }
 
 /// Render from a pre-built render list
-pub fn render(self: *Self, render_list: *const RenderList, writer: std.io.AnyWriter, mode: RenderMode) !void {
+pub fn render(self: *Self, render_list: *const RenderList, writer: anytype, mode: RenderMode) !void {
     // Get canvas size from the first element (viewport)
     if (render_list.items.items.len == 0) {
         // No content in render list
@@ -67,6 +95,7 @@ pub fn render(self: *Self, render_list: *const RenderList, writer: std.io.AnyWri
     switch (mode) {
         .simple => try self.renderSimple(writer),
         .app => try self.renderApp(writer),
+        .svg => try self.renderSvg(writer),
     }
 }
 
@@ -86,7 +115,7 @@ pub fn clear(self: *Self) void {
 // }
 
 /// Simple rendering: sequential output with newlines
-fn renderSimple(self: *Self, writer: std.io.AnyWriter) !void {
+fn renderSimple(self: *Self, writer: anytype) !void {
     const cells = self.canvas.getCells();
     const dims = self.canvas.getDimensions();
 
@@ -138,14 +167,84 @@ fn renderSimple(self: *Self, writer: std.io.AnyWriter) !void {
     }
 }
 
+fn renderSvg(self: *Self, writer: anytype) !void {
+    const cell_height: f32 = 12;
+    const cell_width: f32 = 7;
+    const font_size: f32 = 11;
+    // TODO:
+    const min_contrast_ratio: f32 = 4.5; // default vscode integrated terminal settings
+
+    const cells = self.canvas.getCells();
+    const dims = self.canvas.getDimensions();
+    var color_buf: [7]u8 = undefined;
+
+    const width = @as(f32, @floatFromInt(dims.width)) * cell_width;
+    const height = @as(f32, @floatFromInt(dims.height)) * cell_height;
+
+    try writer.print("<svg width=\"{d}\" height=\"{d}\" xmlns=\"http://www.w3.org/2000/svg\">\n", .{ width, height });
+
+    try writer.writeAll(
+        \\<style>
+        \\  text {
+    );
+    try writer.print(
+        \\    font-family: Menlo, Monaco, 'Courier New', monospace;
+        \\    font-size: {d}px;
+        \\    line-height: {d}px;
+        \\
+        \\
+    , .{ font_size, cell_height });
+    try writer.writeAll(
+        \\  }
+        \\</style>
+        \\
+    );
+    try writer.print("<rect width=\"{d}\" height=\"{d}\" fill=\"{s}\" style=\"margin: auto;\" />", .{ width, height, try Color.tw.black.toHexString(color_buf[0..]) });
+    for (0..dims.height) |y_index| {
+        for (0..dims.width) |x_index| {
+            const x: f32 = @floatFromInt(x_index);
+            const y: f32 = @floatFromInt(y_index);
+            const cell = &cells[y_index * dims.width + x_index];
+            const x_pos = x * cell_width;
+            const y_pos = y * cell_height;
+            try writer.print("<g transform=\"translate({d}, {d})\">\n", .{ x_pos, y_pos });
+
+            // background
+            if (cell.bg.a > 0) {
+                try writer.print("  <rect x=\"0\" y=\"0\" width=\"{d}\" height=\"{d}\" fill=\"{s}\" />\n", .{ cell_width, cell_height, try cell.bg.toHexString(color_buf[0..]) });
+            }
+            // text
+            const text = cell.getChar();
+            if (text.len > 0) {
+                try writer.print("  <text x=\"{d}\" y=\"{d}\" fill=\"{s}\" text-anchor=\"middle\" dominant-baseline=\"middle\"", .{
+                    cell_width / 2,
+                    cell_height / 2,
+                    try cell.fg.contrastedColor(cell.bg, min_contrast_ratio).toHexString(color_buf[0..]),
+                });
+                if (cell.format.is_bold) {
+                    try writer.print(" font-weight=\"bold\"", .{});
+                }
+                if (cell.format.is_italic) {
+                    try writer.print(" font-style=\"italic\"", .{});
+                }
+                // TODO: add other text decorations
+
+                try writer.print(">{s}</text>\n", .{text});
+            }
+            try writer.print("</g>\n", .{});
+        }
+    }
+    try writer.print("</svg>", .{});
+}
+
 /// App mode rendering: use cursor positioning and diffing
-fn renderApp(self: *Self, writer: std.io.AnyWriter) !void {
+fn renderApp(self: *Self, writer: anytype) !void {
     const cells = self.canvas.getCells();
     const previous = self.canvas.getPreviousCells();
     const dims = self.canvas.getDimensions();
 
     self.render_buffer.clearRetainingCapacity();
-    const buf_writer = self.render_buffer.writer(self.allocator).any();
+    var buf_writer = BufferWriter{ .buffer = &self.render_buffer, .allocator = self.allocator };
     try buf_writer.writeAll("\x1b[H");
 
     // If no previous state or dimensions changed, do a full render
@@ -231,7 +330,7 @@ fn renderApp(self: *Self, writer: std.io.AnyWriter) !void {
 }
 
 // /// Full render for app mode (no diffing)
-// fn renderAppFull(self: *Self, writer: std.io.AnyWriter) !void {
+// fn renderAppFull(self: *Self, writer: anytype) !void {
 //     const cells = self.canvas.getCells();
 //     const dims = self.canvas.getDimensions();
 
@@ -290,18 +389,22 @@ fn renderApp(self: *Self, writer: std.io.AnyWriter) !void {
 // }
 
 // Helper functions for escape sequences
-fn writeFgSequence(writer: std.io.AnyWriter, fg: Color) !void {
+fn writeFgSequence(writer: anytype, fg: Color) !void {
     const r, const g, const b = fg.toU8RGB();
     try writer.print("\x1b[38;2;{d};{d};{d}m", .{ r, g, b });
 }
 
-fn writeBgSequence(writer: std.io.AnyWriter, bg: Color) !void {
+fn writeBgSequence(writer: anytype, bg: Color) !void {
+    if (bg.a == 0) {
+        try writer.print("\x1b[49m", .{});
+        return;
+    }
     const r, const g, const b = bg.toU8RGB();
     try writer.print("\x1b[48;2;{d};{d};{d}m", .{ r, g, b });
 }
 
 /// Move cursor by relative amount
-fn moveCursorBy(writer: std.io.AnyWriter, x: i32, y: i32) !void {
+fn moveCursorBy(writer: anytype, x: i32, y: i32) !void {
     if (y > 0) {
         try writer.print("\x1b[{d}B", .{y});
     } else if (y < 0) {
@@ -316,7 +419,7 @@ fn moveCursorBy(writer: std.io.AnyWriter, x: i32, y: i32) !void {
 }
 
 /// Write text formatting escape sequences
-fn writeFormattingSequence(writer: std.io.AnyWriter, current_format: Canvas.TextFormat, new_format: Canvas.TextFormat) !void {
+fn writeFormattingSequence(writer: anytype, current_format: Canvas.TextFormat, new_format: Canvas.TextFormat) !void {
     // Bold
     if (current_format.is_bold != new_format.is_bold) {
         if (new_format.is_bold) {

@@ -8,10 +8,14 @@ const Color = @import("../../colors/Color.zig");
 const Canvas = @import("../../renderer/v2/Canvas.zig");
 const NodeId = @import("../../tree/Tree.zig").Node.NodeId;
 pub const TextFormat = Canvas.TextFormat;
+const GraphemeIterator = @import("../../uni/GraphemeBreak.zig").Iterator;
+const BoundaryPoint = @import("../../tree/BoundaryPoint.zig");
+const measureText = @import("../../uni/string-width.zig").measureText;
 
 /// A flat list of render items representing the paint order of the layout tree
 items: std.ArrayListUnmanaged(RenderItem) = .{},
 allocator: std.mem.Allocator,
+node_boxes_map: std.AutoHashMapUnmanaged(NodeId, usize) = .{},
 
 const Self = @This();
 
@@ -27,6 +31,19 @@ pub const Rect = struct {
     y: f32,
     width: f32,
     height: f32,
+
+    pub fn top(self: Rect) f32 {
+        return self.y;
+    }
+    pub fn bottom(self: Rect) f32 {
+        return self.y + self.height;
+    }
+    pub fn left(self: Rect) f32 {
+        return self.x;
+    }
+    pub fn right(self: Rect) f32 {
+        return self.x + self.width;
+    }
 
     pub fn fromCSSRect(css_rect: mod.CSSRect, location: mod.CSSPoint) Rect {
         return .{
@@ -76,10 +93,29 @@ pub const Rect = struct {
             .height = @max(0, y2 - y1),
         };
     }
+    pub fn offset(self: Rect, distance: mod.CSSPoint) Rect {
+        return .{
+            .x = self.x + distance.x,
+            .y = self.y + distance.y,
+            .width = self.width,
+            .height = self.height,
+        };
+    }
     pub fn format(self: Rect, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
         _ = fmt;
         _ = options;
         try writer.print("Rect(x={d:.1}, y={d:.1}, width={d:.1}, height={d:.1})", .{ self.x, self.y, self.width, self.height });
+    }
+    pub fn round(self: Rect) Rect {
+        return .{
+            .x = @round(self.x),
+            .y = @round(self.y),
+            .width = @round(self.width),
+            .height = @round(self.height),
+        };
+    }
+    pub fn isZero(self: Rect) bool {
+        return self.width == 0 or self.height == 0;
     }
 };
 
@@ -88,6 +124,7 @@ pub fn init(allocator: std.mem.Allocator) Self {
 }
 
 pub fn deinit(self: *Self) void {
+    self.node_boxes_map.deinit(self.allocator);
     for (self.items.items) |*item| {
         item.deinit(self.allocator);
     }
@@ -105,17 +142,21 @@ pub fn clear(self: *Self) void {
     }
     // Clear the list but keep the allocated memory
     self.items.clearRetainingCapacity();
+    self.node_boxes_map.clearRetainingCapacity();
 }
 
 /// Format function for RenderList that shows each item with its index
 pub fn format(self: *const Self, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
     _ = fmt;
     _ = options;
-    
+
     for (self.items.items, 0..) |item, i| {
         if (i > 0) try writer.print("\n", .{});
         try writer.print("#{d} {}", .{ i, item });
     }
+}
+pub fn at(self: *const Self, index: usize) ?RenderItem {
+    return self.items.items[index];
 }
 
 /// Render item types for TUI rendering
@@ -132,7 +173,7 @@ pub const RenderItem = union(enum) {
     selection_overlay: SelectionOverlayItem,
     /// Line box for hit testing (not rendered)
     line_box: LineBoxItem,
-
+    /// Last index of the item in the render list
     pub fn deinit(self: *RenderItem, allocator: std.mem.Allocator) void {
         _ = allocator;
         switch (self.*) {
@@ -143,7 +184,7 @@ pub const RenderItem = union(enum) {
     pub fn format(self: RenderItem, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: std.io.AnyWriter) !void {
         _ = fmt; // autofix
         _ = options; // autofix
-        
+
         switch (self) {
             .box => |box| {
                 try writer.print("[box bb={{{d:.1}, {d:.1}, {d:.1}, {d:.1}}} nid={d} lid={d}", .{
@@ -164,13 +205,14 @@ pub const RenderItem = union(enum) {
                 try writer.print("]", .{});
             },
             .text_fragment => |text| {
-                try writer.print("[text_fragment bb={{{d:.1}, {d:.1}, {d:.1}, {d:.1}}} nid={d} lid={d} range={d}~{d} text=\"{s}\"]", .{
+                try writer.print("[text_fragment bb={{{d:.1}, {d:.1}, {d:.1}, {d:.1}}} nid={d} lid={d} host={?d} range={d}~{d} text=\"{s}\"]", .{
                     text.bounds.x,
                     text.bounds.y,
                     text.bounds.width,
                     text.bounds.height,
                     text.doc_node_id,
                     text.node_id,
+                    text.editing_host_index,
                     text.dom_range.start,
                     text.dom_range.end,
                     text.text,
@@ -232,6 +274,10 @@ pub const BoxItem = struct {
     doc_node_id: NodeId,
     /// Whether this element can receive click events
     is_clickable: bool = true,
+    last_index: usize,
+    is_editing_host: bool,
+    is_scroll_container: bool,
+    scroll_offset: mod.CSSPoint,
 };
 
 pub const TextFragmentItem = struct {
@@ -253,7 +299,46 @@ pub const TextFragmentItem = struct {
     /// Whether this element can receive click events (usually false for text)
     is_clickable: bool = false,
     linebox_index: usize,
+    editing_host_index: ?usize,
     is_atomic: bool = false,
+    pub fn getOffsetPosition(self: TextFragmentItem, offset: usize) mod.CSSPoint {
+        if (offset <= self.dom_range.start) {
+            return .{ .x = self.bounds.x, .y = self.bounds.y };
+        }
+        if (offset >= self.dom_range.end) {
+            return .{ .x = self.bounds.x + self.bounds.width, .y = self.bounds.y };
+        }
+
+        const end: usize = @min(self.dom_range.end, offset) - self.dom_range.start;
+
+        const width = measureText(self.text[0..end]);
+        return .{ .x = self.bounds.x + width, .y = self.bounds.y };
+    }
+    pub fn getOffsetAtX(self: TextFragmentItem, x: f32) u32 {
+        if (x <= self.bounds.x) {
+            return self.dom_range.start;
+        }
+        if (x >= self.bounds.x + self.bounds.width) {
+            return self.dom_range.end;
+        }
+        var pos = @round(self.bounds.x);
+        var iter = GraphemeIterator.init(self.text);
+        while (iter.next()) |grapheme| {
+            const width = measureText(grapheme.bytes(self.text));
+            if ((pos + width) > x) {
+                return @min(self.dom_range.start + grapheme.offset, self.dom_range.end);
+            }
+            pos += width;
+        }
+        return self.dom_range.end;
+    }
+    pub fn visibleDomEnd(self: TextFragmentItem) u32 {
+        return @intCast(self.dom_range.start + self.text.len);
+    }
+    pub fn containsBp(self: TextFragmentItem, bp: BoundaryPoint) bool {
+        if (bp.node_id != self.doc_node_id) return false;
+        return bp.offset >= self.dom_range.start and bp.offset <= self.dom_range.end;
+    }
 };
 
 pub const ClipItem = struct {
@@ -279,11 +364,27 @@ pub const LineBoxItem = struct {
     fragment_indexes: []const usize,
     /// Allocator for fragment indices
     allocator: std.mem.Allocator,
+    editing_host_index: ?usize,
 
     /// Allocator for fragment indices
     pub fn deinit(self: *LineBoxItem) void {
         // self.fragment_indexes.deinit(self.allocator);
         self.allocator.free(self.fragment_indexes);
+    }
+    pub fn getFirstNonEmptyFragmentIndex(self: LineBoxItem, render_list: *Self) ?usize {
+        for (self.fragment_indexes) |index| {
+            const fragment = render_list.at(index).?.text_fragment;
+            if (fragment.text.len > 0) return index;
+        }
+        return null;
+    }
+    pub fn getLastNonEmptyFragmentIndex(self: LineBoxItem, render_list: *Self) ?usize {
+        var i = self.fragment_indexes.len;
+        while (i > 0) : (i -= 1) {
+            const fragment = render_list.at(self.fragment_indexes[i - 1]).?.text_fragment;
+            if (fragment.text.len > 0) return self.fragment_indexes[i - 1];
+        }
+        return null;
     }
 };
 
@@ -326,6 +427,7 @@ pub fn print(self: *Self, writer: std.io.AnyWriter) !void {
     try writer.print("RenderList ({d} items):\n", .{self.items.items.len});
     for (self.items.items, 0..) |item, i| {
         try writer.print("  [{d}] ", .{i});
+
         switch (item) {
             .box => |box| {
                 try writer.print("Box #{d} bounds=[pos:({d:.1},{d:.1}) size:({d:.1}x{d:.1})] z={d}", .{
@@ -336,6 +438,7 @@ pub fn print(self: *Self, writer: std.io.AnyWriter) !void {
                     box.bounds.height,
                     box.z_index,
                 });
+
                 if (box.background) |bg| {
                     switch (bg) {
                         .solid => |color| try writer.print(" bg=#{x:0>8}", .{color.toHex()}),
@@ -353,6 +456,7 @@ pub fn print(self: *Self, writer: std.io.AnyWriter) !void {
                     text.z_index,
                     text.text,
                 });
+
                 // Print formatting info if any
                 if (text.format.is_bold or text.format.is_italic or text.format.decoration_line != .none) {
                     try writer.print(" format=[", .{});
@@ -400,7 +504,7 @@ pub fn print(self: *Self, writer: std.io.AnyWriter) !void {
                     line.bounds.width,
                     line.bounds.height,
                 });
-                for (line.fragment_indices, 0..) |idx, j| {
+                for (line.fragment_indexes, 0..) |idx, j| {
                     if (j > 0) try writer.writeAll(",");
                     try writer.print("{d}", .{idx});
                 }
@@ -526,12 +630,165 @@ pub fn hitTest(self: *const Self, point: mod.CSSPoint, filter: u8) ?HitTestResul
     return result;
 }
 
-pub fn hitTestList(self: *const Self, list: *std.ArrayList(HitTestResult), point: mod.CSSPoint, filter: u8) !void {
+pub fn firstTextFragmentBeforeBox(self: *const Self, node_index: usize) ?usize {
+    const list = self.items.items;
+    var i: usize = node_index;
+    while (i > 0) : (i -= 1) {
+        const item = list[i];
+        switch (item) {
+            .text_fragment => {
+                return i;
+            },
+            else => {},
+        }
+    }
+    return null;
+}
+pub fn findNodeBox(self: *const Self, node_id: NodeId) ?usize {
+    const list = self.items.items;
+    for (list, 0..) |item, i| {
+        switch (item) {
+            .box => |box| {
+                if (box.doc_node_id == node_id) return i;
+            },
+            else => {},
+        }
+    }
+    return null;
+}
+
+pub fn findItemAtBoundaryPoint(self: *const Self, doc_node_id: NodeId, offset: u32) ?usize {
+    const list = self.items.items;
+
+    var candidate: ?usize = null;
+    for (list, 0..) |item, i| {
+        switch (item) {
+            .text_fragment => |text| {
+                if (text.doc_node_id == doc_node_id) {
+                    if (offset >= text.dom_range.start or candidate == null) {
+                        candidate = i;
+                    }
+                } else {
+                    if (candidate) |candidate_index| {
+                        return candidate_index;
+                    }
+                }
+            },
+            .box => |box| {
+                if (doc_node_id == box.doc_node_id) {
+                    return i;
+                }
+            },
+            else => {},
+        }
+    }
+    return candidate;
+}
+
+pub fn firstTextFragmentAfterBox(self: *const Self, node_index: usize) ?usize {
+    const list = self.items.items;
+    var i: usize = list[node_index].box.last_index;
+    while (i < list.len) : (i += 1) {
+        const item = list[i];
+        switch (item) {
+            .text_fragment => {
+                return i;
+            },
+            else => {},
+        }
+    }
+    return null;
+}
+
+pub fn firstTextFragmentAfterIndexWithinContext(self: *const Self, context_index: ?usize, index: usize) ?usize {
+    const list = self.items.items;
+    var i: usize = index + 1;
+    while (i < list.len) : (i += 1) {
+        const item = list[i];
+        switch (item) {
+            .text_fragment => |text| {
+                if (text.editing_host_index == context_index and text.text.len > 0) return i;
+            },
+            else => {},
+        }
+    }
+    return null;
+}
+pub fn firstTextFragmentBeforeIndexWithinContext(self: *const Self, context_index: ?usize, index: usize) ?usize {
+    const list = self.items.items;
+    if (index == 0) return null;
+    var i: usize = index - 1;
+
+    while (i > 0) : (i -= 1) {
+        const item = list[i];
+        switch (item) {
+            .text_fragment => |text| {
+                if (text.editing_host_index == context_index and text.text.len > 0) return i;
+            },
+            else => {},
+        }
+    }
+    return null;
+}
+
+pub fn lastTextFragment(self: *const Self, host_box_index: ?usize) ?usize {
+    const list = self.items.items;
+    const start_index: usize = host_box_index orelse 0;
+    var end_index = list.len;
+    if (host_box_index) |index| {
+        const box = list[index].box;
+        end_index = box.last_index + 1;
+    }
+    // if (host_box_index) |index| {
+    //     const box = list[index].box;
+    //     list = list[index .. index + box.last_index];
+    //     start_index = index;
+    // }
+    var i: usize = end_index - 1;
+    while (i >= start_index) : (i -= 1) {
+        const item = list[i];
+        switch (item) {
+            .text_fragment => |text| {
+                if (text.editing_host_index == host_box_index) return i;
+            },
+            else => {},
+        }
+    }
+    return null;
+}
+
+pub fn firstTextFragment(self: *const Self, host_box_index: ?usize) ?usize {
+    const list = self.items.items;
+    const start_index: usize = host_box_index orelse 0;
+    var end_index = list.len;
+    if (host_box_index) |index| {
+        const box = list[index].box;
+        end_index = box.last_index + 1;
+    }
+    var i: usize = start_index;
+    while (i < end_index) : (i += 1) {
+        const item = list[i];
+        switch (item) {
+            .text_fragment => |text| {
+                if (text.editing_host_index == host_box_index) return i;
+            },
+            .box => |box| {
+                if (box.is_editing_host) {
+                    i = box.last_index;
+                }
+            },
+            else => {},
+        }
+    }
+    return null;
+}
+
+pub fn hitTestList(self: *const Self, list: *std.ArrayList(HitTestResult), allocator: std.mem.Allocator, point: mod.CSSPoint, filter: u8) !void {
     for (self.items.items, 0..) |item, i| {
         switch (item) {
             .box => |box| {
                 if (HitTestFilter.matches(filter, HitTestFilter.BOX) and box.bounds.contains(point)) {
-                    try list.append(.{
+                    try list.append(allocator, .{
                         .item_index = i,
                         .external_id = @intCast(box.doc_node_id),
                         .item_type = .box,
@@ -541,7 +798,7 @@ pub fn hitTestList(self: *const Self, list: *std.ArrayList(HitTestResult), point
             },
             .text_fragment => |text| {
                 if (HitTestFilter.matches(filter, HitTestFilter.TEXT_FRAGMENT) and text.bounds.contains(point)) {
-                    try list.append(.{
+                    try list.append(allocator, .{
                         .item_index = i,
                         .external_id = @intCast(text.doc_node_id),
                         .item_type = .text_fragment,
@@ -551,7 +808,7 @@ pub fn hitTestList(self: *const Self, list: *std.ArrayList(HitTestResult), point
             },
             .selection_overlay => |sel| {
                 if (HitTestFilter.matches(filter, HitTestFilter.SELECTION_OVERLAY) and sel.bounds.contains(point)) {
-                    try list.append(.{
+                    try list.append(allocator, .{
                         .item_index = i,
                         .external_id = @intCast(sel.selection_id),
                         .item_type = .selection_overlay,
@@ -561,7 +818,7 @@ pub fn hitTestList(self: *const Self, list: *std.ArrayList(HitTestResult), point
             },
             .line_box => |line| {
                 if (HitTestFilter.matches(filter, HitTestFilter.LINE_BOX) and line.bounds.contains(point)) {
-                    try list.append(.{
+                    try list.append(allocator, .{
                         .item_index = i,
                         .external_id = @intCast(line.doc_node_id),
                         .item_type = .line_box,
@@ -574,4 +831,21 @@ pub fn hitTestList(self: *const Self, list: *std.ArrayList(HitTestResult), point
             },
         }
     }
+}
+
+pub fn putDocNodeBoxIndex(self: *Self, doc_node_id: NodeId, index: usize) !void {
+    try self.node_boxes_map.put(self.allocator, doc_node_id, index);
+}
+pub fn getDocNodeBoxIndex(self: *const Self, doc_node_id: NodeId) ?usize {
+    return self.node_boxes_map.get(doc_node_id);
+}
+
+pub fn getDocNodeBox(self: *const Self, doc_node_id: NodeId) ?BoxItem {
+    if (self.node_boxes_map.get(doc_node_id)) |index| {
+        return switch (self.items.items[index]) {
+            .box => |box| box,
+            else => null,
+        };
+    }
+    return null;
 }

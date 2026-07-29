@@ -40,9 +40,6 @@ input_manager: ?InputManager = null,
 node_id_counter: Node.NodeId = 1,
 selections: std.AutoHashMapUnmanaged(Selection.Id, Selection) = .{},
 
-// Map from element IDs to node IDs for fast lookups
-id_map: std.StringHashMapUnmanaged(Node.NodeId) = .{},
-
 live_ranges: std.AutoHashMapUnmanaged(u32, Range) = .{},
 live_range_counter: u32 = 1,
 
@@ -54,7 +51,7 @@ layout_tree: LayoutTree,
 
 const Self = @This();
 
-usingnamespace @import("../layout/compute/compute_layout.zig");
+// usingnamespace @import("../layout/compute/compute_layout.zig");
 pub const ROOT_NODE_ID: Node.NodeId = 1;
 pub fn init(allocator: std.mem.Allocator) !Self {
     // Initialize style system and tree together
@@ -171,30 +168,7 @@ pub inline fn getText(self: *Self, id: Node.NodeId) *String {
 pub inline fn getParent(self: *Self, id: Node.NodeId) ?Node.NodeId {
     return self.getNode(id).parent;
 }
-pub inline fn getUnroundedLayout(self: *Self, id: Node.NodeId) *Layout {
-    _ = self; // autofix
-    _ = id; // autofix
-    @panic("unimplemented");
-    // return &self.getNode(id).unrounded_layout;
-}
-pub inline fn getLayout(self: *Self, id: Node.NodeId) *Layout {
-    _ = self; // autofix
-    _ = id; // autofix
-    @panic("unimplemented");
-    // return &self.getNode(id).layout;
-}
-pub inline fn getCache(self: *Self, id: Node.NodeId) *Cache {
-    return &self.getNode(id).cache;
-}
-pub inline fn getComputedText(self: *Self, id: Node.NodeId) ?*ComputedText {
-    if (self.getNode(id).computed_text) |*computed_text| {
-        return computed_text;
-    }
-    return null;
-}
-pub fn unsafeGetComputedText(self: *Self, id: Node.NodeId) *ComputedText {
-    return &(self.getNode(id).computed_text orelse std.debug.panic("No computed text for node {d}\n", .{id}));
-}
+
 pub inline fn getTextRootId(self: *Self, id: Node.NodeId) ?Node.NodeId {
     return self.getNode(id).text_root_id;
 }
@@ -225,7 +199,6 @@ pub fn setText(self: *Self, id: Node.NodeId, text: []const u8) !void {
 
     try node.text.replace(self.allocator, 0, node.text.length(), text);
 
-    // Text change requires recompute but not regeneration
     self.requestNodeAndAncestorsInvalidation(id, .recompute);
 }
 
@@ -244,30 +217,6 @@ pub fn removeNode(self: *Self, id: Node.NodeId) !void {
     const parent_id = self.getNode(id).parent orelse return;
     try self.removeChild(parent_id, id);
 }
-pub fn setUnroundedLayout(self: *Self, id: Node.NodeId, unrounded_layout: Layout) void {
-    _ = self; // autofix
-    _ = id; // autofix
-    _ = unrounded_layout; // autofix
-    // self.getNode(id).unrounded_layout = unrounded_layout;
-}
-pub fn setLayout(self: *Self, id: Node.NodeId, layout: Layout) void {
-    self.getNode(id).layout = layout;
-}
-pub fn setCache(self: *Self, id: Node.NodeId, cache: Cache) void {
-    self.getNode(id).cache = cache;
-}
-pub fn setComputedText(self: *Self, id: Node.NodeId, computed_text: ?ComputedText) void {
-    if (self.getNode(id).computed_text) |*old_computed_text| {
-        old_computed_text.deinit();
-    }
-    self.getNode(id).computed_text = computed_text;
-}
-
-pub inline fn createComputedText(self: *Self) !ComputedText {
-    // const computed_text_list = self.getComputedTextList();
-    // computed_text_list[node_id] = try ComputedText.init(self.allocator);
-    return try ComputedText.init(self.allocator);
-}
 // fn isDirectChildOf(self: *Self, node_id: Node.NodeId, parent_id: Node.NodeId) bool {
 //     const children = self.getChildren(parent_id);
 //     for (children.items) |child| {
@@ -278,32 +227,6 @@ pub inline fn createComputedText(self: *Self) !ComputedText {
 //     return false;
 
 // }
-
-pub fn markDirty(self: *Self, id: Node.NodeId) void {
-    const cache = self.getCache(id);
-    const text_root_id = self.getTextRootId(id);
-    if (cache.isEmpty() and text_root_id == null) {
-        return;
-    }
-
-    // Clear layout cache
-    cache.clear();
-    self.setTextRootId(id, null);
-    // if (self.getComputedText(id)) |computed_text| {
-
-    // }
-    self.setComputedText(id, null);
-
-    // Also invalidate computed style for this specific node
-    // We only invalidate this node, not descendants, since layout changes
-    // don't necessarily affect cascaded styles of children
-    self.computed_style_cache.invalidateNode(id);
-
-    // Propagate to parent
-    if (self.getParent(id)) |parent_id| {
-        self.markDirty(parent_id);
-    }
-}
 
 // Invalidation types for different kinds of changes
 pub const InvalidationType = enum {
@@ -316,7 +239,7 @@ pub const InvalidationType = enum {
 pub const StyleProperty = union(enum) {
     // Repaint only properties
     color: Color,
-    background_color: Color,
+    background: s.background.Background,
     opacity: f32,
     border_color: Rect(s.background.Background),
     border_color_top: s.background.Background,
@@ -429,8 +352,8 @@ pub fn setStyleProperty(self: *Self, node_id: Node.NodeId, property: StyleProper
             style.foreground_color = c;
             self.requestNodeInvalidation(node_id, .repaint);
         },
-        .background_color => |c| {
-            style.background_color = .{ .solid = c };
+        .background => |b| {
+            style.background_color = b;
             self.requestNodeInvalidation(node_id, .repaint);
         },
         .opacity => |o| {
@@ -739,44 +662,16 @@ pub fn clearAllInvalidationFlags(self: *Self, node_id: Node.NodeId) void {
     }
 }
 
-pub fn clearNodeId(self: *Self, node_id: Node.NodeId) void {
-    const node = self.getNode(node_id);
-    if (node.element_id.len > 0) {
-        // _ = self.id_map.remove(node.element_id);
-        if (self.id_map.get(node.element_id)) |existing_node_id| {
-            if (existing_node_id == node_id) {
-                _ = self.id_map.remove(node.element_id);
-            }
-        }
-        self.allocator.free(node.element_id);
-    }
-    node.element_id = "";
-}
-
-// Set element ID for a node and update the ID map
-pub fn setElementId(self: *Self, node_id: Node.NodeId, id: []const u8) !void {
-    // FIXME: check how w3c handles multiple elements with the same id
-    self.clearNodeId(node_id);
-    // Set new ID
-    if (id.len > 0) {
-        // Allocate separate copies for the map key and node field
-
-        // Check if another node already has this ID
-        if (self.id_map.contains(id)) {
-            return;
-        }
-        var node = self.getNode(node_id);
-        node.element_id = try self.allocator.dupe(u8, id);
-        try self.id_map.put(self.allocator, node.element_id, node_id);
-    } else {
-        var node = self.getNode(node_id);
-        node.element_id = "";
-    }
-}
-
 // Get node by element ID
 pub fn getElementById(self: *Self, id: []const u8) ?Node.NodeId {
-    return self.id_map.get(id);
+    var iter = self.node_map.iterator();
+    while (iter.next()) |entry| {
+        const node = self.getNode(entry.key_ptr.*);
+        if (node.attributes.match("id", id)) {
+            return entry.key_ptr.*;
+        }
+    }
+    return null;
 }
 
 const RenderList = @import("../layout/v2/RenderList.zig");
@@ -786,22 +681,12 @@ const RenderList = @import("../layout/v2/RenderList.zig");
 pub fn hitTest(self: *const Self, point: @import("../layout/v2/mod.zig").CSSPoint, filter: u8) ?RenderList.HitTestResult {
     return self.render_list.hitTest(point, filter);
 }
-pub fn hitTestList(self: *const Self, list: *std.ArrayList(RenderList.HitTestResult), point: @import("../layout/v2/mod.zig").CSSPoint, filter: u8) !void {
-    return self.render_list.hitTestList(list, point, filter);
+pub fn hitTestList(self: *const Self, list: *std.ArrayList(RenderList.HitTestResult), allocator: std.mem.Allocator, point: @import("../layout/v2/mod.zig").CSSPoint, filter: u8) !void {
+    return self.render_list.hitTestList(list, allocator, point, filter);
 }
 
 pub fn destroyNode(self: *Self, id: Node.NodeId) !void {
     const node = self.getNode(id);
-
-    // Remove from ID map if it has an ID and the map points to this node
-    if (node.element_id.len > 0) {
-        if (self.id_map.get(node.element_id)) |existing_node_id| {
-            if (existing_node_id == id) {
-                _ = self.id_map.remove(node.element_id);
-            }
-        }
-        self.allocator.free(node.element_id);
-    }
 
     for (node.children.items) |child_id| {
         var child = self.getNode(child_id);
@@ -819,16 +704,6 @@ pub fn destroyNodeRecursive(self: *Self, id: Node.NodeId) !void {
 fn destroyNodeRecursiveInner(self: *Self, id: Node.NodeId) !void {
     const node = self.getNode(id);
 
-    // Remove from ID map if it has an ID and the map points to this node
-    if (node.element_id.len > 0) {
-        if (self.id_map.get(node.element_id)) |existing_node_id| {
-            if (existing_node_id == id) {
-                _ = self.id_map.remove(node.element_id);
-            }
-        }
-        self.allocator.free(node.element_id);
-    }
-
     for (node.children.items) |child_id| {
         try self.destroyNodeRecursiveInner(child_id);
     }
@@ -843,6 +718,9 @@ pub fn createNode(self: *Self) !Node.NodeId {
     try self.node_map.put(self.allocator, id, .{
         .id = id,
         .styles = .{},
+        .attributes = .{
+            .allocator = self.allocator,
+        },
     });
 
     return id;
@@ -867,6 +745,9 @@ pub fn createTextNode(self: *Self, text: []const u8) !Node.NodeId {
     try self.node_map.put(self.allocator, id, .{
         .id = id,
         .kind = .text,
+        .attributes = .{
+            .allocator = self.allocator,
+        },
         .styles = .{
             .display = .{ .inside = .flow, .outside = .@"inline" },
         },
@@ -1129,7 +1010,7 @@ fn removeChildChecked(self: *Self, node_id: Node.NodeId) RemoveError!void {
     const index = std.mem.indexOfScalar(Node.NodeId, parent.children.items, node_id) orelse unreachable;
     _ = parent.children.orderedRemove(index);
     self.getNode(node_id).parent = null;
-    self.markDirty(parent_id);
+    self.requestNodeInvalidation(parent_id, .regenerate);
 
     // 8.  If node is [assigned](#slotable-assigned), then run [assign slottables](#assign-slotables) for node’s [assigned slot](#slotable-assigned-slot).
 
@@ -1445,10 +1326,6 @@ pub fn deinit(self: *Self) void {
     }
     self.node_map.deinit(self.allocator);
 
-    // Clean up id_map - keys are allocated strings
-
-    self.id_map.deinit(self.allocator);
-
     self.live_ranges.deinit(self.allocator);
     self.selections.deinit(self.allocator);
     // Clean up render list
@@ -1462,23 +1339,17 @@ pub fn deinit(self: *Self) void {
 pub fn getNodeCount(self: *Self) usize {
     return self.node_map.count();
 }
-fn printNode(self: *Self, writer: std.io.AnyWriter, node_id: Node.NodeId, indent: usize) !void {
+fn printNode(self: *Self, writer: anytype, node_id: Node.NodeId, indent: usize) !void {
     // const node = self.getNode(node_id);
     try writer.writeByteNTimes(' ', indent * 4);
     const kind = self.getNodeKind(node_id);
     // Build invalidation flags string
     const node = self.getNode(node_id);
-    var flags_buf: [32]u8 = undefined;
-    var flags_stream = std.io.fixedBufferStream(&flags_buf);
-    const flags_writer = flags_stream.writer();
-
-    switch (node.regenerate_level) {
-        .repaint => try flags_writer.writeAll("Repaint"),
-        .recompute => try flags_writer.writeAll("Recompute"),
-        .regenerate => try flags_writer.writeAll("Regenerate"),
-    }
-    const flags = flags_stream.getWritten();
-    const flags_str = if (flags.len > 0) flags else "-";
+    const flags_str: []const u8 = switch (node.regenerate_level) {
+        .repaint => "Repaint",
+        .recompute => "Recompute",
+        .regenerate => "Regenerate",
+    };
 
     if (kind == .text) {
         const text = self.getText(node_id).bytes.items;
@@ -1499,32 +1370,24 @@ fn printNode(self: *Self, writer: std.io.AnyWriter, node_id: Node.NodeId, indent
     } else {
         const display = self.getStyle(node_id).display;
 
+        try writer.print("[{s}#{d}", .{ @tagName(kind), node_id });
         // Include element ID if present
-        if (node.element_id.len > 0) {
-            try writer.print("[{s}#{d} id=\"{s}\" {s} {s} {s}]\n", .{
-                @tagName(kind),
-                node_id,
-                node.element_id,
-                @tagName(display.outside),
-                @tagName(display.inside),
-                flags_str,
-            });
-        } else {
-            try writer.print("[{s}#{d} {s} {s} {s}]\n", .{
-                @tagName(kind),
-                node_id,
-                @tagName(display.outside),
-                @tagName(display.inside),
-                flags_str,
-            });
+        var attr_iter = node.attributes.iterate();
+        while (attr_iter.next()) |entry| {
+            try writer.print(" {s}=\"{s}\"", .{ entry.key_ptr.*, entry.value_ptr.value });
         }
+        try writer.print(" {s} {s} {s}]\n", .{
+            @tagName(display.outside),
+            @tagName(display.inside),
+            flags_str,
+        });
     }
 
     for (self.getChildren(node_id).items) |child_id| {
         try self.printNode(writer, child_id, indent + 1);
     }
 }
-pub fn print(self: *Self, writer: std.io.AnyWriter) !void {
+pub fn print(self: *Self, writer: anytype) !void {
     try self.printNode(writer, ROOT_NODE_ID, 0);
 }
 
@@ -1702,9 +1565,7 @@ pub fn getComputedStyle(self: *Self, node_id: Node.NodeId) Style {
 pub fn invalidateStyles(self: *Self, node_id: Node.NodeId) void {
     // Invalidate all computed styles for this node and its descendants
     self.computed_style_cache.invalidateTree(self, node_id);
-
-    // Mark the node as dirty to trigger layout recalculation
-    self.markDirty(node_id);
+    self.requestNodeInvalidation(node_id, .regenerate);
 }
 
 //         // \\  <div display="block" width="100%" height="100%">
@@ -2422,7 +2283,7 @@ pub fn findInLineBox(self: *const Self, linebox_index: usize, x: f32) ?BoundaryP
         // we are before the first fragment
         return BoundaryPoint{
             .node_id = first.doc_node_id,
-            .offset = 0,
+            .offset = first.dom_range.start,
         };
     }
     const last = items[fragment_indexes[fragment_indexes.len - 1]].text_fragment;
@@ -2529,6 +2390,7 @@ pub fn computeStyles(self: *Self) !void {
 }
 
 pub fn buildLayoutTree(self: *Self) !void {
+    self.propagateNodeRecomputeStatus();
     try self.layout_tree.computeIncremental(self);
 }
 
@@ -2541,12 +2403,15 @@ pub fn computeLayout(self: *Self, allocator: std.mem.Allocator, available_space:
 
     try layout_mod.computeLayout(&layout_context, available_space);
 }
-pub fn paint(self: *Self, renderer: *Renderer, writer: std.io.AnyWriter, mode: Renderer.RenderMode) !void {
+pub fn buildRenderList(self: *Self) !void {
     self.render_list.clear();
-    var builder = layout_mod.RenderListBuilder.init(&self.layout_tree, self, &self.render_list);
+    var builder = try layout_mod.RenderListBuilder.init(&self.layout_tree, self, &self.render_list);
     defer builder.deinit();
-
     try builder.build();
+}
+
+pub fn paint(self: *Self, renderer: *Renderer, writer: anytype, mode: Renderer.RenderMode) !void {
+    try self.buildRenderList();
     try renderer.render(&self.render_list, writer, mode);
 }
 
@@ -2576,29 +2441,68 @@ test "Tree.caretPositionFromPoint" {
     // and edge cases.
 }
 
-pub fn propagateNodeRecomputeStatus(self: *Self) void {
-    const should_recompute = self.propagateNodeRecomputeStatusInner(ROOT_NODE_ID);
-    if (should_recompute) {
-        self.getNode(ROOT_NODE_ID).requestRecompute();
-    }
-}
-pub fn propagateNodeRecomputeStatusInner(self: *Self, node_id: Node.NodeId) bool {
-    var node = self.getNode(node_id);
-    var parent_should_recompute = false;
-    switch (node.regenerate_level) {
-        .regenerate, .recompute => {
-            node.regenerate_level = Node.RegenerateLevel.max(node.regenerate_level, .recompute);
-            self.layout_tree.clearCacheFromDocNodeId(node_id);
-            parent_should_recompute = true;
-        },
-        .repaint => {},
-    }
-
-    for (node.children.items) |child_id| {
-        const child_should_recompute = self.propagateNodeRecomputeStatusInner(child_id);
-        if (child_should_recompute) {
-            parent_should_recompute = true;
+pub fn getBoundaryPointPosition(self: *Self, node_id: Node.NodeId, offset: u32) Point(f32) {
+    // var candidate: ?usize = null;
+    const render_list_items = self.render_list.items.items;
+    for (render_list_items, 0..) |item, index| {
+        _ = index; // autofix
+        switch (item) {
+            .text_fragment => |text_fragment| {
+                if (text_fragment.doc_node_id != node_id) {
+                    continue;
+                }
+                if (offset >= text_fragment.dom_range.start and offset <= text_fragment.dom_range.end) {
+                    return text_fragment.getOffsetPosition(offset);
+                    // candidate = index;
+                }
+            },
+            .box => |box| {
+                if (box.doc_node_id == node_id) {
+                    return .{ .x = box.bounds.x, .y = box.bounds.y };
+                }
+            },
+            else => {},
         }
     }
-    return parent_should_recompute;
+    // if (candidate) |index| {
+    //     const item = render_list_items[index].text_fragment;
+    //     return item.getOffsetPosition(offset);
+    // }
+    return .{ .x = 0, .y = 0 };
+}
+
+pub fn computePipelines(self: *Self, available_space: layout_mod.constants.AvailableSpacePoint) !void {
+    try self.computeStyles();
+    try self.buildLayoutTree();
+    try self.computeLayout(std.testing.allocator, available_space);
+    // try self.buildRenderList();
+}
+
+pub fn propagateNodeRecomputeStatus(self: *Self) void {
+    _ = self.propagateNodeRecomputeStatusInner(ROOT_NODE_ID);
+}
+pub fn getLayoutNodeFromDocNodeId(self: *Self, node_id: Node.NodeId) ?layout_mod.LayoutNode.Id {
+    return self.layout_tree.doc_to_layout.get(node_id);
+}
+pub fn propagateNodeRecomputeStatusInner(self: *Self, node_id: Node.NodeId) Node.RegenerateLevel {
+    var node = self.getNode(node_id);
+    var level = node.regenerate_level;
+
+    // var parent_should_recompute = false;
+    // switch (node.regenerate_level) {
+    //     .regenerate, .recompute => {
+    //         node.regenerate_level = Node.RegenerateLevel.max(node.regenerate_level, .recompute);
+    //         self.layout_tree.clearCacheFromDocNodeId(node_id);
+    //         parent_should_recompute = true;
+    //     },
+    //     .repaint => {},
+    // }
+
+    for (node.children.items) |child_id| {
+        const child_level = self.propagateNodeRecomputeStatusInner(child_id);
+        level = Node.RegenerateLevel.min(level, child_level);
+    }
+    node.regenerate_level = level;
+    return level;
+    // return parent_should_recompute;
 }

@@ -4,7 +4,7 @@ const lookups = @import("lookups.zig");
 const ReverseUtf8Iterator = @import("ReverseUtf8Iterator.zig");
 const codepoint = @import("codepoint.zig");
 
-buffer: std.ArrayList(u8),
+buffer: std.array_list.Managed(u8),
 i: usize,
 ris_count: usize,
 context: Context,
@@ -50,8 +50,9 @@ pub fn markStreamDone(self: *Self) void {
 }
 
 pub fn init(allocator: std.mem.Allocator) Self {
+    var unmanaged = std.ArrayList(u8).empty;
     return Self{
-        .buffer = std.ArrayList(u8).init(allocator),
+        .buffer = unmanaged.toManaged(allocator),
         .i = 0,
         .ris_count = 0,
         .context = .none,

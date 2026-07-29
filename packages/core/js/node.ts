@@ -2,7 +2,11 @@ import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { memoize } from "lodash-es";
-import { type InitArgs, init } from "./index.js";
+import {
+  type InitArgs,
+  type WasmLoader,
+  init,
+} from "./index.js";
 
 export type { Module } from "./index.js";
 
@@ -32,3 +36,15 @@ const _initFromFile = async (
 
 export const initFromFile: typeof _initFromFile =
   memoize(_initFromFile);
+
+export const loader: WasmLoader = async ({
+  dev,
+}) => {
+  const wasmFile = dev
+    ? "core-debug.wasm"
+    : "core.wasm";
+  const bytes = await readFile(
+    join(distDir, wasmFile),
+  );
+  return new Uint8Array(bytes);
+};

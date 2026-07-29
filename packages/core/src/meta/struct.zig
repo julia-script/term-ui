@@ -33,7 +33,7 @@ pub fn PartialBy(T: type, partial_fields: []const []const u8) type {
             fields[i] = field;
             continue;
         }
-        const FieldType = @Type(Type{ .Optional = .{ .child = field.type } });
+        const FieldType = @TypeOf(Type{ .Optional = .{ .child = field.type } });
         fields[i] = std.builtin.Type.StructField{
             .name = field.name,
             .type = FieldType,
@@ -43,7 +43,7 @@ pub fn PartialBy(T: type, partial_fields: []const []const u8) type {
         };
     }
 
-    return @Type(Type{ .Struct = .{
+    return @TypeOf(Type{ .Struct = .{
         .layout = src.layout,
         .decls = &.{},
         .backing_integer = src.backing_integer,

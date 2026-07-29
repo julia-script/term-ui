@@ -10,12 +10,11 @@ pub fn ConcreteTypeOf(comptime T: type) type {
 pub fn MemberType(comptime T: type) type {
     const typeInfo = @typeInfo(T);
     switch (typeInfo) {
-        .@"struct" => {
-            if (@hasField(T, "x")) {
-                return std.meta.FieldType(T, .x);
-            }
-            if (@hasField(T, "top")) {
-                return std.meta.FieldType(T, .top);
+        .@"struct" => |s| {
+            inline for (s.fields) |field| {
+                if (std.mem.eql(u8, field.name, "x") or std.mem.eql(u8, field.name, "top")) {
+                    return field.type;
+                }
             }
             unreachable;
         },

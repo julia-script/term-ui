@@ -2,7 +2,7 @@ const std = @import("std");
 const Token = @import("./Token.zig");
 const Tokenizer = @import("./Tokenizer.zig");
 const WhiteSpaceCollapse = @import("../../../styles/white-space.zig").WhiteSpaceCollapse;
-const snapshot = @import("../../../testing/snapshot.zig");
+const snapshot = @import("../../../tests/utils/snapshot.zig");
 const utf8WidthExcludingAnsiColors = @import("../../../uni/string-width.zig").utf8WidthExcludingAnsiColors;
 
 /// Apply CSS Phase 1 whitespace collapsing rules to tokens
@@ -272,8 +272,9 @@ pub const TestHelper = struct {
         self: *TestHelper,
         nodes: []const TestNode,
         collapse_mode: WhiteSpaceCollapse,
-    ) !std.ArrayList(Token) {
-        var tokens = std.ArrayList(Token).init(self.allocator);
+    ) !std.array_list.Managed(Token) {
+        var tokens_unmanaged = std.ArrayList(Token).empty;
+        var tokens = tokens_unmanaged.toManaged(self.allocator);
 
         var dom_offset: u32 = 0;
 
@@ -320,7 +321,7 @@ pub const TestHelper = struct {
         try writer.writeAll("\nOutput: ");
         try printTokensGrouped(tokens, writer);
 
-        try snapshot.expectMatchSnapshot(src, self.allocator, name, self.buf.items);
+        try snapshot.expectMatchSnapshot(src, self.allocator, name, self.buf.items, .{});
     }
 
     fn testAllModes(
@@ -354,7 +355,9 @@ pub const TestHelper = struct {
             defer tokens.deinit();
 
             // Make a copy for phase 1 application
-            var tokens_copy = try std.ArrayList(Token).initCapacity(self.allocator, tokens.items.len);
+            var tokens_copy_unmanaged = std.ArrayList(Token).empty;
+            var tokens_copy = tokens_copy_unmanaged.toManaged(self.allocator);
+            try tokens_copy.ensureTotalCapacity(tokens.items.len);
             defer tokens_copy.deinit();
             for (tokens.items) |tok| {
                 try tokens_copy.append(tok);
@@ -370,7 +373,7 @@ pub const TestHelper = struct {
             try writer.writeAll("\n\n");
         }
 
-        try snapshot.expectMatchSnapshot(src, self.allocator, name, self.buf.items);
+        try snapshot.expectMatchSnapshot(src, self.allocator, name, self.buf.items, .{});
     }
 
     pub fn printTokens(tokens: []const Token, writer: std.io.AnyWriter) !void {
@@ -745,6 +748,7 @@ test "Measure tokens after Phase 1" {
         helper.allocator,
         "measure tokens basic",
         output.items,
+        .{},
     );
 }
 
@@ -790,6 +794,7 @@ test "Measure tokens with unicode" {
         helper.allocator,
         "measure tokens unicode",
         output.items,
+        .{},
     );
 }
 
@@ -842,6 +847,7 @@ test "Measure tokens with empty content" {
         helper.allocator,
         "measure tokens empty",
         output.items,
+        .{},
     );
 }
 

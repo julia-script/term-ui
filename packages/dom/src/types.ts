@@ -59,14 +59,14 @@ export type MouseClickEvent = {
   x: number;
   y: number;
 };
-export type ScrollEvent = {
-  kind: "scroll";
-  target: Element;
-  document: Document;
-  deltaX: number;
-  deltaY: number;
-  preventDefault: () => void;
-};
+// export type ScrollEvent = {
+//   kind: "scroll";
+//   target: Element;
+//   document: Document;
+//   deltaX: number;
+//   deltaY: number;
+//   preventDefault: () => void;
+// };
 
 export type BaseKeyEvent = {
   target: Element;
@@ -110,6 +110,7 @@ export type DocumentOptions = {
   exitOnCtrlC: boolean;
   enableAlternateScreen: boolean;
   clearScreenBeforePaint: boolean;
+  dev?: boolean;
   onPaintRequest?: () => void;
 };
 
@@ -125,6 +126,7 @@ export type KeyboardEvent = {
   keyCode?: number;
   bubbles: boolean;
   defaultPrevented: boolean;
+  cancelable: boolean;
   preventDefault: () => void;
   stopPropagation: () => void;
   shiftKey: boolean;
@@ -143,7 +145,8 @@ export type MouseEvent = {
     | "mouseenter"
     | "mouseleave"
     | "mouseout"
-    | "mouseover";
+    | "mouseover"
+    | "click";
   button: string;
   clientX: number;
   clientY: number;
@@ -151,6 +154,7 @@ export type MouseEvent = {
   currentTarget: EventTarget;
   bubbles: boolean;
   defaultPrevented: boolean;
+  cancelable: boolean;
   preventDefault: () => void;
   stopPropagation: () => void;
   shiftKey: boolean;
@@ -166,7 +170,11 @@ export type WheelEvent = {
   deltaX: number;
   deltaY: number;
   bubbles: boolean;
+  button: string;
+  clientX: number;
+  clientY: number;
   defaultPrevented: boolean;
+  cancelable: boolean;
   preventDefault: () => void;
   stopPropagation: () => void;
   shiftKey: boolean;
@@ -174,11 +182,24 @@ export type WheelEvent = {
   altKey: boolean;
   metaKey: boolean;
 } 
+export type ScrollEvent = {
+  type: "scroll";
+  target: EventTarget;
+  currentTarget: EventTarget | null;
+  bubbles: boolean;
+  defaultPrevented: boolean;
+  cancelable: boolean;
+  preventDefault: () => void;
+  stopPropagation: () => void;
+
+}
 
 export type DOMEvent =
   | KeyboardEvent
   | MouseEvent
-  | WheelEvent;
+  | WheelEvent
+  | ScrollEvent;
+
 
 
 

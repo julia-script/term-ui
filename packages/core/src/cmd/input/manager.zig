@@ -503,11 +503,16 @@ pub const Event = struct {
                         try fbs_writer.print(" base_cp='{u}' {d}", .{ key.base_codepoint, key.base_codepoint });
                     }
                 }
-                // try fbs_writer.print("'", .{});
+
+                if (value.raw.len > 0) {
+                    try fbs_writer.print(" raw='", .{});
+                    try escape(fbs_writer, value.raw);
+                    try fbs_writer.print("'", .{});
+                }
             },
             .unknown_sequence => {
                 try fbs_writer.print("unknown_sequence '", .{});
-                escape(fbs_writer, value.raw) catch unreachable;
+                try escape(fbs_writer, value.raw);
                 try fbs_writer.print("'", .{});
             },
 
@@ -681,7 +686,7 @@ pub const AnyInputManager = struct {
 
         self.emit(.{
             .data = .{ .key = .{
-                .key = constants.getKeyNameFromNumber(unshifted),
+                .key = constants.getKeyNameFromNumber(cp),
                 .codepoint = cp,
                 .base_codepoint = unshifted,
                 .action = action,

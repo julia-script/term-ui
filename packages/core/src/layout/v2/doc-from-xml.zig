@@ -66,7 +66,7 @@ fn trimText(text: []const u8) []const u8 {
 }
 
 const SELECTION_START = "$S[";
-const SELECTION_END = "]$S";
+const SELECTION_END = "$S]";
 
 const BuilderContext = struct {
     selection_start: ?BoundaryPoint = null,
@@ -85,21 +85,21 @@ fn nodeFromXmlElement(tree: *Tree, element: *xml.Element, ctx: *BuilderContext) 
                 _ = try tree.appendChild(node_id, text_node_id);
                 var str = std.ArrayList(u8).init(tree.allocator);
                 defer str.deinit();
-                
+
                 var current_index: usize = 0;
                 const text = child.char_data;
-                
+
                 // Find selection markers
                 const selection_start_idx = std.mem.indexOf(u8, text, SELECTION_START);
                 const selection_end_idx = std.mem.indexOf(u8, text, SELECTION_END);
-                
+
                 // Process text and markers in order
                 if (selection_start_idx) |start_idx| {
                     // Add text before selection start marker
                     try str.appendSlice(text[current_index..start_idx]);
                     ctx.selection_start = .{ .node_id = text_node_id, .offset = @intCast(str.items.len) };
                     current_index = start_idx + SELECTION_START.len;
-                    
+
                     if (selection_end_idx) |end_idx| {
                         if (end_idx > start_idx) {
                             // Add text between markers
@@ -114,12 +114,12 @@ fn nodeFromXmlElement(tree: *Tree, element: *xml.Element, ctx: *BuilderContext) 
                     ctx.selection_end = .{ .node_id = text_node_id, .offset = @intCast(str.items.len) };
                     current_index = end_idx + SELECTION_END.len;
                 }
-                
+
                 // Add remaining text after all markers
                 if (current_index < text.len) {
                     try str.appendSlice(text[current_index..]);
                 }
-                
+
                 try tree.setText(text_node_id, str.items);
             },
             .comment => {
@@ -140,6 +140,9 @@ fn nodeFromXmlElement(tree: *Tree, element: *xml.Element, ctx: *BuilderContext) 
                 } else if (std.mem.eql(u8, child.element.tag, "em") or std.mem.eql(u8, child.element.tag, "i")) {
                     child_node.styles.display = .{ .outside = .@"inline", .inside = .flow };
                     child_node.styles.font_style = .italic;
+                } else if (std.mem.eql(u8, child.element.tag, "pre")) {
+                    child_node.styles.white_space_collapse = .preserve;
+                    child_node.styles.text_wrap_mode = .nowrap;
                 }
             },
         }
@@ -151,19 +154,17 @@ fn nodeFromXmlElement(tree: *Tree, element: *xml.Element, ctx: *BuilderContext) 
             try s.parseStyleString(tree, node_id, attr.value);
             continue;
         }
-        if (std.mem.eql(u8, attr.name, "scroll-y")) {
+        if (std.mem.eql(u8, attr.name, "scroll-top")) {
             tree.getNode(node_id).scroll_offset.y = std.fmt.parseFloat(f32, attr.value) catch unreachable;
             continue;
         }
-        if (std.mem.eql(u8, attr.name, "scroll-x")) {
+        if (std.mem.eql(u8, attr.name, "scroll-left")) {
             tree.getNode(node_id).scroll_offset.x = std.fmt.parseFloat(f32, attr.value) catch unreachable;
             continue;
         }
 
-        if (std.mem.eql(u8, attr.name, "id")) {
-            try tree.setElementId(node_id, attr.value);
-            continue;
-        }
+        const node = tree.getNode(node_id);
+        try node.setAttribute(attr.name, attr.value);
     }
     return node_id;
 }

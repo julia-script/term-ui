@@ -38,7 +38,7 @@ const Type = enum {
     fn get(cp: u21) Type {
         const wb = db.getWordBreak(cp);
         var ty: Type = .any;
-        
+
         // Map from WordBreak enum to Type enum
         switch (wb) {
             .ALetter => ty = .aletter,
@@ -61,10 +61,10 @@ const Type = enum {
             .ZWJ => ty = .zwj,
             .Other => ty = .any,
         }
-        
+
         // Extended pictographic needs special handling
         if (db.isExtendedPictographic(cp)) ty = .xpic;
-        
+
         return ty;
     }
 };
@@ -326,8 +326,8 @@ pub const WordIterator = struct {
 
         const i = self.cp_iter.i;
         return if (self.cp_iter.nextCodepointSlice()) |slice| Token{
-            .ty = Type.get(try unicode.utf8Decode(slice)),
-            .code_point = try unicode.utf8Decode(slice),
+            .ty = Type.get(unicode.utf8Decode(slice) catch unreachable),
+            .code_point = unicode.utf8Decode(slice) catch unreachable,
             .len = @intCast(slice.len),
             .offset = @intCast(i),
         } else null;
@@ -336,8 +336,8 @@ pub const WordIterator = struct {
     fn advance(self: *Self) ?Token {
         const i = self.cp_iter.i;
         const latest_non_ignorable = if (self.cp_iter.nextCodepointSlice()) |slice| Token{
-            .ty = Type.get(try unicode.utf8Decode(slice)),
-            .code_point = try unicode.utf8Decode(slice),
+            .ty = Type.get(unicode.utf8Decode(slice) catch unreachable),
+            .code_point = unicode.utf8Decode(slice) catch unreachable,
             .len = @intCast(slice.len),
             .offset = @intCast(i),
         } else return null;
@@ -425,5 +425,14 @@ test "WB3d - Keep horizontal whitespace together." {
         while (ct_iter.next()) |word| : (i += 1) {
             try std.testing.expect(word.eql(want[i]));
         }
+    }
+}
+
+test "thirdtest" {
+    // const want = [_][]const u8{ "   ", "Hello", "   ", "World", "    " };
+
+    var ct_iter = try WordIterator.init("   Hello  \n World    ");
+    while (ct_iter.next()) |word| {
+        std.debug.print("'{s}'\n", .{word.bytes});
     }
 }

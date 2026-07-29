@@ -5,6 +5,16 @@ export const ENABLE_ALTERNATE_SCREEN =
 export const DISABLE_ALTERNATE_SCREEN =
   csi("?1049l");
 export const CLEAR_SCROLLBACK_BUFFER = csi("3J");
+
+// CSI Ps SP q
+//           Set cursor style (DECSCUSR, VT520).
+export const CURSOR_BLINKING_BLOCK = csi("0 q");
+export const CURSOR_BLINKING_BLOCK_DEFAULT = csi("1 q");
+export const CURSOR_STEADY_BLOCK = csi("2 q");
+export const CURSOR_BLINKING_UNDERLINE = csi("3 q");
+export const CURSOR_STEADY_UNDERLINE = csi("4 q");
+export const CURSOR_BLINKING_BAR = csi("5 q");
+export const CURSOR_STEADY_BAR = csi("6 q");
 export const HIDE_CURSOR = csi("?25l");
 export const SHOW_CURSOR = csi("?25h");
 // #define SET_X10_MOUSE               9

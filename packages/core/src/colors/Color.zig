@@ -18,6 +18,14 @@ pub fn toHex(self: Color) u32 {
     | @as(u32, @intFromFloat(self.b * 255)) << 8 //
     | @as(u32, @intFromFloat(self.a * 255));
 }
+pub fn toHexString(
+    self: Color,
+    buffer: []u8,
+) ![]const u8 {
+    const r, const g, const b = self.toU8RGB();
+
+    return (try std.fmt.bufPrint(buffer, "#{X:0>2}{X:0>2}{X:0>2}", .{ r, g, b }))[0..7];
+}
 pub fn toU8RGB(self: Color) [3]u8 {
     return [_]u8{
         @intFromFloat(@round(self.r * 255)),
@@ -480,4 +488,61 @@ test "parseHexChannel" {
     try std.testing.expectEqual(1, parseHexChannel("F"));
     try std.testing.expectEqual(1, parseHexChannel("fF"));
     try std.testing.expectEqual(1, parseHexChannel("Ff"));
+}
+
+/// Calculates the contrast ratio between two colors. The contrast
+/// ration is a value between 1 and 21 where 1 is the lowest contrast
+/// and 21 is the highest contrast.
+///
+/// https://www.w3.org/TR/WCAG20/#contrast-ratiodef
+pub fn contrast(self: Color, other: Color) f64 {
+    // pair[0] = lighter, pair[1] = darker
+    const pair: [2]f64 = pair: {
+        const self_lum = self.luminance();
+        const other_lum = other.luminance();
+        if (self_lum > other_lum) break :pair .{ self_lum, other_lum };
+        break :pair .{ other_lum, self_lum };
+    };
+
+    return (pair[0] + 0.05) / (pair[1] + 0.05);
+}
+
+pub fn contrastedColor(
+    self: Color,
+    other: Color,
+    min: f64,
+) Color {
+    const ratio = self.contrast(other);
+    if (ratio < min) {
+        const white_ratio = self.contrast(Color.tw.white);
+        const black_ratio = self.contrast(Color.tw.black);
+        if (white_ratio > black_ratio) {
+            return Color.tw.white;
+        } else {
+            return Color.tw.black;
+        }
+    }
+
+    return self;
+}
+
+/// Calculates luminance based on the W3C formula. This returns a
+/// normalized value between 0 and 1 where 0 is black and 1 is white.
+///
+/// https://www.w3.org/TR/WCAG20/#relativeluminancedef
+pub fn luminance(self: Color) f64 {
+    const r_lum = componentLuminance(self.r);
+    const g_lum = componentLuminance(self.g);
+    const b_lum = componentLuminance(self.b);
+    return 0.2126 * r_lum + 0.7152 * g_lum + 0.0722 * b_lum;
+}
+
+/// Calculates single-component luminance based on the W3C formula.
+///
+/// Expects sRGB color space which at the time of writing we don't
+/// generally use but it's a good enough approximation until we fix that.
+/// https://www.w3.org/TR/WCAG20/#relativeluminancedef
+fn componentLuminance(c: f64) f64 {
+    if (c <= 0.03928) return c / 12.92;
+    return std.math.pow(f64, (c + 0.055) / 1.055, 2.4);
 }

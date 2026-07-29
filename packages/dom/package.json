@@ -5,6 +5,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./devtools": {
+      "types": "./dist/devtools/index.d.ts",
+      "default": "./dist/devtools/index.js"
     }
   },
   "type": "module",
@@ -23,15 +27,16 @@
     "url": "https://github.com/yourusername/term-ui.git",
     "directory": "packages/dom"
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "publishConfig": {
     "access": "public"
   },
   "devDependencies": {
     "@term-ui/core": "workspace:*",
     "@term-ui/shared": "workspace:*",
-    "@termui/devtools": "workspace:*",
-    "@types/bun": "latest",
     "dpdm": "^3.14.0"
   },
   "scripts": {
@@ -40,7 +45,12 @@
     "cleanup": "rm -rf dist"
   },
   "dependencies": {
+    "@trpc/client": "^11.4.3",
+    "@trpc/server": "^11.4.3",
+    "@types/ws": "^8.18.1",
     "lodash-es": "catalog:",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "ws": "^8.18.2",
+    "zod": "^3.25.67"
   }
 }

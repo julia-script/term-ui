@@ -240,13 +240,11 @@ pub fn handleTerminalInfo(manager: *AnyInputManager, buffer: []const u8, positio
 
 test "term info" {
     try expectEvents(
+        @src(),
         std.testing.allocator,
         "xterm-ghostty",
         &.{
             "\x1b[1;3P",
-        },
-        &.{
-            "[key .f1 '' 57364]",
         },
     );
 }

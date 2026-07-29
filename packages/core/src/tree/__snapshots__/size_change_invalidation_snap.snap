@@ -1,7 +1,0 @@
-// Snapshot from: tree/invalidation_test.zig:47:38
-// Function: test.style invalidation - size change
-// Description: size_change_invalidation.snap
-
-[node#1 block flow_root Regenerate]
-    [node#2 block flow_root Regenerate]
-        [node#3 block flow_root Regenerate]

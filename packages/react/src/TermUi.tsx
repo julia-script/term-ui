@@ -1,8 +1,9 @@
-import type {
-  InitArgs,
-  Module,
+import {
+  init,
+  type InitArgs,
+  type Module,
 } from "@term-ui/core";
-import { initFromFile } from "@term-ui/core/node";
+import { loader } from "@term-ui/core/node";
 import {
   Document,
   type DocumentOptions,
@@ -16,16 +17,8 @@ import { reconciler } from "./reconciler/reconciler.js";
  * Options for creating a TermUi instance
  * @public
  */
-export type TermUiOptions = {
-  /**
-   * Function to load a terminal UI module
-   * @param initArgs - Initialization arguments for the module
-   * @returns A promise that resolves to a Module
-   */
-  loadModule: (
-    initArgs: InitArgs,
-  ) => Promise<Module>;
-} & DocumentOptions;
+export type TermUiOptions = InitArgs &
+  DocumentOptions;
 
 /**
  * Main class for Terminal UI rendering with React
@@ -66,9 +59,15 @@ export class TermUi {
       process.env.NODE_ENV === "development",
       true,
       "id",
-      (error) => {},
-      (error) => {},
-      (error) => {},
+      (error) => {
+        console.error(error);
+      },
+      (error) => {
+        console.error(error);
+      },
+      (error) => {
+        console.error(error);
+      },
       null,
     );
     document.writeStream.on(
@@ -123,15 +122,14 @@ export class TermUi {
     root: React.ReactNode,
     options: Partial<TermUiOptions> = {},
   ) {
-    const {
-      loadModule = (initArgs) =>
-        initFromFile(undefined, initArgs),
-      ...rest
-    } = options;
-    const module = await loadModule({
-      logFn: (...args) => {},
+    const module = await init({
+      ...options,
+      loader: options.loader ?? loader,
     });
-    const document = new Document(module, rest);
+    const document = new Document(
+      module,
+      options,
+    );
     const tui = new TermUi(document);
     reconciler.updateContainer(
       <Viewport termUi={tui}>{root}</Viewport>,

@@ -158,16 +158,16 @@ pub const Table = struct {
         @memcpy(data, section);
 
         // create arraylist for slices
-        var slices = std.ArrayList([]const u8).init(allocator);
+        var slices: std.ArrayList([]const u8) = .empty;
         // we'll eventually call .toOwnedSlice() on this array, so we only need
         // to deinit on error
-        errdefer slices.deinit();
+        errdefer slices.deinit(allocator);
 
         var start: usize = 0;
         for (data, 0..) |char, end| {
             if (char == 0) {
                 // we've found a string
-                try slices.append(data[start..end]);
+                try slices.append(allocator, data[start..end]);
                 // move start to the char after the sentinel
                 start = end + 1;
             }
@@ -176,7 +176,7 @@ pub const Table = struct {
         return .{
             .allocator = allocator,
             .data = data,
-            .slices = try slices.toOwnedSlice(),
+            .slices = try slices.toOwnedSlice(allocator),
         };
     }
 
@@ -868,7 +868,7 @@ pub const ParameterizedSequence = struct {
 
     pub fn parse(alloc: std.mem.Allocator, seq: []const u8) std.mem.Allocator.Error!ParameterizedSequence {
         var n_params: u8 = 0;
-        var actions = std.ArrayList(Action).init(alloc);
+        var actions: std.ArrayList(Action) = .empty;
         var rem = seq;
         while (rem.len > 0) {
             if (rem[0] == '%') {
@@ -876,12 +876,12 @@ pub const ParameterizedSequence = struct {
 
                 if (rem[0] == '\'') {
                     const ch = rem[1];
-                    try actions.append(.{
+                    try actions.append(alloc, .{
                         .print_char = ch,
                     });
                     rem = rem[3..];
                 } else if (rem[0] == '%') {
-                    try actions.append(.{
+                    try actions.append(alloc, .{
                         .print_char = '%',
                     });
                     rem = rem[1..];
@@ -890,83 +890,83 @@ pub const ParameterizedSequence = struct {
                     const index_char = rem[1];
                     std.debug.assert(std.ascii.isDigit(index_char));
                     const index = index_char - '0';
-                    try actions.append(.{
+                    try actions.append(alloc, .{
                         .push_nth_arg = index,
                     });
                     n_params = @max(n_params, index + 1);
                     rem = rem[2..];
                 } else if (rem[0] == 'c' or rem[1] == 's') {
-                    try actions.append(.pop_string);
+                    try actions.append(alloc, .pop_string);
                     rem = rem[1..];
                 } else if (rem[0] == '{') {
                     const eaten = eat_integer(rem[1..]);
 
-                    try actions.append(.{
+                    try actions.append(alloc, .{
                         .print_int = eaten.value,
                     });
                     rem = eaten.rem[1..];
                 } else if (rem[0] == 'l') {
-                    try actions.append(.push_strlen_pop);
+                    try actions.append(alloc, .push_strlen_pop);
                     rem = rem[1..];
                 } else if (rem[0] == 'i') {
-                    try actions.append(.increment_first_two_params);
+                    try actions.append(alloc, .increment_first_two_params);
                     rem = rem[1..];
                 } else if (rem[0] == '+') {
-                    try actions.append(.{ .bin_op = .add });
+                    try actions.append(alloc, .{ .bin_op = .add });
                     rem = rem[1..];
                 } else if (rem[0] == '-') {
-                    try actions.append(.{ .bin_op = .sub });
+                    try actions.append(alloc, .{ .bin_op = .sub });
                     rem = rem[1..];
                 } else if (rem[0] == '*') {
-                    try actions.append(.{ .bin_op = .mul });
+                    try actions.append(alloc, .{ .bin_op = .mul });
                     rem = rem[1..];
                 } else if (rem[0] == '/') {
-                    try actions.append(.{ .bin_op = .div });
+                    try actions.append(alloc, .{ .bin_op = .div });
                     rem = rem[1..];
                 } else if (rem[0] == 'm') {
-                    try actions.append(.{ .bin_op = .mod });
+                    try actions.append(alloc, .{ .bin_op = .mod });
                     rem = rem[1..];
                 } else if (rem[0] == '&') {
-                    try actions.append(.{ .bin_op = .bit_and });
+                    try actions.append(alloc, .{ .bin_op = .bit_and });
                     rem = rem[1..];
                 } else if (rem[0] == '|') {
-                    try actions.append(.{ .bin_op = .bit_or });
+                    try actions.append(alloc, .{ .bin_op = .bit_or });
                     rem = rem[1..];
                 } else if (rem[0] == '^') {
-                    try actions.append(.{ .bin_op = .bit_xor });
+                    try actions.append(alloc, .{ .bin_op = .bit_xor });
                     rem = rem[1..];
                 } else if (rem[0] == '=') {
-                    try actions.append(.{ .bin_op = .eq });
+                    try actions.append(alloc, .{ .bin_op = .eq });
                     rem = rem[1..];
                 } else if (rem[0] == '>') {
-                    try actions.append(.{ .bin_op = .gt });
+                    try actions.append(alloc, .{ .bin_op = .gt });
                     rem = rem[1..];
                 } else if (rem[0] == '<') {
-                    try actions.append(.{ .bin_op = .lt });
+                    try actions.append(alloc, .{ .bin_op = .lt });
                     rem = rem[1..];
                 } else if (rem[0] == 'A') {
-                    try actions.append(.{ .bin_op = .log_and });
+                    try actions.append(alloc, .{ .bin_op = .log_and });
                     rem = rem[1..];
                 } else if (rem[0] == 'O') {
-                    try actions.append(.{ .bin_op = .log_or });
+                    try actions.append(alloc, .{ .bin_op = .log_or });
                     rem = rem[1..];
                 } else if (rem[0] == '!') {
-                    try actions.append(.{ .unary_op = .log_not });
+                    try actions.append(alloc, .{ .unary_op = .log_not });
                     rem = rem[1..];
                 } else if (rem[0] == '~') {
-                    try actions.append(.{ .unary_op = .bit_not });
+                    try actions.append(alloc, .{ .unary_op = .bit_not });
                     rem = rem[1..];
                 } else if (rem[0] == '?') {
-                    try actions.append(.begin_conditional);
+                    try actions.append(alloc, .begin_conditional);
                     rem = rem[1..];
                 } else if (rem[0] == 't') {
-                    try actions.append(.test_expr);
+                    try actions.append(alloc, .test_expr);
                     rem = rem[1..];
                 } else if (rem[0] == 'e') {
-                    try actions.append(.else_branch);
+                    try actions.append(alloc, .else_branch);
                     rem = rem[1..];
                 } else if (rem[0] == ';') {
-                    try actions.append(.end_conditional);
+                    try actions.append(alloc, .end_conditional);
                     rem = rem[1..];
                 } else {
                     const formatted = Formatted.parse(rem) orelse {
@@ -978,13 +978,13 @@ pub const ParameterizedSequence = struct {
                         rem = rem[1..];
                         continue;
                     };
-                    try actions.append(.{
+                    try actions.append(alloc, .{
                         .print_formatted = formatted.formatted,
                     });
                     rem = formatted.rem;
                 }
             } else {
-                try actions.append(.{
+                try actions.append(alloc, .{
                     .print_char = rem[0],
                 });
                 rem = rem[1..];
@@ -998,7 +998,7 @@ pub const ParameterizedSequence = struct {
 
         return .{
             .n_params = n_params,
-            .actions = try actions.toOwnedSlice(),
+            .actions = try actions.toOwnedSlice(alloc),
         };
     }
 

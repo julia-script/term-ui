@@ -11,8 +11,10 @@
     "@term-ui/dom": "workspace:*",
     "@term-ui/react": "workspace:*",
     "@term-ui/shared": "workspace:*",
+    "@termui/devtools": "workspace:*",
     "@types/react": "catalog:",
     "react": "catalog:",
+    "socket.io-client": "^4.8.1",
     "tsx": "catalog:",
     "typescript": "catalog:"
   }

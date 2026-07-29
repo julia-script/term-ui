@@ -104,19 +104,14 @@ pub fn parseColorHint(allocator: std.mem.Allocator, src: []const u8, pos: usize)
 
     return null;
 }
-pub const ColorStopList = std.BoundedArray(ColorStop, 16);
+pub const ColorStopList = std.ArrayListUnmanaged(ColorStop);
 
 pub fn parseColorStopList(src: []const u8, pos: usize) utils.ParseError!utils.Result(ColorStopList) {
     var cursor = utils.eatWhitespace(src, pos);
 
-    // Parse the color stop list
-    // var fbo = std.heap.FixedBufferAllocator.init(
-    var color_stops = try ColorStopList.init(0);
-
-    // Parse the first color stop
-    // const first_stop = try parseColorStop(allocator, src, cursor);
-    // try color_stops.append(first_stop.value);
-    // cursor = first_stop.end;
+    // Parse the color stop list using a fixed buffer
+    var buffer: [16]ColorStop = undefined;
+    var color_stops = ColorStopList.initBuffer(&buffer);
 
     // Parse additional color stops
     while (cursor < src.len) {
@@ -129,7 +124,7 @@ pub fn parseColorStopList(src: []const u8, pos: usize) utils.ParseError!utils.Re
             cursor = utils.eatWhitespace(src, hint.end);
             color_stop.hint = hint.value;
         }
-        try color_stops.append(color_stop);
+        color_stops.appendAssumeCapacity(color_stop);
 
         if (utils.consumeChar(src, ',', cursor)) |new_cursor| {
             cursor = utils.eatWhitespace(src, new_cursor);
@@ -167,9 +162,10 @@ pub fn parseColorStopList(src: []const u8, pos: usize) utils.ParseError!utils.Re
     }
 
     // We need at least two color stops for a valid gradient
-    if (color_stops.len < 2) {
+    if (color_stops.items.len < 2) {
         return error.InvalidSyntax;
     }
+
 
     // Create the final color stops array
     // const color_stops_array = try allocator.dupe(ColorStop, color_stops.items);

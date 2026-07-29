@@ -1,0 +1,38 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build tests for current file",
+      "type": "shell",
+      "command": "cd packages/core && zig build debugbuild -Doptimize=Debug",
+      "problemMatcher": "$zig",
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      }
+    },
+    {
+      "label": "Run tests for current file",
+      "type": "shell",
+      "command": "cd packages/core && zig build test -Dtest-filter=${fileBasenameNoExtension}",
+      "problemMatcher": "$zig",
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      }
+    },
+    {
+      "label": "Update snapshots for current file",
+      "type": "shell",
+      "command": "cd packages/core && UPDATE_SNAPSHOTS=true zig build test -Dtest-filter=${fileBasenameNoExtension}",
+      "problemMatcher": "$zig"
+    },
+    {
+      "label": "Build all tests for debug",
+      "type": "shell",
+      "command": "cd packages/core && zig build debugbuild -Doptimize=Debug",
+      "problemMatcher": "$zig",
+      "group": "build"
+    }
+  ]
+}

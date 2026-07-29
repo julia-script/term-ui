@@ -11,7 +11,7 @@ pub fn applyTextAlignment(
     white_space_collapse: css_types.WhiteSpaceCollapse,
 ) void {
     // Process each line
-    var current_line: ?usize = null;
+    var current_line: usize = 0;
     var line_start: usize = 0;
     var i: usize = 0;
 
@@ -19,20 +19,14 @@ pub fn applyTextAlignment(
         const token = &tokens[i];
 
         // Detect line change or end
-        if (current_line == null or token.line_index != current_line.? or i == tokens.len - 1) {
+        if (current_line != token.line_index) {
             // Process previous line if exists
-            if (current_line != null) {
-                const line_end = if (i < tokens.len and tokens[i].line_index != current_line.?) i else i + 1;
-                alignLine(tokens[line_start..line_end], line_width, text_align, white_space_collapse);
-            }
-
-            // Start new line
-            if (i < tokens.len) {
-                current_line = token.line_index;
-                line_start = i;
-            }
+            alignLine(tokens[line_start..i], line_width, text_align, white_space_collapse);
+            current_line = token.line_index;
+            line_start = i;
         }
     }
+    alignLine(tokens[line_start..], line_width, text_align, white_space_collapse);
 }
 
 /// Aligns a single line of tokens
@@ -105,7 +99,7 @@ fn calculateAlignmentOffset(
 // Test utilities
 const TestHelper = @import("WhitespaceRules.zig").TestHelper;
 const WhitespaceRules = @import("WhitespaceRules.zig");
-const snapshot = @import("../../../testing/snapshot.zig");
+const snapshot = @import("../../../tests/utils/snapshot.zig");
 
 pub fn testAlignment(
     comptime name: []const u8,
@@ -172,6 +166,7 @@ pub fn testAlignment(
         std.testing.allocator,
         name,
         output.items,
+        .{},
     );
 }
 

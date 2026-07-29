@@ -281,7 +281,7 @@ pub const RadialGradientSampler = struct {
             .center = center,
             .line = try renderGradientLine(
                 allocator,
-                radial_gradient.color_stops.slice(),
+                radial_gradient.color_stops.items,
                 gradient_line_length,
                 premultiplied,
             ),
@@ -743,7 +743,7 @@ pub const Sampler = struct {
                 allocator,
                 size,
                 gradient.angle,
-                gradient.color_stops.slice(),
+                gradient.color_stops.items,
                 true,
             ) } },
             .radial_gradient => |gradient| return Sampler{ .sampler = .{ .radial = try RadialGradientSampler.init(

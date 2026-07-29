@@ -43,29 +43,45 @@ pub fn main() !void {
     // \\asd$S[<span>Hello</span>$S]
     // \\</div>
 
-        \\<div style="border-style: double;color: white"> 
-        \\<span id="hello">Lorem ipsum dolor $S[sit amet, consectetur adipiscing elit. Sed do]$S eiusmod tempor incididunt ut labore et dolore magna aliqua.</span>
+        \\<div style="border-style: double;color: white; width: 30;text-align: center;"> 
+        // \\<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incid$S]idunt ut labore et dolore magna aliqua.</p>
+        // \\<p id="hello" contenteditable="true" style="border-style: double;">Lorem ipsum $S[dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+        // \\<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+        // \\
+        \\<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+        \\<p id="hello" contenteditable="true" style="border-style: double;">Lorem $S[ipsum dolor sit $S]amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+        \\<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+        \\<p>The quick brown fox jumps over the lazy dog.</p>
         \\</div>
     , .{});
     defer tree.deinit();
     var renderer = try Renderer.init(allocator);
     defer renderer.deinit();
     try tree.computeStyles();
-    try tree.print(stderr);
     try tree.buildLayoutTree();
-
     try tree.computeLayout(allocator, .{
         .x = .{ .definite = 50 },
         .y = .max_content,
     });
-    try tree.layout_tree.printRoot(stderr);
+
     try tree.paint(&renderer, stderr, .simple);
-    while (true) {
-        // std.debug.print("total_requested_bytes: {d}\n", .{gpa.total_requested_bytes});
-        const selection = tree.getFirstSelection() orelse unreachable;
-        try selection.modify(&tree, .forward, .character);
+    try tree.print(stderr);
+    // // try selection.modify(&tree, .backward, .line, null);
+    // try selection.setFocus(&tree, .{
+    //     .node_id = 7,
+    //     .offset = 10,
+    // });
+    var selection = tree.getFirstSelection() orelse unreachable;
+
+    // try tree.paint(&renderer, stderr, .simple);
+    // try tree.paint(&renderer, stderr, .simple);
+    // try tree.print(stderr);
+    // try tree.layout_tree.printRoot(stderr);
+    for (0..6) |_| {
+        // const selection = tree.getFirstSelection() orelse unreachable;
+        try selection.modify(&tree, .backward, .character, null);
         try tree.paint(&renderer, stderr, .simple);
-        std.time.sleep(std.time.ns_per_s * 0.1);
+        // std.time.sleep(std.time.ns_per_s * 1);
     }
 }
 

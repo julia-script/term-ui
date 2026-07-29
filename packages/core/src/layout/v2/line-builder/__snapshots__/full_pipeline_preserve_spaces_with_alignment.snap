@@ -1,8 +1,0 @@
-// Snapshot from: layout/v2/line-builder/compute.zig:204:9
-// Function: test.full pipeline: preserve spaces with alignment
-// Description: full pipeline preserve spaces with alignment
-
-Full pipeline test: collapse_mode=preserve-spaces, wrap_mode=wrap, text_align=center, width=40
-
-Rendered lines:
-  Line 0 [offset=9.5]:   Start  with  spaces   (content_width=21.0)

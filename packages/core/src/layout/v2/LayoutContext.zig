@@ -14,32 +14,32 @@ layout_tree: *LayoutTree,
 doc_tree: *DocTree,
 allocator: std.mem.Allocator,
 
-pub fn info(self: *Self, l_node_id: mod.LayoutNode.Id, comptime format: []const u8, args: anytype) void {
-    // Use scoped logger instead of direct printing
-    // This allows controlling output via log level
-    if (@import("builtin").mode == .Debug) {
-        var buf: [1024]u8 = undefined;
-        var fbs = std.io.fixedBufferStream(&buf);
-        const writer = fbs.writer();
+pub fn info(_: *Self, _: mod.LayoutNode.Id, comptime _: []const u8, _: anytype) void {
+    // // Use scoped logger instead of direct printing
+    // // This allows controlling output via log level
+    // if (@import("builtin").mode == .Debug) {
+    //     var buf: [1024]u8 = undefined;
+    //     var fbs = std.io.fixedBufferStream(&buf);
+    //     const writer = fbs.writer();
 
-        // Build indentation
-        var current = l_node_id;
-        while (true) {
-            if (self.layout_tree.getNodePtr(current).parent) |parent_id| {
-                current = parent_id;
-            } else {
-                break;
-            }
-            writer.writeAll("  ") catch {};
-        }
+    //     // Build indentation
+    //     var current = l_node_id;
+    //     while (true) {
+    //         if (self.layout_tree.getNodePtr(current).parent) |parent_id| {
+    //             current = parent_id;
+    //         } else {
+    //             break;
+    //         }
+    //         writer.writeAll("  ") catch {};
+    //     }
 
-        // Build the message
-        writer.print("[{s}#{d}] ", .{ @tagName(self.layout_tree.getNodePtr(l_node_id).data), l_node_id }) catch {};
-        writer.print(format, args) catch {};
+    //     // Build the message
+    //     writer.print("[{s}#{d}] ", .{ @tagName(self.layout_tree.getNodePtr(l_node_id).data), l_node_id }) catch {};
+    //     writer.print(format, args) catch {};
 
-        // Use debug log level so it can be filtered
-        log.debug("{s}", .{fbs.getWritten()});
-    }
+    //     // Use debug log level so it can be filtered
+    //     log.debug("{s}", .{fbs.getWritten()});
+    // }
 }
 
 pub fn setBox(self: *Self, l_node_id: mod.LayoutNode.Id, box: mod.Box, line_boxes: ?mod.LineBox.LineBoxList) !void {

@@ -24,11 +24,11 @@ pub fn parseStyleProperty(tree: *Tree, node_id: Node.NodeId, _key: []const u8, _
         };
         return;
     } else if (std.mem.eql(u8, key, "background-color")) {
-        const parsed = parsers.color.parse(value, 0) catch {
+        const parsed = parsers.background.parse(value, 0) catch {
             logger.warn("Invalid background-color value: '{s}'\n", .{value});
             return;
         };
-        tree.setStyleProperty(node_id, Tree.StyleProperty{ .background_color = parsed.value }) catch |err| {
+        tree.setStyleProperty(node_id, Tree.StyleProperty{ .background = parsed.value }) catch |err| {
             logger.warn("Error setting background-color property: {s}\n", .{@errorName(err)});
         };
         return;
@@ -81,7 +81,7 @@ pub fn parseStyleProperty(tree: *Tree, node_id: Node.NodeId, _key: []const u8, _
 
     // Fall back to legacy parsing for properties not yet migrated to setStyleProperty
     // For now, just handle these with legacy parsing and manual invalidation
-    
+
     if (std.mem.eql(u8, key, "overflow-x")) {
         const parsed = parsers.position.parse(value, 0) catch {
             logger.warn("Invalid position value: '{s}'\n", .{value});

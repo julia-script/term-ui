@@ -5,6 +5,9 @@ const TermInfoHandler = @import("handle-term-info.zig");
 const handleRawBuffer = @import("input.zig").handleRawBuffer;
 const TermInfo = @import("terminfo/main.zig").TermInfo;
 const escape = @import("input/manager.zig").escape;
+const root = @import("root");
+// FIXME: move this to the tests directory
+const snapshot = @import("../tests/utils/snapshot.zig");
 
 fn readTermInfo(allocator: std.mem.Allocator, comptime name: []const u8) !TermInfoHandler {
     var file = try std.fs.cwd().openFile("src/cmd/test-data/" ++ name, .{});
@@ -29,7 +32,12 @@ const Collector = struct {
         self.event_str.deinit();
     }
 };
-pub fn expectEvents(allocator: std.mem.Allocator, case: []const u8, buffers: []const []const u8, expected: []const []const u8) !void {
+pub fn expectEvents(
+    comptime loc: std.builtin.SourceLocation,
+    allocator: std.mem.Allocator,
+    comptime namespace: []const u8,
+    buffers: []const []const u8,
+) !void {
     var input_manager: InputManager = .{
         .allocator = allocator,
     };
@@ -52,9 +60,6 @@ pub fn expectEvents(allocator: std.mem.Allocator, case: []const u8, buffers: []c
     var actual_str = std.ArrayList(u8).init(allocator);
     defer actual_str.deinit();
     var actual_str_writer = actual_str.writer().any();
-    var expected_str = std.ArrayList(u8).init(allocator);
-    defer expected_str.deinit();
-    var expected_str_writer = expected_str.writer().any();
 
     var buffered = std.ArrayList(u8).init(allocator);
     defer buffered.deinit();
@@ -72,12 +77,55 @@ pub fn expectEvents(allocator: std.mem.Allocator, case: []const u8, buffers: []c
     for (collector.event_str.items) |event| {
         try actual_str_writer.print("{}\n", .{event});
     }
-    for (expected) |exp| {
-        try expected_str_writer.print("{s}\n", .{exp});
+
+    try root.matchSnapshot(loc, .{
+        .namespace = namespace,
+    }, actual_str.items);
+}
+
+pub fn dumpEvents(
+    allocator: std.mem.Allocator,
+    buffers: []const []const u8,
+) ![]const u8 {
+    var input_manager: InputManager = .{
+        .allocator = allocator,
+    };
+
+    defer input_manager.deinit();
+    var collector = Collector{
+        .event_str = std.ArrayList(Event).init(allocator),
+    };
+    try input_manager.subscribe(.{
+        .context = &collector,
+        .emitFn = Collector.emitEventFn,
+    });
+    defer collector.deinit();
+
+    var term_info = try readTermInfo(allocator, "xterm-ghostty");
+
+    defer term_info.deinit();
+    input_manager.term_info_driver = &term_info;
+
+    var actual_str = std.ArrayList(u8).init(allocator);
+    defer actual_str.deinit();
+    var actual_str_writer = actual_str.writer().any();
+
+    var buffered = std.ArrayList(u8).init(allocator);
+    defer buffered.deinit();
+    var position: usize = 0;
+    for (buffers) |buf| {
+        try buffered.appendSlice(buf);
+        const consumed = handleRawBuffer(
+            &input_manager,
+            buffered.items,
+            position,
+        );
+        position += consumed;
     }
 
-    std.testing.expectEqualStrings(expected_str.items, actual_str.items) catch |err| {
-        std.debug.print("Failed to match '{s}'\n", .{case});
-        return err;
-    };
+    for (collector.event_str.items) |event| {
+        try actual_str_writer.print("{}\n", .{event});
+    }
+
+    return try actual_str.toOwnedSlice();
 }

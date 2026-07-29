@@ -1,3 +1,17 @@
 {
-  "typescript.tsdk": "node_modules/typescript/lib"
+  "typescript.tsdk": "node_modules/typescript/lib",
+  // Configure test runner
+  "zig-language-extras.testArgs": "-Dtest-filter=${testName} ./packages/core/src/mod.zig -- #",
+  "zig-language-extras.testWorkspace": "./packages/core",
+  // "zig-language-extras.testArgs": [
+  //   "build",
+  //   "test",
+  //   "-Dtest-filter=${testName}",
+  //   "./packages/core/src/mod.zig",
+  // ],
+  "zig-language-extras.testBinaryPath": "./packages/core/zig-out/debug/test",
+  "workbench.editorAssociations": {
+    // TODO: merge with other settings then remove this comment
+    "*.svg": "svgPreview.previewEditor"
+  }
 }

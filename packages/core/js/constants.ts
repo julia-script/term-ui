@@ -18,9 +18,9 @@ export type SelectionExtendDirection =
  */
 export const SelectionExtendGranularity = {
   character: 0,
-  word: 1,
+  // word: 1, TODO
   line: 2,
-  lineBoundary: 3,
+  lineboundary: 3,
   documentBoundary: 4,
 } as const;
 
@@ -46,3 +46,18 @@ export const HitTestFilter = {
   SELECTION_OVERLAY: 0b1000,
   LINE_BOX: 0b10000,
 } as const;
+
+/**
+ * DOM compareDocumentPosition return values
+ * These are bitmask flags that can be combined
+ */
+export const DocumentPosition = {
+  DISCONNECTED: 0x01,
+  PRECEDING: 0x02,
+  FOLLOWING: 0x04,
+  CONTAINS: 0x08,
+  CONTAINED_BY: 0x10,
+} as const;
+
+export type DocumentPosition =
+  (typeof DocumentPosition)[keyof typeof DocumentPosition];

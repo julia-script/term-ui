@@ -1,6 +1,0 @@
-// Snapshot from: tree/invalidation_test.zig:113:38
-// Function: test.style invalidation - text change
-// Description: text_change_invalidation.snap
-
-[node#1 block flow_root Regenerate]
-    [text #2 Regenerate] "Hello World!"

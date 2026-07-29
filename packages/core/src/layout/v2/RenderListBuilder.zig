@@ -6,7 +6,94 @@ const Style = @import("../../tree/Style.zig");
 const styles = @import("../../styles/styles.zig");
 const RenderList = @import("RenderList.zig");
 const Color = @import("../../colors/Color.zig");
+const Range = @import("../../tree/Range.zig");
+const BoundaryPoint = @import("../../tree/BoundaryPoint.zig");
 
+const SelectionState = struct {
+    i: usize = 0,
+    selection_boundaries: std.ArrayList(Item),
+    allocator: std.mem.Allocator,
+
+    const Item = struct {
+        bp: BoundaryPoint,
+        is_start: bool,
+        selection: DocTree.Selection.Id,
+    };
+    const SortContext = struct {
+        doc_tree: *DocTree,
+        pub fn lessThanFn(ctx: SortContext, a: Item, b: Item) bool {
+            const order = ctx.doc_tree.treeOrder(a.bp.node_id, b.bp.node_id) catch return false;
+            return switch (order) {
+                .lt => true,
+                .gt => false,
+                .eq => a.bp.offset < b.bp.offset,
+            };
+        }
+    };
+    pub fn getActiveSelection(self: *SelectionState) ?DocTree.Selection.Id {
+        if (self.i >= self.selection_boundaries.items.len) return null;
+
+        const item = self.selection_boundaries.items[self.i];
+        if (item.is_start == false) {
+            return item.selection;
+        }
+
+        return null;
+    }
+
+    pub fn init(doc_tree: *DocTree, allocator: std.mem.Allocator) !SelectionState {
+        var selection_boundaries: std.ArrayList(Item) = .empty;
+        var iter = doc_tree.selections.iterator();
+
+        while (iter.next()) |entry| {
+            const range = entry.value_ptr.getRange(doc_tree);
+            try selection_boundaries.append(allocator, .{
+                .bp = range.start,
+                .is_start = true,
+                .selection = entry.key_ptr.*,
+            });
+
+            try selection_boundaries.append(allocator, .{
+                .bp = range.end,
+                .is_start = false,
+                .selection = entry.key_ptr.*,
+            });
+        }
+        std.mem.sort(Item, selection_boundaries.items, SortContext{ .doc_tree = doc_tree }, SortContext.lessThanFn);
+
+        // std.sort.sort(*Range, selections_list.items, {});
+        return .{
+            .selection_boundaries = selection_boundaries,
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: *SelectionState) void {
+        self.selection_boundaries.deinit(self.allocator);
+    }
+    pub fn peek(self: *SelectionState) ?Item {
+        if (self.i >= self.selection_boundaries.items.len) return null;
+        return self.selection_boundaries.items[self.i];
+    }
+    pub fn consume(self: *SelectionState) void {
+        self.i += 1;
+    }
+
+    pub fn next(self: *SelectionState) ?Item {
+        const item = self.peek();
+        self.i += 1;
+        return item;
+    }
+    pub fn consumeIfNode(self: *SelectionState, node_id: DocTree.Node.NodeId) void {
+        while (self.peek()) |item| {
+            if (item.bp.node_id == node_id) {
+                self.consume();
+                continue;
+            }
+            break;
+        }
+    }
+};
 const HashMap = std.AutoHashMapUnmanaged;
 const SelectionSet = HashMap(DocTree.Selection.Id, void);
 const SelectionBoundariesMap = HashMap(DocTree.Node.NodeId, SelectionSet);
@@ -20,19 +107,23 @@ current_z_index: i32 = 0,
 /// Map from doc node ID to selection IDs that have boundaries in that node
 selection_boundaries: SelectionBoundariesMap = .{},
 active_selection: ?DocTree.Selection.Id = null,
+active_editing_host_index: ?usize = null,
+selection_state: SelectionState,
 
 const Self = @This();
 
-pub fn init(layout_tree: *LayoutTree, doc_tree: *DocTree, render_list: *RenderList) Self {
+pub fn init(layout_tree: *LayoutTree, doc_tree: *DocTree, render_list: *RenderList) !Self {
     return .{
         .layout_tree = layout_tree,
         .doc_tree = doc_tree,
         .render_list = render_list,
+        .selection_state = try SelectionState.init(doc_tree, layout_tree.allocator),
     };
 }
 
 pub fn deinit(self: *Self) void {
     var iter = self.selection_boundaries.iterator();
+    self.selection_state.deinit();
     while (iter.next()) |entry| {
         entry.value_ptr.deinit(self.layout_tree.allocator);
     }
@@ -56,7 +147,7 @@ pub fn build(self: *Self) !void {
     var active_selections = std.AutoHashMapUnmanaged(DocTree.Selection.Id, void){};
     defer active_selections.deinit(self.layout_tree.allocator);
     self.render_list.items.clearRetainingCapacity();
-    // Start from the root node (0)
+    self.render_list.node_boxes_map.clearRetainingCapacity();
     try self.buildNode(self.layout_tree.root_id, .{ .x = 0, .y = 0 });
 }
 
@@ -292,47 +383,102 @@ fn buildNode(self: *Self, l_node_id: LayoutTree.LayoutNode.Id, parent_abs_pos: m
     const node = self.layout_tree.getNodePtr(l_node_id);
     const box = node.box;
     const abs_pos = parent_abs_pos.add(box.location);
+    var content_abs = abs_pos;
+    var is_scroll_container: bool = false;
     switch (node.data) {
         .text_node, .inline_node => {
             unreachable;
         },
         .block_container_node => |*container| {
+            const current_editing_host_index: ?usize = self.active_editing_host_index;
+            defer self.active_editing_host_index = current_editing_host_index;
+            var box_index: ?usize = null;
+            var did_clip: bool = false;
             if (self.layout_tree.resolveDocNodeId(l_node_id)) |doc_node_id| {
+                const doc_node = self.doc_tree.getNode(doc_node_id);
+                self.selection_state.consumeIfNode(doc_node_id);
+
                 var style = self.doc_tree.getComputedStyle(doc_node_id);
                 if (node.ref == .anonymous) {
                     style = LayoutTree.anonymousInheritStyles(style);
                 }
 
                 const bounds = RenderList.Rect.fromBox(box, parent_abs_pos);
-                _ = try self.render_list.addItem(.{
+                var box_doc_node = self.doc_tree.getNode(doc_node_id);
+                const is_editing_host = box_doc_node.isEditingHost(self.doc_tree);
+                if (is_editing_host) {
+                    self.active_editing_host_index = self.render_list.items.items.len;
+                }
+                is_scroll_container = style.overflow.x.isScrollContainer() or style.overflow.y.isScrollContainer();
+                if (is_scroll_container) {
+                    // bounds = bounds.offset(doc_node.scroll_offset);
+                    content_abs = content_abs.sub(doc_node.scroll_offset);
+                }
+                box_index = try self.render_list.addItem(.{
                     .box = .{
                         .bounds = bounds,
-                        // .content_bounds = bounds,
                         .background = style.background_color,
                         .border_style = style.border_style,
                         .border_color = style.border_color,
-                        // .border_color = if (node_style) |s| s.border_color else .{
-                        //     .top = .{ .solid = Color.tw.white },
-                        //     .right = .{ .solid = Color.tw.white },
-                        //     .bottom = .{ .solid = Color.tw.white },
-                        //     .left = .{ .solid = Color.tw.white },
-                        // },
+
                         .doc_node_id = doc_node_id,
                         .z_index = 0,
                         .node_id = l_node_id,
                         .is_clickable = style.pointer_events != .none,
+                        .last_index = self.render_list.items.items.len,
+                        .is_editing_host = is_editing_host,
+                        .is_scroll_container = is_scroll_container,
+                        .scroll_offset = doc_node.scroll_offset,
                     },
                 });
+                try self.render_list.putDocNodeBoxIndex(doc_node_id, box_index.?);
+                if (is_scroll_container) {
+                    did_clip = true;
+                    _ = try self.render_list.addItem(.{
+                        .push_clip = .{
+                            .rect = .{
+                                .x = bounds.x + box.border.left,
+                                .y = bounds.y + box.border.top,
+                                .width = bounds.width - box.border.left - box.border.right,
+                                .height = bounds.height - box.border.top - box.border.bottom,
+                            },
+                        },
+                    });
+                }
             }
+
             for (container.children.items) |child_id| {
-                try self.buildNode(child_id, abs_pos);
+                try self.buildNode(child_id, content_abs);
+            }
+            if (box_index) |index| {
+                self.render_list.items.items[index].box.last_index = self.render_list.items.items.len - 1;
+            }
+            if (did_clip) {
+                _ = try self.render_list.addItem(.pop_clip);
             }
         },
         .inline_container_node => |*container| {
+            const current_editing_host_index: ?usize = self.active_editing_host_index;
+            defer self.active_editing_host_index = current_editing_host_index;
+            var box_index: ?usize = null;
+            var did_clip: bool = false;
             if (self.layout_tree.getDocNodeId(l_node_id)) |doc_node_id| {
+                self.selection_state.consumeIfNode(doc_node_id);
+                const doc_node = self.doc_tree.getNode(doc_node_id);
+
                 const style = self.doc_tree.getComputedStyle(doc_node_id);
+                is_scroll_container = style.overflow.x.isScrollContainer() or style.overflow.y.isScrollContainer();
                 const bounds = RenderList.Rect.fromBox(box, parent_abs_pos);
-                _ = try self.render_list.addItem(.{
+                var box_doc_node = self.doc_tree.getNode(doc_node_id);
+                const is_editing_host = box_doc_node.isEditingHost(self.doc_tree);
+                if (is_editing_host) {
+                    self.active_editing_host_index = self.render_list.items.items.len;
+                }
+                if (is_scroll_container) {
+                    // bounds = bounds.offset(doc_node.scroll_offset);
+                    content_abs = content_abs.sub(doc_node.scroll_offset);
+                }
+                box_index = try self.render_list.addItem(.{
                     .box = .{
                         .bounds = bounds,
                         // .content_bounds = bounds,
@@ -344,17 +490,33 @@ fn buildNode(self: *Self, l_node_id: LayoutTree.LayoutNode.Id, parent_abs_pos: m
                         .z_index = 0,
                         .node_id = l_node_id,
                         .is_clickable = style.pointer_events != .none,
+                        .last_index = self.render_list.items.items.len,
+                        .is_editing_host = is_editing_host,
+                        .is_scroll_container = is_scroll_container,
+                        .scroll_offset = doc_node.scroll_offset,
                     },
                 });
+                try self.render_list.putDocNodeBoxIndex(doc_node_id, box_index.?);
+                if (is_scroll_container) {
+                    did_clip = true;
+                    _ = try self.render_list.addItem(.{
+                        .push_clip = .{
+                            .rect = .{
+                                .x = bounds.x + box.border.left,
+                                .y = bounds.y + box.border.top,
+                                .width = bounds.width - box.border.left - box.border.right,
+                                .height = bounds.height - box.border.top - box.border.bottom,
+                            },
+                        },
+                    });
+                }
             }
             for (container.line_boxes.items()) |line_box| {
-                const line_abs = abs_pos.add(line_box.location);
+                const line_abs = content_abs.add(line_box.location);
                 const line_box_index = self.render_list.items.items.len;
-                // std.debug.print("line_box_index: {d}\n", .{line_box.fragments.items.len});
                 var fragment_indexes = try self.layout_tree.allocator.alloc(usize, line_box.fragments.items.len);
                 _ = try self.render_list.addItem(.{
                     .line_box = .{
-                        // .bounds = RenderList.Rect.fromBox(node.box, abs_pos),
                         .bounds = .{
                             .x = line_abs.x,
                             .y = line_abs.y,
@@ -365,21 +527,25 @@ fn buildNode(self: *Self, l_node_id: LayoutTree.LayoutNode.Id, parent_abs_pos: m
                         .doc_node_id = self.layout_tree.resolveDocNodeId(l_node_id) orelse unreachable,
                         .fragment_indexes = fragment_indexes,
                         .allocator = self.layout_tree.allocator,
+                        .editing_host_index = self.active_editing_host_index,
                     },
                 });
 
                 // const line_box_abs_pos = abs_pos.add(line_box.location);
                 for (line_box.fragments.items, 0..) |fragment, i| {
+                    // const peeked_selection = self.selection_state.peek();
+                    // _ = peeked_selection; // autofix
+
                     const doc_node_id = self.layout_tree.resolveDocNodeId(fragment.l_node_id) orelse unreachable;
                     const style = self.doc_tree.getComputedStyle(doc_node_id);
                     const frag_abs = line_abs.add(fragment.position);
                     const index = try self.render_list.addItem(.{
                         .text_fragment = .{
                             .bounds = RenderList.Rect{
-                                .x = frag_abs.x,
-                                .y = frag_abs.y,
-                                .width = fragment.size.x,
-                                .height = fragment.size.y,
+                                .x = @round(frag_abs.x),
+                                .y = @round(frag_abs.y),
+                                .width = @round(fragment.size.x),
+                                .height = @round(fragment.size.y),
                             },
                             .linebox_index = line_box_index,
                             .text = fragment.text,
@@ -390,37 +556,67 @@ fn buildNode(self: *Self, l_node_id: LayoutTree.LayoutNode.Id, parent_abs_pos: m
                             .is_clickable = style.pointer_events != .none,
                             .dom_range = fragment.dom_range,
                             .is_atomic = fragment.is_atomic,
+                            .editing_host_index = self.active_editing_host_index,
                         },
                     });
+                    var fragment_item = &self.render_list.items.items[index].text_fragment;
+                    const contains_selection_boundary = if (self.selection_state.peek()) |selection_item| fragment_item.containsBp(selection_item.bp) else false;
+
+                    if (contains_selection_boundary) {
+                        var x = fragment_item.bounds.x;
+
+                        while (self.selection_state.peek()) |selection_boundary| {
+                            if (fragment_item.containsBp(selection_boundary.bp)) {
+                                self.selection_state.consume();
+                                const offset_position = fragment_item.getOffsetPosition(selection_boundary.bp.offset);
+                                if (selection_boundary.is_start) {
+                                    x = offset_position.x;
+                                } else {
+                                    try self.addSelectionBox(.{
+                                        .x = x,
+                                        .y = fragment_item.bounds.y,
+                                        .width = offset_position.x - x,
+                                        .height = fragment_item.bounds.height,
+                                    }, .{ .r = 1, .g = 0, .b = 0, .a = 0.5 }, selection_boundary.selection);
+                                    fragment_item = &self.render_list.items.items[index].text_fragment;
+                                    x = fragment_item.bounds.right();
+                                }
+                                continue;
+                            }
+                            break;
+                        }
+                        if (self.selection_state.getActiveSelection()) |selection_id| {
+                            try self.addSelectionBox(.{
+                                .x = x,
+                                .y = fragment_item.bounds.y,
+                                .width = fragment_item.bounds.right() - x,
+                                .height = fragment_item.bounds.height,
+                            }, .{ .r = 0, .g = 0, .b = 0.8, .a = 0.5 }, selection_id);
+                        }
+                    } else {
+                        if (self.selection_state.getActiveSelection()) |selection_id| {
+                            try self.addSelectionBox(
+                                fragment_item.bounds,
+                                .{ .r = 0, .g = 0, .b = 0.8, .a = 0.5 },
+                                selection_id,
+                            );
+                        }
+                    }
+
                     fragment_indexes[i] = index;
                     if (fragment.is_atomic) {
                         try self.buildNode(fragment.l_node_id, line_abs);
                     }
-                    try self.generateSelectionBoxForFragment(&self.render_list.items.items[index].text_fragment, .{ .r = 1, .g = 0, .b = 0, .a = 0.5 });
-                    // try self.addSelectionOverlay(&fragment, frag_abs, fragment.dom_range);
+                }
+                if (box_index) |index| {
+                    self.render_list.items.items[index].box.last_index = self.render_list.items.items.len - 1;
                 }
             }
-        },
-        // .inline_container_node => |*container| {
-    }
-}
-
-/// Build render items for line boxes
-fn buildLineBoxes(self: *Self, l_node_id: LayoutTree.LayoutNode.Id, abs_pos: mod.CSSPoint, z_index: i32) !void {
-    // const doc_node_id = self.layout_tree.resolveDocNodeId(container_id) orelse null;
-    const node = self.layout_tree.getNodePtr(l_node_id);
-    switch (node.data) {
-        .inline_container_node => |*container| {
-            for (container.line_boxes.items) |line_box| {
-                _ = line_box; // autofix
-                // try self.buildLineBox(line_box, l_node_id, abs_pos, z_index);
+            if (did_clip) {
+                _ = try self.render_list.addItem(.pop_clip);
             }
         },
-        else => {},
     }
-    _ = abs_pos; // autofix
-    _ = z_index; // autofix
-
 }
 
 fn measureTextWidth(text: []const u8, start: usize, end: usize) f32 {

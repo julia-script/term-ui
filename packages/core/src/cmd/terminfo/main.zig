@@ -169,10 +169,12 @@ pub const Names = struct {
     const Self = @This();
 
     allocator: std.mem.Allocator,
-    values: std.ArrayList([]const u8),
+    values: std.ArrayList([]const u8) = .empty,
 
     pub fn init(allocator: std.mem.Allocator, section: []const u8) std.mem.Allocator.Error!Self {
-        var names: std.ArrayList([]const u8) = std.ArrayList([]const u8).init(allocator);
+        var self = Self{
+            .allocator = allocator,
+        };
 
         var start: u16 = 0;
         var end: u16 = 0;
@@ -191,7 +193,7 @@ pub const Names = struct {
             if (!is_empty) {
                 const dest: []u8 = try allocator.alloc(u8, name_len);
                 @memcpy(dest, section[start..end]);
-                try names.append(dest);
+                try self.values.append(allocator, dest);
             }
 
             // move past '|'
@@ -200,10 +202,7 @@ pub const Names = struct {
             start = end;
         }
 
-        return Self{
-            .allocator = allocator,
-            .values = names,
-        };
+        return self;
     }
 
     pub fn deinit(self: Self) void {

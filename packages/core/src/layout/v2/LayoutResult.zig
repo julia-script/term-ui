@@ -37,3 +37,21 @@ pub fn dupe(self: @This(), allocator: std.mem.Allocator) !Self {
         .scrollbar_size = self.scrollbar_size,
     };
 }
+
+pub fn format(self: @This(), comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: std.io.AnyWriter) !void {
+    _ = fmt; // autofix
+    _ = options; // autofix
+    try writer.print("LayoutResult {{\n", .{});
+    // try writer.print("  line_boxes: {any},\n", .{self.line_boxes});
+    try writer.print("  size: {any},\n", .{self.size});
+    try writer.print("  content_size: {any},\n", .{self.content_size});
+    try writer.print("  first_baselines: {any},\n", .{self.first_baselines});
+    try writer.print("  top_margin: {any},\n", .{self.top_margin});
+    try writer.print("  bottom_margin: {any},\n", .{self.bottom_margin});
+    try writer.print("  margins_can_collapse_through: {any},\n", .{self.margins_can_collapse_through});
+    try writer.print("  resolved_margin: {any},\n", .{self.resolved_margin});
+    try writer.print("  resolved_padding: {any},\n", .{self.resolved_padding});
+    try writer.print("  resolved_border: {any},\n", .{self.resolved_border});
+    try writer.print("  scrollbar_size: {any},\n", .{self.scrollbar_size});
+    try writer.print("}}\n", .{});
+}

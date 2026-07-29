@@ -59,7 +59,7 @@ export class Tree {
   }
   dump() {
     this.assertNotDisposed();
-    this.module.Tree_dump(this.ptr);
+    return this.module.Tree_dump(this.ptr);
   }
   dispose() {
     this.assertNotDisposed();
@@ -69,5 +69,8 @@ export class Tree {
 
   [Symbol.dispose]() {
     this.dispose();
+  }
+  [Symbol.for("nodejs.util.inspect.custom")]() {
+    return `<Tree (@${this.ptr.toString(16)})/>`;
   }
 }

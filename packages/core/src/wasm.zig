@@ -26,23 +26,26 @@ pub const std_options: std.Options = .{
 };
 
 extern fn externalLog(message: [*:0]u8) void;
+
 pub fn wasmLog(
     comptime message_level: std.log.Level,
-    comptime scope: @Type(.enum_literal),
+    comptime scope: @TypeOf(.enum_literal),
     comptime format: []const u8,
     args: anytype,
 ) void {
     const level_txt = comptime message_level.asText();
 
-    var str = std.ArrayList(u8).init(std.heap.wasm_allocator);
-    var writer = str.writer().any();
+    var buffer: [4096]u8 = undefined;
+    const header = std.fmt.bufPrint(&buffer, "level: {s};scope: {s};\r\n", .{ level_txt, @tagName(scope) }) catch return;
+    const remaining = buffer[header.len..];
+    const body = std.fmt.bufPrint(remaining, format, args) catch return;
+    const total_len = header.len + body.len;
 
-    writer.print("level: {s};scope: {s};\r\n", .{ level_txt, @tagName(scope) }) catch unreachable;
-    writer.print(format, args) catch unreachable;
-    const owned = str.toOwnedSliceSentinel(0) catch unreachable;
+    const msg = wasm_try([*:0]u8, std.heap.wasm_allocator.allocSentinel(u8, total_len, 0));
+    @memcpy(msg[0..total_len], buffer[0..total_len]);
 
-    externalLog(owned.ptr);
-    std.heap.wasm_allocator.free(owned);
+    externalLog(msg);
+    std.heap.wasm_allocator.free(msg[0 .. total_len + 1]);
 }
 
 var gpa = std.heap.GeneralPurposeAllocator(.{
@@ -284,11 +287,42 @@ pub export fn Tree_getElementById(tree: *Tree, id: [*:0]u8) u32 {
     return @intCast(result);
 }
 
-pub export fn Tree_setElementId(tree: *Tree, node: u32, id: [*:0]u8) void {
-    logger.info("Tree_setElementId({*}, {d}, \"{s}\")", .{ tree, node, id });
-    defer freeNullTerminatedBuffer(id);
-    const id_slice = id[0..std.mem.len(id)];
-    wasm_try(void, tree.setElementId(node, id_slice));
+pub export fn Node_getAttribute(tree: *Tree, node: u32, name: [*:0]u8) ?[*:0]const u8 {
+    logger.info("Node_getAttribute({*}, {d}, \"{s}\")", .{ tree, node, name });
+    defer freeNullTerminatedBuffer(name);
+    const name_slice = name[0..std.mem.len(name)];
+    const result = tree.getNode(node).getAttribute(name_slice) orelse {
+        // Return null for non-existent attributes
+        return null;
+    };
+    // Return the actual string pointer (could be empty string)
+    return @ptrCast(result);
+}
+
+export fn Node_setAttribute(tree: *Tree, node_id: u32, name: [*:0]u8, value: [*:0]u8) void {
+    logger.info("Node_setAttribute({*}, {d}, \"{s}\", \"{s}\")", .{ tree, node_id, name, value });
+    defer freeNullTerminatedBuffer(name);
+    defer freeNullTerminatedBuffer(value);
+    const name_slice = name[0..std.mem.len(name)];
+    const value_slice = value[0..std.mem.len(value)];
+    const node = tree.getNode(node_id);
+    wasm_try(void, node.setAttribute(name_slice, value_slice));
+}
+
+export fn Node_hasAttribute(tree: *Tree, node_id: u32, name: [*:0]u8) bool {
+    logger.info("Node_hasAttribute({*}, {d}, \"{s}\")", .{ tree, node_id, name });
+    defer freeNullTerminatedBuffer(name);
+    const name_slice = name[0..std.mem.len(name)];
+    const node = tree.getNode(node_id);
+    return node.hasAttribute(name_slice);
+}
+
+export fn Node_removeAttribute(tree: *Tree, node_id: u32, name: [*:0]u8) void {
+    logger.info("Node_removeAttribute({*}, {d}, \"{s}\")", .{ tree, node_id, name });
+    defer freeNullTerminatedBuffer(name);
+    const name_slice = name[0..std.mem.len(name)];
+    const node = tree.getNode(node_id);
+    node.removeAttribute(name_slice);
 }
 
 pub var HIT_TEST_RESULT_BUFFER = [2]u32{ 0, 0 };
@@ -310,9 +344,9 @@ pub export fn Tree_hitTest(tree: *Tree, x: f32, y: f32, filter: u8) [*]u32 {
 var HIT_TEST_LIST_RESULT_BUFFER: [1024]u32 = undefined;
 pub export fn Tree_hitTestList(tree: *Tree, x: f32, y: f32, filter: u8) [*]u32 {
     logger.info("Tree_hitTestList({*}, {d}, {d}, {d})", .{ tree, x, y, filter });
-    var list = std.ArrayList(RenderList.HitTestResult).init(wasm_allocator);
-    defer list.deinit();
-    wasm_try(void, tree.hitTestList(&list, .{ .x = x, .y = y }, filter));
+    var list: std.ArrayList(RenderList.HitTestResult) = .empty;
+    defer list.deinit(wasm_allocator);
+    wasm_try(void, tree.hitTestList(&list, wasm_allocator, .{ .x = x, .y = y }, filter));
     var i: usize = 0;
     for (list.items) |result| {
         HIT_TEST_LIST_RESULT_BUFFER[i * 2] = @intCast(result.external_id);
@@ -338,75 +372,232 @@ export fn Tree_getNodeContains(tree: *Tree, root: u32, node: u32) bool {
     return tree.getNodeContains(root, node);
 }
 
-export fn Tree_getNodeScrollTop(tree: *Tree, node_id: u32) f32 {
-    logger.info("Tree_getNodeScrollTop({*}, {d})", .{ tree, node_id });
+export fn Node_getScrollTop(tree: *Tree, node_id: u32) f32 {
+    logger.info("Node_getScrollTop({*}, {d})", .{ tree, node_id });
     return tree.getNode(node_id).scroll_offset.y;
 }
-export fn Tree_getNodeScrollLeft(tree: *Tree, node_id: u32) f32 {
-    logger.info("Tree_getNodeScrollLeft({*}, {d})", .{ tree, node_id });
-    return tree.getNode(node_id).scroll_offset.x;
-}
-export fn Tree_setNodeScrollTop(tree: *Tree, node_id: u32, y: f32) void {
-    logger.info("Tree_setNodeScrollTop({*}, {d}, {d})", .{ tree, node_id, y });
-    tree.getNode(node_id).scroll_offset.y = y;
-}
-export fn Tree_setNodeScrollLeft(tree: *Tree, node_id: u32, x: f32) void {
-    logger.info("Tree_setNodeScrollLeft({*}, {d}, {d})", .{ tree, node_id, x });
-    tree.getNode(node_id).scroll_offset.x = x;
-}
-// export fn Tree_getNodeScrollYMax(tree: *Tree, node_id: u32) f32 {
-//     const node = tree.getNode(node_id);
-//     const parent_layout = tree.getLayout(node.parent orelse return 0);
-//     const inner_size = parent_layout.size.sub(parent_layout.border.sumAxes()).sub(parent_layout.padding.sumAxes());
-//     return tree.getLayout(node_id).content_size.y - inner_size.y;
-// }
-
-export fn Tree_getNodeScrollHeight(tree: *Tree, node_id: u32) f32 {
-    logger.info("Tree_getNodeScrollHeight({*}, {d})", .{ tree, node_id });
-    return tree.getLayout(node_id).content_size.y;
-}
-export fn Tree_getNodeScrollWidth(tree: *Tree, node_id: u32) f32 {
-    logger.info("Tree_getNodeScrollWidth({*}, {d})", .{ tree, node_id });
-    return tree.getLayout(node_id).content_size.x;
+export fn Node_getScrollLeft(tree: *Tree, node_id: u32) f32 {
+    logger.info("Node_getScrollLeft({*}, {d})", .{ tree, node_id });
+    return tree.getNode(node_id).getScrollLeft();
 }
 
-export fn Tree_getNodeClientHeight(tree: *Tree, node_id: u32) f32 {
-    logger.info("Tree_getNodeClientHeight({*}, {d})", .{ tree, node_id });
-    const layout = tree.getLayout(node_id);
-    return layout.size.y - layout.border.sumAxes().y;
+export fn Node_setScrollTop(tree: *Tree, node_id: u32, value: f32) void {
+    logger.info("Node_setScrollTop({*}, {d}, {d})", .{ tree, node_id, value });
+    tree.getNode(node_id).setScrollTop(tree, value);
 }
 
-export fn Tree_getNodeClientWidth(tree: *Tree, node_id: u32) f32 {
-    logger.info("Tree_getNodeClientWidth({*}, {d})", .{ tree, node_id });
-    const layout = tree.getLayout(node_id);
-    return layout.size.x - layout.border.sumAxes().x;
+export fn Node_setScrollLeft(tree: *Tree, node_id: u32, value: f32) void {
+    logger.info("Node_setScrollLeft({*}, {d}, {d})", .{ tree, node_id, value });
+    tree.getNode(node_id).setScrollLeft(tree, value);
+}
+
+export fn Node_getScrollHeight(tree: *Tree, node_id: u32) f32 {
+    logger.info("Node_getScrollHeight({*}, {d})", .{ tree, node_id });
+    return tree.getNode(node_id).getScrollHeight(tree);
+}
+
+export fn Node_getScrollWidth(tree: *Tree, node_id: u32) f32 {
+    logger.info("Node_getScrollWidth({*}, {d})", .{ tree, node_id });
+    return tree.getNode(node_id).getScrollWidth(tree);
+}
+
+export fn Node_getClientHeight(tree: *Tree, node_id: u32) f32 {
+    logger.info("Node_getClientHeight({*}, {d})", .{ tree, node_id });
+    return tree.getNode(node_id).getClientHeight(tree);
+}
+
+export fn Node_getClientWidth(tree: *Tree, node_id: u32) f32 {
+    logger.info("Node_getClientWidth({*}, {d})", .{ tree, node_id });
+    return tree.getNode(node_id).getClientWidth(tree);
+}
+
+export fn Node_getScrollTopMax(tree: *Tree, node_id: u32) f32 {
+    logger.info("Node_getScrollTopMax({*}, {d})", .{ tree, node_id });
+    return tree.getNode(node_id).getScrollTopMax(tree);
+}
+
+export fn Node_getScrollLeftMax(tree: *Tree, node_id: u32) f32 {
+    logger.info("Node_getScrollLeftMax({*}, {d})", .{ tree, node_id });
+    return tree.getNode(node_id).getScrollLeftMax(tree);
+}
+
+export fn Node_canScroll(tree: *Tree, node_id: u32, direction: u8, delta: f32) bool {
+    logger.info("Node_canScroll({*}, {d}, {d}, {d})", .{ tree, node_id, direction, delta });
+    const node = tree.getNode(node_id);
+    return node.canScroll(tree, @enumFromInt(direction), delta);
 }
 
 const tree_dump_logger = std.log.scoped(.tree_dump);
-pub export fn Tree_dump(tree: *Tree) void {
-    // if (!is_wasm) return;
-    var array_list = std.ArrayList(u8).init(wasm_allocator);
-    defer array_list.deinit();
+var dump_array_list: std.ArrayList(u8) = .empty;
 
-    wasm_try(void, tree.print(array_list.writer().any()));
+const ArrayListWriter = struct {
+    list: *std.ArrayList(u8),
+    allocator: std.mem.Allocator,
 
-    tree_dump_logger.info("{s}", .{array_list.items});
-    // std.io.getStdErr().writer().print("{s}", .{array_list.items}) catch {};
+    pub const Error = error{OutOfMemory};
+
+    pub fn print(self: ArrayListWriter, comptime format_str: []const u8, args: anytype) Error!void {
+        var buf: [1024]u8 = undefined;
+        const formatted = std.fmt.bufPrint(&buf, format_str, args) catch return error.OutOfMemory;
+        try self.writeAll(formatted);
+    }
+
+    pub fn writeAll(self: ArrayListWriter, bytes: []const u8) Error!void {
+        self.list.appendSlice(self.allocator, bytes) catch return error.OutOfMemory;
+    }
+
+    pub fn writeByte(self: ArrayListWriter, byte: u8) Error!void {
+        self.list.append(self.allocator, byte) catch return error.OutOfMemory;
+    }
+
+    pub fn writeByteNTimes(self: ArrayListWriter, byte: u8, n: usize) Error!void {
+        for (0..n) |_| {
+            try self.writeByte(byte);
+        }
+    }
+};
+
+pub export fn Tree_dump(tree: *Tree) [*:0]u8 {
+    dump_array_list.clearRetainingCapacity();
+
+    const list_writer = ArrayListWriter{ .list = &dump_array_list, .allocator = wasm_allocator };
+    wasm_try(void, tree.print(list_writer));
+    wasm_try(void, dump_array_list.append(wasm_allocator, 0));
+
+    return @ptrCast(dump_array_list.items.ptr);
 }
 pub export fn Tree_dumpLayoutTree(tree: *Tree) void {
-    // if (!is_wasm) return;
-    var array_list = std.ArrayList(u8).init(wasm_allocator);
-    defer array_list.deinit();
-    wasm_try(void, tree.layout_tree.printRoot(array_list.writer().any()));
+    var array_list: std.ArrayList(u8) = .empty;
+    defer array_list.deinit(wasm_allocator);
+    const list_writer = ArrayListWriter{ .list = &array_list, .allocator = wasm_allocator };
+    wasm_try(void, tree.layout_tree.printRoot(list_writer));
     tree_dump_logger.info("{s}", .{array_list.items});
-    // std.io.getStdErr().writer().print("{s}", .{array_list.items}) catch {};
 }
-pub export fn Tree_setText(tree: *Tree, node: u32, text: [*:0]u8) void {
-    logger.info("Tree_setText({*}, {d}, \"{s}\")", .{ tree, node, text });
+pub export fn Node_setText(tree: *Tree, node: u32, text: [*:0]u8) void {
+    logger.info("Node_setText({*}, {d}, \"{s}\")", .{ tree, node, text });
     defer freeNullTerminatedBuffer(text);
     const text_slice = text[0..std.mem.len(text)];
     wasm_try(void, tree.setText(node, text_slice));
 }
+export fn Node_getText(tree: *Tree, node: u32) [*:0]u8 {
+    logger.info("Node_getText({*}, {d})", .{ tree, node });
+    const node_obj = tree.getNode(node);
+    return @ptrCast(node_obj.text.bytes.items.ptr);
+}
+export fn Node_getTextLength(tree: *Tree, node: u32) u32 {
+    logger.info("Node_getTextLength({*}, {d})", .{ tree, node });
+    const node_obj = tree.getNode(node);
+    return @intCast(node_obj.text.length());
+}
+
+export fn Node_appendData(tree: *Tree, node_id: u32, data: [*:0]u8) void {
+    logger.info("Node_appendData({*}, {d}, \"{s}\")", .{ tree, node_id, data });
+    defer freeNullTerminatedBuffer(data);
+    const data_slice = data[0..std.mem.len(data)];
+    const node = tree.getNode(node_id);
+    wasm_try(void, node.appendData(tree, data_slice));
+}
+
+export fn Node_insertData(tree: *Tree, node_id: u32, offset: u32, data: [*:0]u8) void {
+    logger.info("Node_insertData({*}, {d}, {d}, \"{s}\")", .{ tree, node_id, offset, data });
+    defer freeNullTerminatedBuffer(data);
+    const data_slice = data[0..std.mem.len(data)];
+    const node = tree.getNode(node_id);
+    wasm_try(void, node.insertData(tree, offset, data_slice));
+}
+
+export fn Node_replaceData(tree: *Tree, node_id: u32, offset: u32, count: u32, data: [*:0]u8) void {
+    logger.info("Node_replaceData({*}, {d}, {d}, {d}, \"{s}\")", .{ tree, node_id, offset, count, data });
+    defer freeNullTerminatedBuffer(data);
+    const data_slice = data[0..std.mem.len(data)];
+    const node = tree.getNode(node_id);
+    wasm_try(void, node.replaceData(tree, offset, count, data_slice));
+}
+
+export fn Node_deleteData(tree: *Tree, node_id: u32, offset: u32, count: u32) void {
+    logger.info("Node_deleteData({*}, {d}, {d}, {d})", .{ tree, node_id, offset, count });
+    const node = tree.getNode(node_id);
+    wasm_try(void, node.deleteData(tree, offset, count));
+}
+
+export fn Node_isEditingHost(tree: *Tree, node_id: u32) bool {
+    logger.info("Node_isEditingHost({*}, {d})", .{ tree, node_id });
+    const node = tree.getNode(node_id);
+    return node.isEditingHost(tree);
+}
+
+export fn Node_isEditable(tree: *Tree, node_id: u32) bool {
+    logger.info("Node_isEditable({*}, {d})", .{ tree, node_id });
+    const node = tree.getNode(node_id);
+    return node.isEditable(tree);
+}
+
+export fn Node_getEditingHost(tree: *Tree, node_id: u32) u32 {
+    logger.info("Node_getEditingHost({*}, {d})", .{ tree, node_id });
+    const node = tree.getNode(node_id);
+    if (node.getEditingHost(tree)) |host_id| {
+        return @intCast(host_id);
+    }
+    return NULL;
+}
+
+export fn Node_inSameEditingHost(tree: *Tree, node_id: u32, other_id: u32) bool {
+    logger.info("Node_inSameEditingHost({*}, {d}, {d})", .{ tree, node_id, other_id });
+    const node = tree.getNode(node_id);
+    return node.inSameEditingHost(tree, other_id);
+}
+
+export fn Node_compareDocumentPosition(tree: *Tree, node_id: u32, other_id: u32) u16 {
+    logger.info("Node_compareDocumentPosition({*}, {d}, {d})", .{ tree, node_id, other_id });
+    const node = tree.getNode(node_id);
+    return node.compareDocumentPosition(tree, other_id);
+}
+
+const Node = @import("tree/Node.zig");
+const ClientRect = Node.ClientRect;
+
+export fn Node_getClientRects(tree: *Tree, node_id: u32) [*]f32 {
+    logger.info("Node_getClientRects({*}, {d})", .{ tree, node_id });
+    const node = tree.getNode(node_id);
+
+    const rects = wasm_try([]ClientRect, node.getClientRects(tree, wasm_allocator));
+    defer wasm_allocator.free(rects);
+
+    // Convert to flat f32 array with flag format
+    // Format: [flag, x, y, width, height, ...] where flag is 1 for valid rect, 0 for end
+    const result_size = rects.len * 5 + 1; // 5 values per rect + sentinel
+    const result = wasm_try([]f32, wasm_allocator.alloc(f32, result_size));
+
+    var idx: usize = 0;
+    for (rects) |rect| {
+        result[idx] = 1.0; // flag: valid rect
+        result[idx + 1] = rect.x;
+        result[idx + 2] = rect.y;
+        result[idx + 3] = rect.width;
+        result[idx + 4] = rect.height;
+        idx += 5;
+    }
+
+    // End marker - just a single 0
+    result[idx] = 0.0;
+
+    return result.ptr;
+}
+
+export fn Node_getBoundingClientRect(tree: *Tree, node_id: u32) [*]f32 {
+    logger.info("Node_getBoundingClientRect({*}, {d})", .{ tree, node_id });
+    const node = tree.getNode(node_id);
+    const rect = node.getBoundingClientRect(tree);
+
+    // Use global scratch buffer
+    client_rect_buffer[0] = rect.x;
+    client_rect_buffer[1] = rect.y;
+    client_rect_buffer[2] = rect.width;
+    client_rect_buffer[3] = rect.height;
+
+    return &client_rect_buffer;
+}
+
 pub export fn Tree_computeStyles(tree: *Tree) void {
     logger.info("Tree_computeStyles({*})", .{tree});
     wasm_try(void, tree.computeStyles());
@@ -442,18 +633,40 @@ pub export fn Tree_computeLayout(tree: *Tree, width: [*:0]u8, height: [*:0]u8) v
         },
     }));
 }
+var point_buffer: [2]f32 = undefined;
+pub export fn Tree_getBoundaryPointPosition(tree: *Tree, node_id: u32, offset: u32) [*]f32 {
+    logger.info("Tree_getBoundaryPointPosition({*}, {d}, {d})", .{ tree, node_id, offset });
+    const position = tree.getBoundaryPointPosition(node_id, offset);
+    point_buffer[0] = position.x;
+    point_buffer[1] = position.y;
+    return &point_buffer;
+}
 pub export fn Tree_paintSimple(tree: *Tree, renderer: *Renderer) void {
     logger.info("Tree_paint({*}, {*})", .{ tree, renderer });
     // var buffer = std.ArrayList(u8).init(wasm_allocator);
     // defer buffer.deinit();
-    wasm_try(void, tree.paint(renderer, std.io.getStdErr().writer().any(), .simple));
+    // In WASM context, we don't have stderr - use a no-op writer
+    const noop_writer = NoOpWriter{};
+    wasm_try(void, tree.paint(renderer, noop_writer, .simple));
 }
 pub export fn Tree_paintApp(tree: *Tree, renderer: *Renderer) void {
     logger.info("Tree_paintApp({*}, {*})", .{ tree, renderer });
-    wasm_try(void, tree.paint(renderer, std.io.getStdErr().writer().any(), .app));
+    // In WASM context, we don't have stderr - use a no-op writer
+    const noop_writer = NoOpWriter{};
+    wasm_try(void, tree.paint(renderer, noop_writer, .app));
 }
 
+const NoOpWriter = struct {
+    pub const Error = error{};
+
+    pub fn print(_: NoOpWriter, comptime _: []const u8, _: anytype) Error!void {}
+    pub fn writeAll(_: NoOpWriter, _: []const u8) Error!void {}
+    pub fn writeByte(_: NoOpWriter, _: u8) Error!void {}
+    pub fn writeByteNTimes(_: NoOpWriter, _: u8, _: usize) Error!void {}
+};
+
 var boundary_point_buffer: [4]u32 = undefined;
+var client_rect_buffer: [4]f32 = undefined;
 
 pub export fn Tree_caretPositionFromPoint(tree: *Tree, x: f32, y: f32) [*]u32 {
     const boundary_point = tree.caretPositionFromPoint(.{ .x = x, .y = y }) orelse {
@@ -471,6 +684,17 @@ export fn Tree_createSelection(tree: *Tree, start_node: u32, start_offset: u32, 
         .{ .node_id = start_node, .offset = start_offset },
         if (end_node == NULL) null else .{ .node_id = end_node, .offset = end_offset },
     )));
+}
+export fn Selection_getFocusPosition(tree: *Tree, selection_id: Tree.Selection.Id) [*]f32 {
+    const selection = tree.getSelection(selection_id);
+    const position = selection.getFocusPosition(tree) orelse {
+        point_buffer[0] = 0;
+        point_buffer[1] = 0;
+        return &point_buffer;
+    };
+    point_buffer[0] = position.x;
+    point_buffer[1] = position.y;
+    return &point_buffer;
 }
 export fn Selection_getAnchor(tree: *Tree, selection_id: Tree.Selection.Id) [*]u32 {
     const selection = tree.getSelection(selection_id);
@@ -505,6 +729,81 @@ export fn Selection_setFocus(tree: *Tree, selection_id: Tree.Selection.Id, node_
     selection.setFocus(tree, .{ .node_id = node_id, .offset = offset }) catch |e| {
         logger.err("Error {s} Selection_setFocus({d}, {d}, {d})", .{ @errorName(e), selection_id, node_id, offset });
     };
+}
+
+export fn Selection_modify(
+    tree: *Tree,
+    selection_id: Tree.Selection.Id,
+    direction: u8,
+    granularity: u8,
+    ghost_position: f32,
+) void {
+    logger.debug("Selection_modify({d}, {d}, {d}, {d})", .{ selection_id, direction, granularity, ghost_position });
+    const selection = tree.getSelection(selection_id);
+    wasm_try(void, selection.modify(
+        tree,
+        @as(Tree.Selection.ExtendDirection, @enumFromInt(direction)),
+        @as(Tree.Selection.ExtendGranularity, @enumFromInt(granularity)),
+        if (ghost_position == -1) null else ghost_position,
+    ));
+}
+
+export fn Selection_deleteFromDocument(tree: *Tree, selection_id: Tree.Selection.Id) void {
+    logger.debug("Selection_deleteFromDocument({d})", .{selection_id});
+    const selection = tree.getSelection(selection_id);
+    wasm_try(void, selection.deleteFromDocument(tree));
+}
+
+export fn Selection_collapseToStart(tree: *Tree, selection_id: Tree.Selection.Id) void {
+    logger.debug("Selection_collapseToStart({d})", .{selection_id});
+    const selection = tree.getSelection(selection_id);
+    wasm_try(void, selection.collapseToStart(tree));
+}
+
+export fn Selection_collapseToEnd(tree: *Tree, selection_id: Tree.Selection.Id) void {
+    logger.debug("Selection_collapseToEnd({d})", .{selection_id});
+    const selection = tree.getSelection(selection_id);
+    wasm_try(void, selection.collapseToEnd(tree));
+}
+
+export fn Selection_isCollapsed(tree: *Tree, selection_id: Tree.Selection.Id) bool {
+    const selection = tree.getSelection(selection_id);
+    return selection.isCollapsed();
+}
+
+export fn Range_deleteContents(tree: *Tree, selection_id: Tree.Selection.Id) void {
+    logger.debug("Range_deleteContents({d})", .{selection_id});
+    const selection = tree.getSelection(selection_id);
+    const range = selection.getRange(tree);
+    wasm_try(void, range.deleteContents(tree));
+}
+
+export fn Range_setStart(tree: *Tree, selection_id: Tree.Selection.Id, node_id: u32, offset: u32) void {
+    logger.debug("Range_setStart({d}, {d}, {d})", .{ selection_id, node_id, offset });
+    const selection = tree.getSelection(selection_id);
+    const range = selection.getRange(tree);
+    wasm_try(void, range.setStart(tree, node_id, offset));
+}
+
+export fn Range_setEnd(tree: *Tree, selection_id: Tree.Selection.Id, node_id: u32, offset: u32) void {
+    logger.debug("Range_setEnd({d}, {d}, {d})", .{ selection_id, node_id, offset });
+    const selection = tree.getSelection(selection_id);
+    const range = selection.getRange(tree);
+    wasm_try(void, range.setEnd(tree, node_id, offset));
+}
+
+export fn Range_collapse(tree: *Tree, selection_id: Tree.Selection.Id, to_start: bool) void {
+    logger.debug("Range_collapse({d}, {d})", .{ selection_id, to_start });
+    const selection = tree.getSelection(selection_id);
+    const range = selection.getRange(tree);
+    wasm_try(void, range.collapse(tree, to_start));
+}
+
+export fn Range_insertNode(tree: *Tree, selection_id: Tree.Selection.Id, node_id: u32) void {
+    logger.debug("Range_insertNode({d}, {d})", .{ selection_id, node_id });
+    const selection = tree.getSelection(selection_id);
+    const range = selection.getRange(tree);
+    wasm_try(void, range.insertNode(tree, node_id));
 }
 
 // export fn Selection_extendBy(
@@ -597,16 +896,16 @@ export fn TermInfo_deinit(term_info: *TermInfo) void {
 
 export fn ArrayList_init() *std.ArrayList(u8) {
     const ptr = wasm_try(*std.ArrayList(u8), wasm_allocator.create(std.ArrayList(u8)));
-    ptr.* = std.ArrayList(u8).init(wasm_allocator);
+    ptr.* = .empty;
     return ptr;
 }
 export fn ArrayList_deinit(list: *std.ArrayList(u8)) void {
-    list.deinit();
+    list.deinit(wasm_allocator);
     wasm_allocator.destroy(list);
 }
 
 export fn ArrayList_appendUnusedSlice(list: *std.ArrayList(u8), capacity: usize) [*]u8 {
-    wasm_try(void, list.ensureUnusedCapacity(capacity));
+    wasm_try(void, list.ensureUnusedCapacity(wasm_allocator, capacity));
     list.items.len += capacity;
     const unused_capacity_pointer = list.items[list.items.len - capacity ..];
     return unused_capacity_pointer.ptr;
@@ -634,8 +933,8 @@ const handleRawBuffer = @import("cmd/input.zig").handleRawBuffer;
 
 export fn detectLeaks() bool {
     if (builtin.mode == .Debug) {
-        const leaks = gpa.detectLeaks();
-        return leaks;
+        const leaked = gpa.detectLeaks();
+        return leaked > 0;
     }
     return false;
 }
@@ -653,6 +952,7 @@ test {
     _ = @import("./tree/NodeIterator.zig");
     _ = @import("./layout/v2/mod.zig");
     _ = @import("./uni/LineBreakStream.zig");
+    _ = @import("./uni/WordBreak.zig");
     _ = @import("./renderer/v2/mod.zig");
     _ = @import("./renderer/v2/test_pipeline.zig");
     // New line-builder tests
