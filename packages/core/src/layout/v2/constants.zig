@@ -93,7 +93,7 @@ pub const AvailableSpace = union(enum) {
                     else => return false,
                 }
             },
-            else => return @intFromEnum(self) == @intFromEnum(other),
+            else => return @backingInt(self) == @backingInt(other),
         }
     }
     pub const MAX_CONTENT: AvailableSpacePoint = .{ .x = .max_content, .y = .max_content };

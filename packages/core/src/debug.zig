@@ -2,14 +2,14 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 pub fn assert(condition: bool, comptime fmt: []const u8, args: anytype) void {
-    if (builtin.mode != .ReleaseFast) if (!condition) {
+    if (builtin.mode != .fast) if (!condition) {
         std.debug.panic(fmt, args);
     };
 }
 
 /// Prints all error types that a function can return.
 /// Useful for debugging and understanding function error sets.
-/// 
+///
 /// Example:
 /// ```zig
 /// fn myFunction() !void { ... }

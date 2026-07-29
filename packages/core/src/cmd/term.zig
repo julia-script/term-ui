@@ -17,7 +17,7 @@ const KittyMode = struct {
         disable = '<',
     };
     pub inline fn op(comptime operation: KittyOp, comptime mode: u8) []const u8 {
-        const operation_char: u8 = @intFromEnum(operation);
+        const operation_char: u8 = @backingInt(operation);
         return (std.fmt.comptimePrint("{c}{d}h", .{ operation_char, mode }));
     }
     pub const query = csi("?u");

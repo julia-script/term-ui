@@ -55,7 +55,7 @@ pub const Capability = enum {
     number_of_function_keys,
 };
 
-pub const num_capabilities = @typeInfo(Capability).@"enum".fields.len;
+pub const num_capabilities = @typeInfo(Capability).@"enum".field_names.len;
 
 /// Numeric capabilities in the same order as `<term.h>`.
 pub const NumericCapabilities = struct {

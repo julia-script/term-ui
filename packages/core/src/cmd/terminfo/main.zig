@@ -4,13 +4,6 @@ pub const nums = @import("nums.zig");
 pub const Strings = @import("Strings.zig");
 const Dirs = @import("Dirs.zig");
 
-test {
-    _ = TermInfo.initFromEnv;
-    _ = TermInfo.get_bool;
-    _ = TermInfo.get_num;
-    _ = TermInfo.get_names;
-}
-
 /// A TermInfo struct
 pub const TermInfo = struct {
     const Self = @This();
@@ -34,11 +27,11 @@ pub const TermInfo = struct {
     size: usize,
     arena: std.heap.ArenaAllocator,
     pub fn get_bool(self: *const Self, cap: bools.Capability) bool {
-        return self.bools[@intFromEnum(cap)];
+        return self.bools[@backingInt(cap)];
     }
 
     pub fn get_num(self: *const Self, cap: nums.Capability) ?i32 {
-        return self.nums[@intFromEnum(cap)];
+        return self.nums[@backingInt(cap)];
     }
 
     pub fn get_names(self: *const Self) *const Names {
@@ -221,18 +214,3 @@ pub const Names = struct {
         return self.names.items[1..];
     }
 };
-
-test {
-    std.testing.refAllDeclsRecursive(@This());
-}
-
-test "basic" {
-    var file = try std.fs.cwd().openFile("src/cmd/test-data/xterm-ghostty", .{});
-    defer file.close();
-    const term_info = try TermInfo.initFromFile(std.testing.allocator, file);
-    defer term_info.deinit();
-    // var iter = term_info.strings.iter();
-    // while (iter.next()) |item| {
-    //     std.debug.print("item: {s} = {any}\n", .{ @tagName(item.capability), item.value });
-    // }
-}

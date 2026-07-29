@@ -25,10 +25,6 @@ pub fn Rect(comptime T: type) type {
                 else => return Self{ .left = other, .right = other, .top = other, .bottom = other },
             }
         }
-        pub fn fields() @TypeOf(std.meta.fields(Self)) {
-            return std.meta.fields(Self);
-        }
-
         // pub const FIELDS = std.meta.fields(Self);
         pub fn new(left: T, right: T, top: T, bottom: T) Rect {
             return Rect{ .T = T, .left = left, .right = right, .top = top, .bottom = bottom };

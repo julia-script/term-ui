@@ -32,13 +32,13 @@ jobs:
         id: cache-zig
         with:
           path: ~/.zig
-          key: ${{ runner.os }}-zig-0.15.0-dev.589+23c817548
+          key: ${{ runner.os }}-zig-0.17.0-dev.1503+1f1bee62e
 
       - name: Setup Zig
         uses: mlugg/setup-zig@v1
         if: steps.cache-zig.outputs.cache-hit != 'true'
         with:
-          version: 0.15.0-dev.589+23c817548
+          version: 0.17.0-dev.1503+1f1bee62e
         
       - name: Cache wasm-opt
         uses: actions/cache@v3

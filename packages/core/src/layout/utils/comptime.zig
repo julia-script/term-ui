@@ -11,9 +11,9 @@ pub fn MemberType(comptime T: type) type {
     const typeInfo = @typeInfo(T);
     switch (typeInfo) {
         .@"struct" => |s| {
-            inline for (s.fields) |field| {
-                if (std.mem.eql(u8, field.name, "x") or std.mem.eql(u8, field.name, "top")) {
-                    return field.type;
+            inline for (s.field_names, s.field_types) |name, field_type| {
+                if (std.mem.eql(u8, name, "x") or std.mem.eql(u8, name, "top")) {
+                    return field_type;
                 }
             }
             unreachable;
@@ -26,7 +26,7 @@ pub fn MemberType(comptime T: type) type {
 pub fn isStruct(comptime T: type) bool {
     const typeInfo = @typeInfo(T);
     switch (typeInfo) {
-        .Struct => return true,
+        .@"struct" => return true,
         else => return false,
     }
 }
@@ -47,8 +47,8 @@ test "MemberType" {
     try std.testing.expect(MemberType(f32) == f32);
 }
 pub inline fn assign(a: anytype, b: anytype) void {
-    inline for (std.meta.fields(@TypeOf(b))) |f| {
-        @field(a, f.name) = @as(f.type, @field(b, f.name));
+    inline for (comptime std.meta.fieldNames(@TypeOf(b)), comptime std.meta.fieldTypes(@TypeOf(b))) |f_name, f_type| {
+        @field(a, f_name) = @as(f_type, @field(b, f_name));
     }
 }
 pub inline fn with(a: anytype, b: anytype) @TypeOf(a) {

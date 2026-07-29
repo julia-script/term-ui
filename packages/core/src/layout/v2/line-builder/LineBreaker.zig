@@ -9,11 +9,11 @@ pub const LineBreaker = struct {
     available_width: AvailableSpace,
     white_space_mode: WhiteSpaceMode,
     line_break_stream: LineBreakStream,
-    
+
     // Current state
     current_token_index: usize = 0,
     current_char_offset: usize = 0,
-    
+
     pub const WhiteSpaceMode = enum {
         normal,
         nowrap,
@@ -21,7 +21,7 @@ pub const LineBreaker = struct {
         @"pre-wrap",
         @"pre-line",
     };
-    
+
     pub const Line = struct {
         start_token: usize,
         end_token: usize, // exclusive
@@ -30,14 +30,14 @@ pub const LineBreaker = struct {
         width: f32,
         has_trailing_spaces: bool,
     };
-    
+
     pub const BreakOpportunity = struct {
         token_index: usize,
         char_offset: usize,
         is_mandatory: bool,
         is_soft_wrap: bool,
     };
-    
+
     pub fn init(
         tokens: []const Token,
         available_width: AvailableSpace,
@@ -45,9 +45,9 @@ pub const LineBreaker = struct {
         allocator: std.mem.Allocator,
     ) !LineBreaker {
         // Gather all text content for line break analysis
-        var text_builder = std.ArrayList(u8).init(allocator);
+        var text_builder = std.array_list.Managed(u8).init(allocator);
         defer text_builder.deinit();
-        
+
         for (tokens) |token| {
             switch (token.kind) {
                 .text, .whitespace => try text_builder.appendSlice(token.text),
@@ -62,7 +62,7 @@ pub const LineBreaker = struct {
                 .atomic => {}, // Atomics don't contribute to line breaking
             }
         }
-        
+
         return LineBreaker{
             .tokens = tokens,
             .available_width = available_width,
@@ -70,17 +70,17 @@ pub const LineBreaker = struct {
             .line_break_stream = try LineBreakStream.initWithData(allocator, text_builder.items),
         };
     }
-    
+
     pub fn deinit(self: *LineBreaker) void {
         self.line_break_stream.deinit();
     }
-    
+
     /// Get the next line of tokens that fits within available width
     pub fn nextLine(self: *LineBreaker, allocator: std.mem.Allocator) !?Line {
         if (self.current_token_index >= self.tokens.len) {
             return null;
         }
-        
+
         // Handle different wrapping modes
         return switch (self.available_width) {
             .definite => |width| try self.nextLineWithWidth(width, allocator),
@@ -88,32 +88,32 @@ pub const LineBreaker = struct {
             .min_content => try self.nextLineMinContent(allocator),
         };
     }
-    
+
     fn nextLineWithWidth(self: *LineBreaker, width: f32, allocator: std.mem.Allocator) !Line {
         const start_token = self.current_token_index;
         const start_offset = self.current_char_offset;
         var line_width: f32 = 0;
         var last_break_opportunity: ?BreakOpportunity = null;
         var has_trailing_spaces = false;
-        
+
         // Special handling for nowrap and pre modes
         if (self.white_space_mode == .nowrap or self.white_space_mode == .pre) {
             // These modes only break at mandatory breaks
             return try self.nextLineNoWrap(allocator);
         }
-        
+
         while (self.current_token_index < self.tokens.len) {
             const token = self.tokens[self.current_token_index];
-            
+
             switch (token.kind) {
                 .text => {
                     // Measure each grapheme cluster
                     var iter = try GraphemeIterator.init(token.text);
                     var local_offset: usize = 0;
-                    
+
                     while (iter.next()) |grapheme| {
                         const grapheme_width = measureGrapheme(grapheme);
-                        
+
                         // Check if adding this would exceed width
                         if (line_width + grapheme_width > width and line_width > 0) {
                             // Need to break - use last opportunity if available
@@ -133,10 +133,10 @@ pub const LineBreaker = struct {
                             }
                             // Must include at least this grapheme
                         }
-                        
+
                         line_width += grapheme_width;
                         local_offset += grapheme.len;
-                        
+
                         // Check for break opportunity after this grapheme
                         if (try self.canBreakAfter(token, local_offset)) {
                             last_break_opportunity = BreakOpportunity{
@@ -149,12 +149,12 @@ pub const LineBreaker = struct {
                     }
                     self.current_char_offset += token.text.len;
                 },
-                
+
                 .whitespace => {
                     const space_width = @as(f32, @floatFromInt(token.text.len));
                     line_width += space_width;
                     has_trailing_spaces = true;
-                    
+
                     // Whitespace is always a break opportunity
                     last_break_opportunity = BreakOpportunity{
                         .token_index = self.current_token_index + 1,
@@ -162,15 +162,15 @@ pub const LineBreaker = struct {
                         .is_mandatory = false,
                         .is_soft_wrap = false,
                     };
-                    
+
                     self.current_char_offset = 0;
                 },
-                
+
                 .segment_break => {
                     // Mandatory break - end line here
                     self.current_token_index += 1;
                     self.current_char_offset = 0;
-                    
+
                     return Line{
                         .start_token = start_token,
                         .end_token = self.current_token_index,
@@ -180,10 +180,10 @@ pub const LineBreaker = struct {
                         .has_trailing_spaces = has_trailing_spaces,
                     };
                 },
-                
+
                 .atomic => {
                     const atomic_width = token.size.x;
-                    
+
                     // Check if atomic would overflow
                     if (line_width + atomic_width > width and line_width > 0) {
                         // Break before atomic
@@ -200,16 +200,16 @@ pub const LineBreaker = struct {
                             .has_trailing_spaces = has_trailing_spaces,
                         };
                     }
-                    
+
                     line_width += atomic_width;
                     has_trailing_spaces = false;
                     self.current_char_offset = 0;
                 },
             }
-            
+
             self.current_token_index += 1;
         }
-        
+
         // End of tokens
         return Line{
             .start_token = start_token,
@@ -220,22 +220,22 @@ pub const LineBreaker = struct {
             .has_trailing_spaces = has_trailing_spaces,
         };
     }
-    
+
     fn nextLineMaxContent(self: *LineBreaker, allocator: std.mem.Allocator) !Line {
         // Max content: never wrap except at mandatory breaks
         return try self.nextLineNoWrap(allocator);
     }
-    
+
     fn nextLineMinContent(self: *LineBreaker, _: std.mem.Allocator) !Line {
         // Min content: wrap at every opportunity
         const start_token = self.current_token_index;
         const start_offset = self.current_char_offset;
         var line_width: f32 = 0;
         const has_trailing_spaces = false;
-        
+
         while (self.current_token_index < self.tokens.len) {
             const token = self.tokens[self.current_token_index];
-            
+
             switch (token.kind) {
                 .text => {
                     // For min-content, we don't break in the middle of words
@@ -246,14 +246,14 @@ pub const LineBreaker = struct {
                     }
                     self.current_char_offset = 0;
                 },
-                
+
                 .whitespace => {
                     // Always break after whitespace in min-content
                     const space_width = @as(f32, @floatFromInt(token.text.len));
                     line_width += space_width;
                     self.current_token_index += 1;
                     self.current_char_offset = 0;
-                    
+
                     return Line{
                         .start_token = start_token,
                         .end_token = self.current_token_index,
@@ -263,7 +263,7 @@ pub const LineBreaker = struct {
                         .has_trailing_spaces = true,
                     };
                 },
-                
+
                 .segment_break, .atomic => {
                     // Handle these the same as in regular wrapping
                     if (token.kind == .segment_break) {
@@ -274,7 +274,7 @@ pub const LineBreaker = struct {
                         self.current_token_index += 1;
                         self.current_char_offset = 0;
                     }
-                    
+
                     return Line{
                         .start_token = start_token,
                         .end_token = self.current_token_index,
@@ -285,10 +285,10 @@ pub const LineBreaker = struct {
                     };
                 },
             }
-            
+
             self.current_token_index += 1;
         }
-        
+
         // End of tokens
         return Line{
             .start_token = start_token,
@@ -299,17 +299,17 @@ pub const LineBreaker = struct {
             .has_trailing_spaces = has_trailing_spaces,
         };
     }
-    
+
     fn nextLineNoWrap(self: *LineBreaker, _: std.mem.Allocator) !Line {
         // No wrapping - only break at mandatory breaks
         const start_token = self.current_token_index;
         const start_offset = self.current_char_offset;
         var line_width: f32 = 0;
         var has_trailing_spaces = false;
-        
+
         while (self.current_token_index < self.tokens.len) {
             const token = self.tokens[self.current_token_index];
-            
+
             if (token.kind == .segment_break) {
                 // Mandatory break
                 self.current_token_index += 1;
@@ -323,7 +323,7 @@ pub const LineBreaker = struct {
                     .has_trailing_spaces = has_trailing_spaces,
                 };
             }
-            
+
             // Add token width
             switch (token.kind) {
                 .text => {
@@ -345,10 +345,10 @@ pub const LineBreaker = struct {
                 },
                 .segment_break => unreachable,
             }
-            
+
             self.current_token_index += 1;
         }
-        
+
         // End of tokens
         return Line{
             .start_token = start_token,
@@ -359,7 +359,7 @@ pub const LineBreaker = struct {
             .has_trailing_spaces = has_trailing_spaces,
         };
     }
-    
+
     fn canBreakAfter(self: *LineBreaker, token: Token, offset: usize) !bool {
         // Use the line break stream to determine if we can break here
         // This is a simplified version - real implementation would track position
@@ -369,7 +369,7 @@ pub const LineBreaker = struct {
         // TODO: Properly integrate with LineBreakStream
         return true;
     }
-    
+
     fn createLineAtBreak(
         self: *LineBreaker,
         start_token: usize,
@@ -379,7 +379,7 @@ pub const LineBreaker = struct {
     ) Line {
         self.current_token_index = break_opp.token_index;
         self.current_char_offset = break_opp.char_offset;
-        
+
         return Line{
             .start_token = start_token,
             .end_token = break_opp.token_index,
@@ -389,7 +389,7 @@ pub const LineBreaker = struct {
             .has_trailing_spaces = break_opp.is_soft_wrap,
         };
     }
-    
+
     fn measureGrapheme(grapheme: []const u8) f32 {
         // Simplified measurement - 1 unit per grapheme
         // Real implementation would use font metrics

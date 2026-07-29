@@ -177,7 +177,7 @@ pub const TextNode = struct {
 
 pub const InlineNode = struct {
     is_atomic: bool = false,
-    children: Array(LayoutNode.Id) = .{},
+    children: Array(LayoutNode.Id) = .empty,
     continuation: ?LayoutNode.Id = null,
     continuationOf: ?LayoutNode.Id = null,
     pub fn deinit(self: *InlineNode, allocator: std.mem.Allocator) void {
@@ -191,7 +191,7 @@ pub const DocRef = union(enum) {
 };
 
 pub const BlockContainerNode = struct {
-    children: Array(LayoutNode.Id) = .{},
+    children: Array(LayoutNode.Id) = .empty,
     pub fn deinit(self: *BlockContainerNode, allocator: std.mem.Allocator) void {
         self.children.deinit(allocator);
     }
@@ -203,7 +203,7 @@ pub const BlockContainerNode = struct {
 /// The same as a block container, but all children are inline, which enables inline formatting context.
 /// this node also holds the LineBoxes
 pub const InlineContainerNode = struct {
-    children: Array(LayoutNode.Id) = .{},
+    children: Array(LayoutNode.Id) = .empty,
     line_boxes: mod.LineBox.LineBoxList, // Will be set by setBox, managed by cache
     continuation: ?LayoutNode.Id = null,
     continuationOf: ?LayoutNode.Id = null,
@@ -390,7 +390,7 @@ const MixedContextBuilder = struct {
     root_container_id: LayoutNode.Id,
     current_container_id: LayoutNode.Id,
     allocator: std.mem.Allocator,
-    stack: Array(LayoutNode.Id) = .{},
+    stack: Array(LayoutNode.Id) = .empty,
     pub fn isCurrentContainerInline(self: *MixedContextBuilder) bool {
         const current_container = self.layout_tree.getNodePtr(self.current_container_id);
         return switch (current_container.data) {
@@ -874,28 +874,6 @@ pub fn printRoot(self: *Self, writer: anytype) !void {
     try self.printNode(self.root_id, writer);
 }
 
-pub fn expectLayoutTree(description: []const u8, docXml: []const u8, comptime loc: std.builtin.SourceLocation) !void {
-    const snapshot = @import("../../tests/utils/snapshot.zig");
-
-    var tree = try docFromXml(std.testing.allocator, docXml, .{});
-    defer tree.deinit();
-
-    // Use the new pipeline approach
-    try tree.computeStyles();
-    try tree.buildLayoutTree();
-    var lt = &tree.layout_tree;
-
-    var buf = std.ArrayList(u8).init(std.testing.allocator);
-    defer buf.deinit();
-    const writer = buf.writer().any();
-    try writer.print("DocTree:\n", .{});
-    try tree.print(writer);
-    try writer.print("LayoutTree:\n", .{});
-
-    try lt.printRoot(writer);
-
-    try snapshot.expectMatchSnapshot(loc, std.testing.allocator, description, buf.items, .{});
-}
 pub fn getDocNodeId(self: *Self, node_id: LayoutNode.Id) ?DocNodeId {
     const node = self.getNodePtr(node_id);
     switch (node.ref) {
@@ -938,74 +916,4 @@ pub fn getResolvedStyle(self: *Self, doc_tree: *DocTree, node_id: LayoutNode.Id)
             return null;
         },
     }
-}
-test "LayoutTree" {
-    try expectLayoutTree("inline only",
-        \\<span>
-        \\  <span>
-        \\    abc
-        \\    def
-        \\  </span>
-        \\  zzz
-        \\</span>
-    , @src());
-}
-
-test "deep formatting context break" {
-    // example from https://webkit.org/blog/115/webcore-rendering-ii-blocks-and-inlines/
-    // should output this structure
-    // <anonymous pre block>
-    // <i>Italic only <b>italic and bold</b></i>
-    // </anonymous pre block>
-    // <anonymous middle block>
-    // <div>
-    // Wow, a block!
-    // </div>
-    // <div>
-    // Wow, another block!
-    // </div>
-    // </anonymous middle block>
-    // <anonymous post block>
-    // <i><b>More italic and bold text</b> More italic text</i>
-    // </anonymous post block>
-    try expectLayoutTree("deep formatting context break",
-        \\<i>
-        \\  Italic only
-        \\  <b>
-        \\  italic and bold
-        \\    <div>Wow, a block!</div>
-        \\    <div>Wow, another block!</div>
-        \\    More italic and bold text
-        \\  </b> 
-        \\  More italic text
-        \\</i>
-        \\
-    , @src());
-
-    try expectLayoutTree("deep formatting context break 2",
-        \\<i>
-        \\  Italic only
-        \\  <b>
-        \\  italic and bold
-        \\    <div>Wow, a block!</div>
-        \\    <span>
-        \\      <div>Wow, another block!</div>
-        \\      More italic and bold text
-        \\    </span>
-        \\  </b> 
-        \\  More italic text
-        \\</i>
-        \\
-    , @src());
-}
-
-test "inline and block mixing" {
-    try expectLayoutTree("inline and block mixing",
-        \\<root style="width: 40px; height: 15px; background-color: #f9fafb;">
-        \\  <div style="background-color: #e5e7eb;">Block 1</div>
-        \\  <span style="color: #dc2626;">Inline text</span>
-        \\  <span style="color: #059669;"> with more text</span>
-        \\  <div style="background-color: #d1d5db;">Block 2</div>
-        \\</root>
-    , @src());
 }

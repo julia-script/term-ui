@@ -200,7 +200,7 @@ fn deleteBetweenOffsets(self: *Self, tree: *Tree, node_id: Node.NodeId, start_of
     }
 }
 
-fn traverseNodeAndCollect(self: *Self, tree: *Tree, node_id: Node.NodeId, nodes_to_remove: *std.AutoArrayHashMap(Node.NodeId, void)) !void {
+fn traverseNodeAndCollect(self: *Self, tree: *Tree, node_id: Node.NodeId, nodes_to_remove: *std.AutoArrayHashMapUnmanaged(Node.NodeId, void)) !void {
     // Check if this node is contained in the range
     if (try self.containsNode(tree, node_id)) {
         // Skip if any ancestor is already in the removal list
@@ -216,7 +216,7 @@ fn traverseNodeAndCollect(self: *Self, tree: *Tree, node_id: Node.NodeId, nodes_
         }
 
         if (!has_contained_ancestor) {
-            try nodes_to_remove.put(node_id, {});
+            try nodes_to_remove.put(tree.allocator, node_id, {});
         }
 
         // Since this node is fully contained, we don't need to process its children
@@ -261,7 +261,7 @@ fn traverseNodeAndCollect(self: *Self, tree: *Tree, node_id: Node.NodeId, nodes_
 //             }
 
 //             if (!has_contained_ancestor) {
-//                 try nodes_to_remove.put(node_id, {});
+//                 try nodes_to_remove.put(tree.allocator, node_id, {});
 //             }
 //         } else {
 //             // If not contained, check its children (in reverse order to maintain tree order when popped)
@@ -306,8 +306,8 @@ pub fn deleteContents(self: *Self, tree: *Tree) !void {
     const lca = tree.getLowestCommonAncestorAndFirstDistinctAncestor(original_start_node, original_end_node);
 
     // Step 4: Collect nodes to remove
-    var nodes_to_remove = std.AutoArrayHashMap(Node.NodeId, void).init(tree.allocator);
-    defer nodes_to_remove.deinit();
+    var nodes_to_remove: std.AutoArrayHashMapUnmanaged(Node.NodeId, void) = .empty;
+    defer nodes_to_remove.deinit(tree.allocator);
 
     // Collect all nodes contained in the range
     try traverseNodeAndCollect(self, tree, lca.ancestor.?, &nodes_to_remove);
@@ -609,7 +609,7 @@ const FormatTreeOptions = struct {
     range_open: []const u8 = "\x1b[7m",
     range_close: []const u8 = "\x1b[0m",
 };
-pub fn formatTreeInner(self: *Self, tree: *Tree, node_id: Node.NodeId, writer: std.io.AnyWriter, comptime options: FormatTreeOptions) !void {
+pub fn formatTreeInner(self: *Self, tree: *Tree, node_id: Node.NodeId, writer: *std.Io.Writer, comptime options: FormatTreeOptions) !void {
     const node = tree.getNode(node_id);
     const is_collapsed = self.isCollapsed();
     const range_open = options.range_open;
@@ -715,23 +715,23 @@ pub fn formatTreeInner(self: *Self, tree: *Tree, node_id: Node.NodeId, writer: s
         },
     }
 }
-pub fn formatTree(self: *Self, tree: *Tree, node_id: Node.NodeId, writer: std.io.AnyWriter, comptime options: FormatTreeOptions) !void {
+pub fn formatTree(self: *Self, tree: *Tree, node_id: Node.NodeId, writer: *std.Io.Writer, comptime options: FormatTreeOptions) !void {
     try self.formatTreeInner(tree, node_id, writer, options);
     try writer.writeAll("\n");
 }
 fn testRange(range: *Self, tree: *Tree, node_id: Node.NodeId, expected: []const u8) !void {
-    var buffer = std.ArrayList(u8).init(std.testing.allocator);
-    defer buffer.deinit();
-    const writer = buffer.writer();
+    var aw: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer aw.deinit();
+    const writer = &aw.writer;
 
-    try range.formatTreeInner(tree, node_id, writer.any(), .{
+    try range.formatTreeInner(tree, node_id, writer, .{
         .collapsed_caret = "|",
         .range_open = "[",
         .range_close = "]",
     });
     try std.testing.expectEqualStrings(
         expected,
-        buffer.items,
+        aw.writer.buffered(),
     );
 }
 

@@ -22,26 +22,26 @@ pub const std_options: std.Options = .{
 
 pub fn main() !void {
     print("=== CSS Layout Engine Playground ===\n\n", .{});
-    const stderr = std.io.getStdErr().writer().any();
-    var gpa = std.heap.GeneralPurposeAllocator(.{
-        // .enable_memory_limit = true,
-        // .verbose_log = true,
-    }){};
+    var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    defer aw.deinit();
+    const stderr = &aw.writer;
+    defer print("{s}\n", .{aw.writer.buffered()});
 
     // const tree = wasm.Tree_init();
     // defer wasm.Tree_deinit(tree);
 
     var tree = try docFromXml(allocator,
-    // \\<div style="border-style: double;color: white">
-    // // before-inside
-    // // \\<span>$S[Hello</span> Wo$S]rld
-    // // \\
-    // // \\Hel$S[lo<span> Wo$S]rld</span>
-    // // \\thisisa$S[verylong$S]wordthat
-    // \\asd$S[<span>Hello</span>$S]
-    // \\</div>
+        // \\<div style="border-style: double;color: white">
+        // // before-inside
+        // // \\<span>$S[Hello</span> Wo$S]rld
+        // // \\
+        // // \\Hel$S[lo<span> Wo$S]rld</span>
+        // // \\thisisa$S[verylong$S]wordthat
+        // \\asd$S[<span>Hello</span>$S]
+        // \\</div>
 
         \\<div style="border-style: double;color: white; width: 30;text-align: center;"> 
         // \\<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incid$S]idunt ut labore et dolore magna aliqua.</p>

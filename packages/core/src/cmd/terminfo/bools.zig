@@ -57,4 +57,4 @@ pub const Capability = enum {
     return_does_clr_eol,
 };
 
-pub const num_capabilities = @typeInfo(Capability).@"enum".fields.len;
+pub const num_capabilities = @typeInfo(Capability).@"enum".field_names.len;

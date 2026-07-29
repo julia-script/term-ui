@@ -97,9 +97,9 @@ pub fn calculateCrossSize(
     if (lines.items.len == 1 and
         dir.getCrossOptional(node_size) != null and
         (!constants.is_wrap or
-        constants.align_content == .stretch or
-        constants.align_content == .space_evenly or
-        constants.align_content == .space_around))
+            constants.align_content == .stretch or
+            constants.align_content == .space_evenly or
+            constants.align_content == .space_around))
     {
         const cross_axis_padding_border = dir.sumCrossAxis(constants.content_box_inset);
         const cross_min_size = dir.getCrossOptional(constants.min_size);

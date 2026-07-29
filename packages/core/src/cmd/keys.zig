@@ -1541,10 +1541,8 @@ pub const KittySequence = struct {
     fn encodeFull(self: KittySequence, buf: []u8) ![]const u8 {
         // Boilerplate to basically create a string builder that writes
         // over our buffer (but no more).
-        var fba = std.heap.FixedBufferAllocator.init(buf);
-        const alloc = fba.allocator();
-        var builder = try std.ArrayListUnmanaged(u8).initCapacity(alloc, buf.len);
-        const writer = builder.writer(alloc);
+        var fixed: std.Io.Writer = .fixed(buf);
+        const writer = &fixed;
 
         // Key section
         try writer.print("\x1B[{d}", .{self.key});
@@ -1564,7 +1562,7 @@ pub const KittySequence = struct {
         if (self.event != .none and self.event != .press) {
             try writer.print(
                 ";{d}:{d}",
-                .{ mods, @intFromEnum(self.event) },
+                .{ mods, @backingInt(self.event) },
             );
             emit_prior = true;
         } else if (mods > 1) {
@@ -1596,7 +1594,7 @@ pub const KittySequence = struct {
         }
 
         try writer.print("{c}", .{self.final});
-        return builder.items;
+        return writer.buffered();
     }
 
     fn encodeSpecial(self: KittySequence, buf: []u8) ![]const u8 {
@@ -1604,7 +1602,7 @@ pub const KittySequence = struct {
         if (self.event != .none) {
             return try std.fmt.bufPrint(buf, "\x1B[1;{d}:{d}{c}", .{
                 mods,
-                @intFromEnum(self.event),
+                @backingInt(self.event),
                 self.final,
             });
         }

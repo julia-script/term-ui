@@ -146,8 +146,8 @@ test "Maybe.clamp" {
 pub fn addMembers(a: anytype, b: anytype) @TypeOf(a) {
     var out = a;
     const T = @TypeOf(a);
-    inline for (std.meta.fields(T)) |f| {
-        @field(out, f.name) = add(@field(a, f.name), @field(b, f.name));
+    inline for (comptime std.meta.fieldNames(T)) |f_name| {
+        @field(out, f_name) = add(@field(a, f_name), @field(b, f_name));
     }
     return out;
 }
@@ -155,8 +155,8 @@ pub fn addMembers(a: anytype, b: anytype) @TypeOf(a) {
 pub fn subMembers(a: anytype, b: anytype) @TypeOf(a) {
     var out = a;
     const T = @TypeOf(a);
-    inline for (std.meta.fields(T)) |f| {
-        @field(out, f.name) = sub(@field(a, f.name), @field(b, f.name));
+    inline for (comptime std.meta.fieldNames(T)) |f_name| {
+        @field(out, f_name) = sub(@field(a, f_name), @field(b, f_name));
     }
     return out;
 }
@@ -164,8 +164,8 @@ pub fn subMembers(a: anytype, b: anytype) @TypeOf(a) {
 pub fn minMembers(a: anytype, b: anytype) @TypeOf(a) {
     var out = a;
     const T = @TypeOf(a);
-    inline for (std.meta.fields(T)) |f| {
-        @field(out, f.name) = min(@field(a, f.name), @field(b, f.name));
+    inline for (comptime std.meta.fieldNames(T)) |f_name| {
+        @field(out, f_name) = min(@field(a, f_name), @field(b, f_name));
     }
     return out;
 }
@@ -173,8 +173,8 @@ pub fn minMembers(a: anytype, b: anytype) @TypeOf(a) {
 pub fn maxMembers(a: anytype, b: anytype) @TypeOf(a) {
     var out = a;
     const T = @TypeOf(a);
-    inline for (std.meta.fields(T)) |f| {
-        @field(out, f.name) = max(@field(a, f.name), @field(b, f.name));
+    inline for (comptime std.meta.fieldNames(T)) |f_name| {
+        @field(out, f_name) = max(@field(a, f_name), @field(b, f_name));
     }
     return out;
 }
@@ -182,8 +182,8 @@ pub fn maxMembers(a: anytype, b: anytype) @TypeOf(a) {
 pub fn clampMembers(a: anytype, min_value: anytype, max_value: anytype) @TypeOf(a) {
     var out = a;
     const T = @TypeOf(a);
-    inline for (std.meta.fields(T)) |f| {
-        @field(out, f.name) = clamp(@field(a, f.name), @field(min_value, f.name), @field(max_value, f.name));
+    inline for (comptime std.meta.fieldNames(T)) |f_name| {
+        @field(out, f_name) = clamp(@field(a, f_name), @field(min_value, f_name), @field(max_value, f_name));
     }
     return out;
 }

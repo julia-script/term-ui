@@ -8,7 +8,7 @@ const Attr = struct {
         if (self.value.len > 0) {
             allocator.free(self.value);
         }
-        self.value = try allocator.dupeZ(u8, value);
+        self.value = try allocator.dupeSentinel(u8, value, 0);
     }
 
     pub fn getValue(self: *Attr) []const u8 {

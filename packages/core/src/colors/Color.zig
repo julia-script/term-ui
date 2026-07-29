@@ -394,9 +394,9 @@ test "blend" {
     try expectEqualColor(
         rgba(1, 0, 0, 0.5)
             .composite(
-            rgba(0, 1, 0, 0.5),
-            .source_over,
-        ).composite(
+                rgba(0, 1, 0, 0.5),
+                .source_over,
+            ).composite(
             rgba(1, 1, 1, 1),
             .source_over,
         ),

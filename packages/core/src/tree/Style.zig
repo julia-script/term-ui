@@ -128,8 +128,8 @@ pointer_events: styles.pointer_events.PointerEvents = .auto,
 z_index: styles.z_index.ZIndex = styles.z_index.ZIndex.DEFAULT,
 /// Copy all style properties from another style object
 pub fn copyFrom(self: *Styles, source: *const Styles) void {
-    inline for (std.meta.fields(Styles)) |field| {
-        @field(self, field.name) = @field(source, field.name);
+    inline for (comptime std.meta.fieldNames(Styles)) |field_name| {
+        @field(self, field_name) = @field(source, field_name);
     }
     // Layout properties
     // self.display = source.display;

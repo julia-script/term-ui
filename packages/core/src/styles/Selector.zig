@@ -7,28 +7,28 @@ const NodeId = Node.NodeId;
 pub const SelectorType = enum {
     /// Matches any element ("*")
     universal,
-    
+
     /// Matches elements by tag name ("div", "span")
     tag,
-    
+
     /// Matches elements with the specified class (".className")
     class,
-    
+
     /// Matches element by ID ("#elementId")
     id,
-    
+
     /// Matches elements that are descendants of specified parent ("div p")
     descendant,
-    
+
     /// Matches elements that are direct children of specified parent ("div > p")
     child,
-    
+
     /// Matches elements that come immediately after specified element ("div + p")
     adjacent_sibling,
-    
+
     /// Matches elements that come after specified element ("div ~ p")
     general_sibling,
-    
+
     /// Combines multiple selectors (compound selector)
     compound,
 };
@@ -48,7 +48,7 @@ pub const Selector = struct {
             child: *Selector,
         },
     },
-    
+
     pub fn init(allocator: std.mem.Allocator) Selector {
         return .{
             .allocator = allocator,
@@ -56,7 +56,7 @@ pub const Selector = struct {
             .value = .{ .universal = {} },
         };
     }
-    
+
     pub fn deinit(self: *Selector) void {
         switch (self.type) {
             .tag => {
@@ -83,7 +83,7 @@ pub const Selector = struct {
             .universal => {},
         }
     }
-    
+
     pub fn matches(self: *const Selector, tree: *Tree, node_id: NodeId) bool {
         // For now, only implement simple matching
         // This will be expanded later for complex selectors

@@ -108,7 +108,7 @@ pub fn store(self: *Cache, allocator: std.mem.Allocator, known_dimensions: Point
     }
 }
 
-const EMPTY_MEASURE_ENTRIES = [_]?CacheEntry(Point(f32)){null} ** CACHE_SIZE;
+const EMPTY_MEASURE_ENTRIES: [CACHE_SIZE]?CacheEntry(Point(f32)) = @splat(null);
 pub fn clear(self: *Cache) void {
     // Clean up line_boxes before clearing
     if (self.final_layout_entry) |*entry| {

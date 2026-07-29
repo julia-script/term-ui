@@ -6,7 +6,6 @@ pub const Style = @import("Style.zig");
 const Color = @import("../colors/Color.zig");
 const HashMap = std.AutoHashMap;
 const Layout = @import("Layout.zig");
-const Cache = @import("Cache.zig");
 const ComputedText = @import("../layout/compute/text/ComputedText.zig");
 const Rect = @import("../layout/rect.zig").Rect;
 pub const AvailableSpace = @import("../layout/compute/compute_constants.zig").AvailableSpace;
@@ -22,7 +21,6 @@ pub const BoundaryPoint = @import("BoundaryPoint.zig");
 const NodeIterator = @import("NodeIterator.zig");
 pub const Selection = @import("Selection.zig");
 const traversal = @import("./traversal.zig");
-const Canvas = @import("../renderer/Canvas.zig");
 const GraphemeIterator = @import("../uni/GraphemeBreak.zig").Iterator;
 const visible = @import("../uni/string-width.zig").visible;
 const LayoutTree = @import("../layout/v2/LayoutTree.zig");
@@ -1211,7 +1209,7 @@ pub fn normalize(self: *Self, node_id: Node.NodeId) !void {
 
         // If we have adjacent text nodes, merge them
         if (has_adjacent_text) {
-            var data = std.ArrayList(u8).init(self.allocator);
+            var data = std.array_list.Managed(u8).init(self.allocator);
             defer data.deinit();
 
             // Get the first text node's content
@@ -1219,7 +1217,7 @@ pub fn normalize(self: *Self, node_id: Node.NodeId) !void {
             var length: u32 = @intCast(self.getNode(child_id).length());
 
             // Store the IDs of text nodes to remove in a separate array
-            var to_remove = std.ArrayList(Node.NodeId).init(self.allocator);
+            var to_remove = std.array_list.Managed(Node.NodeId).init(self.allocator);
             defer to_remove.deinit();
 
             // Process adjacent text nodes - step 6
@@ -1341,7 +1339,7 @@ pub fn getNodeCount(self: *Self) usize {
 }
 fn printNode(self: *Self, writer: anytype, node_id: Node.NodeId, indent: usize) !void {
     // const node = self.getNode(node_id);
-    try writer.writeByteNTimes(' ', indent * 4);
+    try writer.splatByteAll(' ', indent * 4);
     const kind = self.getNodeKind(node_id);
     // Build invalidation flags string
     const node = self.getNode(node_id);
@@ -1915,7 +1913,7 @@ test "treeOrder - comprehensive" {
     // 13. Create a very deep tree to test performance with nodes at many different levels
 
     var deep_node = child_b_b_a;
-    var deep_nodes = [_]Node.NodeId{undefined} ** 10;
+    var deep_nodes: [10]Node.NodeId = undefined;
 
     for (0..10) |i| {
         deep_nodes[i] = try tree.createNode();
@@ -2013,7 +2011,7 @@ const DumpNodesOptions = struct {
     range_open: []const u8 = "\x1b[7m",
     range_close: []const u8 = "\x1b[0m",
 };
-pub fn dumpNodes(tree: *Self, node_id: Node.NodeId, writer: std.io.AnyWriter, maybe_range: ?Range, comptime options: DumpNodesOptions) !void {
+pub fn dumpNodes(tree: *Self, node_id: Node.NodeId, writer: *std.Io.Writer, maybe_range: ?Range, comptime options: DumpNodesOptions) !void {
     const node = tree.getNode(node_id);
     if (maybe_range) |range| {
         const is_collapsed = range.isCollapsed();
@@ -2416,10 +2414,10 @@ pub fn paint(self: *Self, renderer: *Renderer, writer: anytype, mode: Renderer.R
 }
 
 pub fn expectNodes(tree: *Self, node_id: Node.NodeId, expected: []const u8, range: ?Range) !void {
-    var buffer = std.ArrayList(u8).init(std.testing.allocator);
-    defer buffer.deinit();
-    try tree.dumpNodes(node_id, buffer.writer().any(), range, .{});
-    try std.testing.expectEqualStrings(expected, buffer.items);
+    var aw: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer aw.deinit();
+    try tree.dumpNodes(node_id, &aw.writer, range, .{});
+    try std.testing.expectEqualStrings(expected, aw.writer.buffered());
 }
 fn getBoundaryEnd(tree: *Self, node_id: Node.NodeId) BoundaryPoint {
     const length = tree.getNode(node_id).length();

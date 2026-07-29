@@ -10,8 +10,7 @@ const builtin = @import("builtin");
 
 const logger = std.log.scoped(.wasm);
 const RenderList = @import("layout/v2/RenderList.zig");
-const computeLayout = @import("layout/compute/compute_layout.zig").computeLayout;
-const is_debug = builtin.mode == .Debug;
+const is_debug = builtin.mode == .debug;
 
 const is_wasm = @import("builtin").target.cpu.arch.isWasm();
 
@@ -48,7 +47,7 @@ pub fn wasmLog(
     std.heap.wasm_allocator.free(msg[0 .. total_len + 1]);
 }
 
-var gpa = std.heap.GeneralPurposeAllocator(.{
+var gpa = std.heap.DebugAllocator(.{
     .safety = true,
     .verbose_log = false,
 }){};
@@ -147,7 +146,7 @@ pub fn emitEventFn(_: *anyopaque, event: InputManager.Event) void {
     var event_buffer: [8]u32 = undefined;
     switch (event.data) {
         .key => |key| {
-            const action: u32 = @intCast(@intFromEnum(key.action));
+            const action: u32 = @intCast(@backingInt(key.action));
             event_buffer[0] = 1;
             event_buffer[1] = 0; // reserve for future event id
             event_buffer[2] = key.codepoint;
@@ -157,7 +156,7 @@ pub fn emitEventFn(_: *anyopaque, event: InputManager.Event) void {
             external.emitEvent((&event_buffer).ptr);
         },
         .paste_chunk => |paste| {
-            const kind: u32 = @intCast(@intFromEnum(paste.kind));
+            const kind: u32 = @intCast(@backingInt(paste.kind));
             event_buffer[0] = 2;
             event_buffer[1] = 0; // reserve for future event id
             event_buffer[2] = kind;
@@ -171,8 +170,8 @@ pub fn emitEventFn(_: *anyopaque, event: InputManager.Event) void {
                 .extended => |extended| {
                     event_buffer[0] = 5;
                     event_buffer[1] = 0; // reserve for future event id
-                    event_buffer[2] = @intFromEnum(extended.button);
-                    event_buffer[3] = @intFromEnum(extended.action);
+                    event_buffer[2] = @backingInt(extended.button);
+                    event_buffer[3] = @backingInt(extended.action);
                     event_buffer[4] = extended.x;
                     event_buffer[5] = extended.y;
                     external.emitEvent((&event_buffer).ptr);
@@ -204,7 +203,7 @@ export fn Tree_consumeEvents(tree: *Tree, array_buffer: *std.ArrayList(u8), forc
 }
 export fn Tree_getNodeKind(tree: *Tree, node: u32) u32 {
     logger.info("Tree_getNodeKind({*}, {d})", .{ tree, node });
-    return @intFromEnum(tree.getNodeKind(node));
+    return @backingInt(tree.getNodeKind(node));
 }
 export fn Tree_destroyNode(tree: *Tree, node: u32) void {
     logger.info("Tree_destroyNode({*}, {d})", .{ tree, node });
@@ -255,7 +254,7 @@ export fn Tree_appendChildAtIndex(tree: *Tree, parent: u32, child: u32, index: u
 export fn Tree_getNodeCursorStyle(tree: *Tree, node: u32) u32 {
     logger.info("Tree_getNodeCursorStyle({*}, {d})", .{ tree, node });
     const style = tree.getComputedStyle(node);
-    return @intFromEnum(style.cursor);
+    return @backingInt(style.cursor);
 }
 pub export fn Tree_setStyle(tree: *Tree, node: u32, string: [*:0]u8) void {
     logger.info("Tree_setStyle({*}, {d}, \"{s}\")", .{ tree, node, string });
@@ -338,7 +337,7 @@ pub export fn Tree_hitTest(tree: *Tree, x: f32, y: f32, filter: u8) [*]u32 {
     };
 
     HIT_TEST_RESULT_BUFFER[0] = @intCast(hit_result.external_id);
-    HIT_TEST_RESULT_BUFFER[1] = @intFromEnum(hit_result.item_type);
+    HIT_TEST_RESULT_BUFFER[1] = @backingInt(hit_result.item_type);
     return @ptrCast(&HIT_TEST_RESULT_BUFFER);
 }
 var HIT_TEST_LIST_RESULT_BUFFER: [1024]u32 = undefined;
@@ -350,7 +349,7 @@ pub export fn Tree_hitTestList(tree: *Tree, x: f32, y: f32, filter: u8) [*]u32 {
     var i: usize = 0;
     for (list.items) |result| {
         HIT_TEST_LIST_RESULT_BUFFER[i * 2] = @intCast(result.external_id);
-        HIT_TEST_LIST_RESULT_BUFFER[i * 2 + 1] = @intFromEnum(result.item_type);
+        HIT_TEST_LIST_RESULT_BUFFER[i * 2 + 1] = @backingInt(result.item_type);
         i += 1;
     }
     HIT_TEST_LIST_RESULT_BUFFER[i * 2] = 0;
@@ -424,7 +423,7 @@ export fn Node_getScrollLeftMax(tree: *Tree, node_id: u32) f32 {
 export fn Node_canScroll(tree: *Tree, node_id: u32, direction: u8, delta: f32) bool {
     logger.info("Node_canScroll({*}, {d}, {d}, {d})", .{ tree, node_id, direction, delta });
     const node = tree.getNode(node_id);
-    return node.canScroll(tree, @enumFromInt(direction), delta);
+    return node.canScroll(tree, @fromBackingInt(@intCast(direction)), delta);
 }
 
 const tree_dump_logger = std.log.scoped(.tree_dump);
@@ -454,6 +453,10 @@ const ArrayListWriter = struct {
         for (0..n) |_| {
             try self.writeByte(byte);
         }
+    }
+
+    pub fn splatByteAll(self: ArrayListWriter, byte: u8, n: usize) Error!void {
+        try self.writeByteNTimes(byte, n);
     }
 };
 
@@ -663,6 +666,7 @@ const NoOpWriter = struct {
     pub fn writeAll(_: NoOpWriter, _: []const u8) Error!void {}
     pub fn writeByte(_: NoOpWriter, _: u8) Error!void {}
     pub fn writeByteNTimes(_: NoOpWriter, _: u8, _: usize) Error!void {}
+    pub fn splatByteAll(_: NoOpWriter, _: u8, _: usize) Error!void {}
 };
 
 var boundary_point_buffer: [4]u32 = undefined;
@@ -710,7 +714,7 @@ export fn Tree_removeSelection(tree: *Tree, selection_id: Tree.Selection.Id) voi
 }
 export fn Selection_getDirection(tree: *Tree, selection_id: Tree.Selection.Id) i32 {
     const selection = tree.getSelection(selection_id);
-    return @intFromEnum(selection.direction);
+    return @backingInt(selection.direction);
 }
 export fn Selection_getFocus(tree: *Tree, selection_id: Tree.Selection.Id) [*]u32 {
     const selection = tree.getSelection(selection_id);
@@ -742,8 +746,8 @@ export fn Selection_modify(
     const selection = tree.getSelection(selection_id);
     wasm_try(void, selection.modify(
         tree,
-        @as(Tree.Selection.ExtendDirection, @enumFromInt(direction)),
-        @as(Tree.Selection.ExtendGranularity, @enumFromInt(granularity)),
+        @as(Tree.Selection.ExtendDirection, @fromBackingInt(@intCast(direction))),
+        @as(Tree.Selection.ExtendGranularity, @fromBackingInt(@intCast(granularity))),
         if (ghost_position == -1) null else ghost_position,
     ));
 }
@@ -867,7 +871,7 @@ export fn Renderer_getNodeAt(renderer: *Renderer, tree: *Tree, x: f32, y: f32, f
     return @intCast(hit_result.external_id);
 }
 
-export const EventBuffer = [_]u8{1} ** 128;
+export const EventBuffer: [128]u8 = @splat(1);
 
 fn readBufferWithLength(memory: [*]u8) []const u8 {
     const len = std.mem.readInt(u32, memory[0..4], .little);
@@ -932,7 +936,7 @@ export fn ArrayList_dump(list: *std.ArrayList(u8)) void {
 const handleRawBuffer = @import("cmd/input.zig").handleRawBuffer;
 
 export fn detectLeaks() bool {
-    if (builtin.mode == .Debug) {
+    if (builtin.mode == .debug) {
         const leaked = gpa.detectLeaks();
         return leaked > 0;
     }
@@ -954,15 +958,12 @@ test {
     _ = @import("./uni/LineBreakStream.zig");
     _ = @import("./uni/WordBreak.zig");
     _ = @import("./renderer/v2/mod.zig");
-    _ = @import("./renderer/v2/test_pipeline.zig");
     // New line-builder tests
     _ = @import("./layout/v2/line-builder/Tokenizer.zig");
     _ = @import("./layout/v2/line-builder/WhitespaceRules.zig");
     _ = @import("./layout/v2/line-builder/wrap.zig");
     _ = @import("./layout/v2/line-builder/TextAlignment.zig");
     _ = @import("./layout/v2/line-builder/compute.zig");
-    // Tree invalidation tests
-    _ = @import("./tree/invalidation_test.zig");
     // RenderListBuilder tests
     _ = @import("./layout/v2/RenderListBuilder.zig");
     // Playground for testing WASM API

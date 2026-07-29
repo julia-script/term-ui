@@ -392,7 +392,7 @@ test "english text streaming" {
     try stream.append("world! ");
     try stream.append("This is a test.");
 
-    var breaks = std.ArrayList(Break).init(test_allocator);
+    var breaks = std.array_list.Managed(Break).init(test_allocator);
     defer breaks.deinit();
 
     while (stream.next()) |break_point| {
@@ -418,7 +418,7 @@ test "english text with line breaks" {
     try stream.append("Line 2\r\n");
     try stream.append("Line 3");
 
-    var breaks = std.ArrayList(Break).init(test_allocator);
+    var breaks = std.array_list.Managed(Break).init(test_allocator);
     defer breaks.deinit();
 
     while (stream.next()) |break_point| {
@@ -443,7 +443,7 @@ test "english text with spaces and punctuation" {
     try stream.append("world! ");
     try stream.append("How are you?");
 
-    var breaks = std.ArrayList(Break).init(test_allocator);
+    var breaks = std.array_list.Managed(Break).init(test_allocator);
     defer breaks.deinit();
 
     while (stream.next()) |break_point| {
@@ -461,7 +461,7 @@ test "initWithData compatibility" {
     var stream = try initWithData(test_allocator, "Hello world!");
     defer stream.deinit();
 
-    var breaks = std.ArrayList(Break).init(test_allocator);
+    var breaks = std.array_list.Managed(Break).init(test_allocator);
     defer breaks.deinit();
 
     while (stream.next()) |break_point| {
@@ -492,7 +492,7 @@ test "incremental append" {
         try stream.append(&[_]u8{char});
     }
 
-    var breaks = std.ArrayList(Break).init(test_allocator);
+    var breaks = std.array_list.Managed(Break).init(test_allocator);
     defer breaks.deinit();
 
     while (stream.next()) |break_point| {
@@ -512,7 +512,7 @@ test "asian characters - chinese text" {
     try stream.append("世界");
     try stream.append("！");
 
-    var breaks = std.ArrayList(Break).init(test_allocator);
+    var breaks = std.array_list.Managed(Break).init(test_allocator);
     defer breaks.deinit();
 
     while (stream.next()) |break_point| {
@@ -531,7 +531,7 @@ test "asian characters - japanese text with hiragana and kanji" {
     try stream.append("こんにちは");
     try stream.append("世界");
 
-    var breaks = std.ArrayList(Break).init(test_allocator);
+    var breaks = std.array_list.Managed(Break).init(test_allocator);
     defer breaks.deinit();
 
     while (stream.next()) |break_point| {
@@ -550,7 +550,7 @@ test "asian characters - korean text" {
     try stream.append("안녕");
     try stream.append("하세요");
 
-    var breaks = std.ArrayList(Break).init(test_allocator);
+    var breaks = std.array_list.Managed(Break).init(test_allocator);
     defer breaks.deinit();
 
     while (stream.next()) |break_point| {
@@ -569,7 +569,7 @@ test "asian characters - mixed ascii and cjk" {
     try stream.append("你好 ");
     try stream.append("world");
 
-    var breaks = std.ArrayList(Break).init(test_allocator);
+    var breaks = std.array_list.Managed(Break).init(test_allocator);
     defer breaks.deinit();
 
     while (stream.next()) |break_point| {
@@ -588,7 +588,7 @@ test "emojis - basic emoji" {
     try stream.append("😀");
     try stream.append(" world");
 
-    var breaks = std.ArrayList(Break).init(test_allocator);
+    var breaks = std.array_list.Managed(Break).init(test_allocator);
     defer breaks.deinit();
 
     while (stream.next()) |break_point| {
@@ -606,7 +606,7 @@ test "emojis - emoji with skin tone modifier" {
     try stream.append("👋🏽"); // Waving hand with medium skin tone
     try stream.append(" hello");
 
-    var breaks = std.ArrayList(Break).init(test_allocator);
+    var breaks = std.array_list.Managed(Break).init(test_allocator);
     defer breaks.deinit();
 
     while (stream.next()) |break_point| {
@@ -624,7 +624,7 @@ test "emojis - complex emoji sequence" {
     try stream.append("👨‍👩‍👧‍👦"); // Family emoji (man, woman, girl, boy)
     try stream.append(" family");
 
-    var breaks = std.ArrayList(Break).init(test_allocator);
+    var breaks = std.array_list.Managed(Break).init(test_allocator);
     defer breaks.deinit();
 
     while (stream.next()) |break_point| {
@@ -642,7 +642,7 @@ test "emojis - emoji with text presentation" {
     try stream.append("❤️"); // Red heart with variation selector
     try stream.append(" love");
 
-    var breaks = std.ArrayList(Break).init(test_allocator);
+    var breaks = std.array_list.Managed(Break).init(test_allocator);
     defer breaks.deinit();
 
     while (stream.next()) |break_point| {

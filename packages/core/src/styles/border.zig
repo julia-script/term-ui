@@ -332,10 +332,10 @@ pub const BoxChar = struct {
         };
     }
     fn getLowestValue(a: anytype, b: anytype) @TypeOf(a, b) {
-        return if (@intFromEnum(a) < @intFromEnum(b)) a else b;
+        return if (@backingInt(a) < @backingInt(b)) a else b;
     }
     pub fn getHighestValue(a: anytype, b: anytype) @TypeOf(a, b) {
-        return if (@intFromEnum(a) > @intFromEnum(b)) a else b;
+        return if (@backingInt(a) > @backingInt(b)) a else b;
     }
     fn normalizeCell(cell: Cell, comptime clear_rounded: bool, comptime clear_dashed: bool) Cell {
         switch (cell.style) {
@@ -434,10 +434,10 @@ pub const BoxChar = struct {
         light = 0,
         heavy = 1,
         pub fn toInt(self: Weight) u64 {
-            return @intFromEnum(self);
+            return @backingInt(self);
         }
         pub fn fromInt(value: u64) Weight {
-            return @enumFromInt(value);
+            return @fromBackingInt(@intCast(value));
         }
     };
 
@@ -457,10 +457,10 @@ pub const BoxChar = struct {
             };
         }
         pub fn toInt(self: Style) u64 {
-            return @intFromEnum(self);
+            return @backingInt(self);
         }
         pub fn fromInt(value: u64) Style {
-            return @enumFromInt(value);
+            return @fromBackingInt(@intCast(value));
         }
     };
     pub const Rounded = enum(u64) {

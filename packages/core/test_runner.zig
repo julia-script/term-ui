@@ -52,7 +52,7 @@ pub const std_options: std.Options = .{
     // .log_level = .err,
 };
 const Allocator = std.mem.Allocator;
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+var gpa = std.heap.DebugAllocator(.{}){};
 const root_allocator = gpa.allocator();
 const UpdateTransaction = struct {
     start: u32,
@@ -68,6 +68,7 @@ const Update = struct {
 pub var files_to_update: std.StringHashMapUnmanaged(Update) = .{};
 
 var arena = std.heap.ArenaAllocator.init(root_allocator);
+var test_io: std.Io = undefined;
 
 pub fn getSource(file: []const u8) ![]const u8 {
     const allocator = arena.allocator();
@@ -78,16 +79,16 @@ pub fn getSource(file: []const u8) ![]const u8 {
 
     const path = try std.fs.path.join(allocator, &.{ "src", file });
     defer allocator.free(path);
-    const stat = try std.fs.cwd().statFile(path);
+    const stat = try std.Io.Dir.cwd().statFile(test_io, path, .{});
     if (stat.kind != .file) {
         return error.FileNotFound;
     }
 
-    const file_content = try std.fs.cwd().readFileAlloc(allocator, path, stat.size);
+    const file_content = try std.Io.Dir.cwd().readFileAlloc(test_io, path, allocator, .limited64(stat.size));
     gop.value_ptr.* = .{
         .file = allocator.dupe(u8, file) catch @panic("OOM"),
         .content = file_content,
-        .transactions = std.ArrayList(UpdateTransaction).init(allocator),
+        .transactions = .empty,
     };
 
     return file_content;
@@ -105,13 +106,13 @@ pub fn addReplace(file: []const u8, start: u32, end: u32, content: []const u8) !
         gop.value_ptr.* = .{
             .file = allocator.dupe(u8, file) catch @panic("OOM"),
             .content = try getSource(file),
-            .transactions = std.ArrayList(UpdateTransaction).init(allocator),
+            .transactions = .empty,
         };
     }
-    gop.value_ptr.transactions.append(transaction) catch @panic("OOM");
+    gop.value_ptr.transactions.append(allocator, transaction) catch @panic("OOM");
 }
 
-const BORDER = "=" ** 80;
+const BORDER: [80]u8 = @splat('=');
 // pub const std_options: std.Options = .{
 
 // };
@@ -121,17 +122,17 @@ var current_test: ?[]const u8 = null;
 pub fn main() !void {
     const allocator = arena.allocator();
     defer arena.deinit();
+    var threaded: std.Io.Threaded = .init(root_allocator, .{});
+    defer threaded.deinit();
+    test_io = threaded.io();
     if (test_options.update) {
-        var src = try std.fs.cwd().openDir("src", .{});
-        defer src.close();
+        var src = try std.Io.Dir.cwd().openDir(test_io, "src", .{ .iterate = true });
+        defer src.close(test_io);
         try rmSnapshotsRecursively(src);
     }
 
     const env = Env.init(allocator);
     defer env.deinit(allocator);
-
-    var slowest = SlowTracker.init(allocator, 5);
-    defer slowest.deinit();
 
     var pass: usize = 0;
     var fail: usize = 0;
@@ -158,7 +159,6 @@ pub fn main() !void {
         }
 
         var status = Status.pass;
-        slowest.startTiming();
 
         const is_unnamed_test = isUnnamed(t);
         if (!is_unnamed_test and test_options.filter.len > 0 and std.mem.indexOf(u8, t.name, test_options.filter) == null) {
@@ -178,13 +178,11 @@ pub fn main() !void {
         };
 
         current_test = friendly_name;
-        std.testing.allocator_instance = .{};
+        std.testing.allocator_instance = .init(std.heap.page_allocator, .{});
         const result = t.func();
         current_test = null;
 
-        const ns_taken = slowest.endTiming(friendly_name);
-
-        if (std.testing.allocator_instance.deinit() == .leak) {
+        if (std.testing.allocator_instance.deinit() != 0) {
             leak += 1;
             printer.status(.fail, "\n{s}\n\"{s}\" - Memory Leak\n{s}\n", .{ BORDER, friendly_name, BORDER });
         }
@@ -201,7 +199,7 @@ pub fn main() !void {
                 fail += 1;
                 printer.status(.fail, "\n{s}\n\"{s}\" - {s}\n{s}\n", .{ BORDER, friendly_name, @errorName(err), BORDER });
                 if (@errorReturnTrace()) |trace| {
-                    std.debug.dumpStackTrace(trace.*);
+                    std.debug.dumpErrorReturnTrace(trace);
                 }
                 if (env.fail_first) {
                     break;
@@ -210,8 +208,7 @@ pub fn main() !void {
         }
 
         if (env.verbose) {
-            const ms = @as(f64, @floatFromInt(ns_taken)) / 1_000_000.0;
-            printer.status(status, "{s} ({d:.2}ms)\n", .{ friendly_name, ms });
+            printer.status(status, "{s}\n", .{friendly_name});
         } else {
             printer.status(status, ".", .{});
         }
@@ -238,9 +235,7 @@ pub fn main() !void {
         printer.status(.fail, "{d} test{s} leaked\n", .{ leak, if (leak != 1) "s" else "" });
     }
     printer.fmt("\n", .{});
-    try slowest.display(printer);
-    printer.fmt("\n", .{});
-    std.posix.exit(if (fail == 0) 0 else 1);
+    std.process.exit(if (fail == 0) 0 else 1);
 }
 pub fn writeMultiline(allocator: Allocator, writer: anytype, content: []const u8) !void {
     _ = allocator; // autofix
@@ -253,11 +248,9 @@ pub fn writeMultiline(allocator: Allocator, writer: anytype, content: []const u8
 }
 
 fn formatZig(allocator: Allocator, content: [:0]const u8) ![]const u8 {
-    const ast = try std.zig.Ast.parse(allocator, content, .zig);
+    const ast = try std.zig.Ast.parse(allocator, content, .{ .mode = .zig });
 
-    return try ast.render(
-        allocator,
-    );
+    return try ast.renderAlloc(allocator);
 }
 
 fn updateInlineSnapshots() !void {
@@ -270,8 +263,8 @@ fn updateInlineSnapshots() !void {
         }
 
         const content = entry.value_ptr.content;
-        var buffer = std.ArrayList(u8).init(allocator);
-        const writer = buffer.writer().any();
+        var aw: std.Io.Writer.Allocating = .init(allocator);
+        const writer = &aw.writer;
 
         var last_index: u32 = 0;
         for (entry.value_ptr.transactions.items) |transaction| {
@@ -281,27 +274,19 @@ fn updateInlineSnapshots() !void {
         }
         try writer.writeAll(content[last_index..]);
         const file_path = try std.fs.path.join(allocator, &.{ "src", file });
-        var open_file = try std.fs.cwd().openFile(file_path, .{
-            .mode = .write_only,
-        });
-        defer open_file.close();
-
-        const formatted = try formatZig(allocator, try buffer.toOwnedSliceSentinel(0));
-        try open_file.writeAll(formatted);
+        const formatted = try formatZig(allocator, try aw.toOwnedSliceSentinel(0));
+        try std.Io.Dir.cwd().writeFile(test_io, .{ .sub_path = file_path, .data = formatted });
     }
 }
 
 const Printer = struct {
-    out: std.fs.File.Writer,
-
     fn init() Printer {
-        return .{
-            .out = std.io.getStdErr().writer(),
-        };
+        return .{};
     }
 
     fn fmt(self: Printer, comptime format: []const u8, args: anytype) void {
-        std.fmt.format(self.out, format, args) catch unreachable;
+        _ = self;
+        std.debug.print(format, args);
     }
 
     fn status(self: Printer, s: Status, comptime format: []const u8, args: anytype) void {
@@ -311,9 +296,8 @@ const Printer = struct {
             .skip => "\x1b[33m",
             else => "",
         };
-        const out = self.out;
-        out.writeAll(color) catch @panic("writeAll failed?!");
-        std.fmt.format(out, format, args) catch @panic("std.fmt.format failed?!");
+        std.debug.print("{s}", .{color});
+        std.debug.print(format, args);
         self.fmt("\x1b[0m", .{});
     }
 };
@@ -323,81 +307,6 @@ const Status = enum {
     fail,
     skip,
     text,
-};
-
-const SlowTracker = struct {
-    const SlowestQueue = std.PriorityDequeue(TestInfo, void, compareTiming);
-    max: usize,
-    slowest: SlowestQueue,
-    timer: std.time.Timer,
-
-    fn init(allocator: Allocator, count: u32) SlowTracker {
-        const timer = std.time.Timer.start() catch @panic("failed to start timer");
-        var slowest = SlowestQueue.init(allocator, {});
-        slowest.ensureTotalCapacity(count) catch @panic("OOM");
-        return .{
-            .max = count,
-            .timer = timer,
-            .slowest = slowest,
-        };
-    }
-
-    const TestInfo = struct {
-        ns: u64,
-        name: []const u8,
-    };
-
-    fn deinit(self: SlowTracker) void {
-        self.slowest.deinit();
-    }
-
-    fn startTiming(self: *SlowTracker) void {
-        self.timer.reset();
-    }
-
-    fn endTiming(self: *SlowTracker, test_name: []const u8) u64 {
-        var timer = self.timer;
-        const ns = timer.lap();
-
-        var slowest = &self.slowest;
-
-        if (slowest.count() < self.max) {
-            // Capacity is fixed to the # of slow tests we want to track
-            // If we've tracked fewer tests than this capacity, than always add
-            slowest.add(TestInfo{ .ns = ns, .name = test_name }) catch @panic("failed to track test timing");
-            return ns;
-        }
-
-        {
-            // Optimization to avoid shifting the dequeue for the common case
-            // where the test isn't one of our slowest.
-            const fastest_of_the_slow = slowest.peekMin() orelse unreachable;
-            if (fastest_of_the_slow.ns > ns) {
-                // the test was faster than our fastest slow test, don't add
-                return ns;
-            }
-        }
-
-        // the previous fastest of our slow tests, has been pushed off.
-        _ = slowest.removeMin();
-        slowest.add(TestInfo{ .ns = ns, .name = test_name }) catch @panic("failed to track test timing");
-        return ns;
-    }
-
-    fn display(self: *SlowTracker, printer: Printer) !void {
-        var slowest = self.slowest;
-        const count = slowest.count();
-        printer.fmt("Slowest {d} test{s}: \n", .{ count, if (count != 1) "s" else "" });
-        while (slowest.removeMinOrNull()) |info| {
-            const ms = @as(f64, @floatFromInt(info.ns)) / 1_000_000.0;
-            printer.fmt("  {d:.2}ms\t{s}\n", .{ ms, info.name });
-        }
-    }
-
-    fn compareTiming(context: void, a: TestInfo, b: TestInfo) std.math.Order {
-        _ = context;
-        return std.math.order(a.ns, b.ns);
-    }
 };
 
 const Env = struct {
@@ -431,14 +340,11 @@ const Env = struct {
     }
 
     fn readEnv(allocator: Allocator, key: []const u8) ?[]const u8 {
-        const v = std.process.getEnvVarOwned(allocator, key) catch |err| {
-            if (err == error.EnvironmentVariableNotFound) {
-                return null;
-            }
-            std.log.warn("failed to get env var {s} due to err {}", .{ key, err });
-            return null;
-        };
-        return v;
+        // ponytail: env access now needs a std.Io instance; TEST_VERBOSE and
+        // TEST_FAIL_FIRST fall back to defaults until one is threaded through.
+        _ = allocator;
+        _ = key;
+        return null;
     }
 
     fn readEnvBool(allocator: Allocator, key: []const u8, deflt: bool) bool {
@@ -921,17 +827,16 @@ fn sanitizeDescription(allocator: std.mem.Allocator, desc: []const u8, ext: []co
     return buf.toOwnedSlice();
 }
 
-fn rmSnapshotsRecursively(dir: std.fs.Dir) !void {
+fn rmSnapshotsRecursively(dir: std.Io.Dir) !void {
     var it = dir.iterate();
-    while (try it.next()) |entry| {
+    while (try it.next(test_io)) |entry| {
         if (entry.kind == .directory) {
             if (std.mem.eql(u8, entry.name, "__snapshots__")) {
-                // std.debug.print("Deleting snapshot directory{any}  \n", .{dir.stat()});
-                try dir.deleteTree("__snapshots__");
+                try dir.deleteTree(test_io, "__snapshots__");
                 continue;
             }
-            var subdir = try dir.openDir(entry.name, .{});
-            defer subdir.close();
+            var subdir = try dir.openDir(test_io, entry.name, .{ .iterate = true });
+            defer subdir.close(test_io);
             try rmSnapshotsRecursively(subdir);
         }
         // std.fs.cwd().deleteFile(try std.fs.path.join(allocator, &.{ subdir, entry.name })) catch |err| {

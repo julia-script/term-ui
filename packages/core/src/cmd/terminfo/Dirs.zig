@@ -18,7 +18,7 @@ const known_directories = [_][]const u8{
 };
 
 pub fn init(alloc: Allocator) Allocator.Error!Dirs {
-    var dirs = std.ArrayList(Dir).init(alloc);
+    var dirs = std.array_list.Managed(Dir).init(alloc);
     errdefer deinit_dirs(alloc, dirs.items);
 
     // add $TERMINFO dir first, because it's most likely to have the correct

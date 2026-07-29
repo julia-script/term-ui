@@ -123,11 +123,11 @@ pub fn parseEnum(T: type, src: []const u8, pos: usize) ?Result(T) {
     if (identifier.empty()) {
         return null;
     }
-    inline for (std.meta.fields(T)) |field| {
-        const kebab_case_name = comptime comptimeKebabCase(field.name);
+    inline for (comptime std.meta.fieldNames(T)) |field_name| {
+        const kebab_case_name = comptime comptimeKebabCase(field_name);
         if (std.mem.eql(u8, identifier.value, &kebab_case_name)) {
             return .{
-                .value = @field(T, field.name),
+                .value = @field(T, field_name),
                 .start = identifier.start,
                 .end = identifier.end,
             };

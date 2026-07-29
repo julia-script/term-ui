@@ -166,7 +166,6 @@ pub fn parseColorStopList(src: []const u8, pos: usize) utils.ParseError!utils.Re
         return error.InvalidSyntax;
     }
 
-
     // Create the final color stops array
     // const color_stops_array = try allocator.dupe(ColorStop, color_stops.items);
     // color_stops.deinit();

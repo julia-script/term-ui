@@ -64,7 +64,7 @@ pub fn sliceReverse(s: anytype) RevIter(@TypeOf(s)) {
 }
 
 test "List.SliceType" {
-    var list = std.ArrayList(f32).init(std.testing.allocator);
+    var list = std.array_list.Managed(f32).init(std.testing.allocator);
     defer list.deinit();
     try list.append(1.0);
 

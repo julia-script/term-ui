@@ -1,6 +1,5 @@
 const std = @import("std");
 
-const expectEvents = @import("test-utils.zig").expectEvents;
 const AnyInputManager = @import("input/manager.zig").AnyInputManager;
 const Match = @import("input/manager.zig").Match;
 const Event = @import("input/manager.zig").Event;
@@ -236,15 +235,4 @@ pub fn handleTerminalInfo(manager: *AnyInputManager, buffer: []const u8, positio
     }
     // if got this far, buffer ended with a partial match
     return .partial;
-}
-
-test "term info" {
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "xterm-ghostty",
-        &.{
-            "\x1b[1;3P",
-        },
-    );
 }

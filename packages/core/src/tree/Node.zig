@@ -6,7 +6,6 @@ const Point = @import("../layout/point.zig").Point;
 const AvailableSpace = @import("../layout/compute/compute_constants.zig").AvailableSpace;
 const build_options = @import("build_options");
 const Node = @This();
-const Cache = @import("Cache.zig");
 const Tree = @import("Tree.zig");
 const ComputedText = @import("../layout/compute/text/ComputedText.zig");
 const String = @import("String.zig");
@@ -21,7 +20,7 @@ pub const NodeKind = enum(u8) {
 id: NodeId,
 kind: NodeKind = .node,
 parent: ?NodeId = null,
-children: ArrayList(NodeId) = .{},
+children: ArrayList(NodeId) = .empty,
 styles: Style,
 attributes: Attributes,
 
@@ -45,13 +44,13 @@ pub const RegenerateLevel = enum(u8) {
     repaint = 2,
 
     pub fn max(a: RegenerateLevel, b: RegenerateLevel) RegenerateLevel {
-        return @enumFromInt(@max(a.toInt(), b.toInt()));
+        return @fromBackingInt(@intCast(@max(a.toInt(), b.toInt())));
     }
     pub fn min(a: RegenerateLevel, b: RegenerateLevel) RegenerateLevel {
-        return @enumFromInt(@min(a.toInt(), b.toInt()));
+        return @fromBackingInt(@intCast(@min(a.toInt(), b.toInt())));
     }
     pub fn toInt(self: RegenerateLevel) u8 {
-        return @intFromEnum(self);
+        return @backingInt(self);
     }
 };
 pub fn needsRegenerate(self: *Self) bool {
@@ -69,7 +68,7 @@ pub fn markRegenerateCompleted(self: *Self, level: RegenerateLevel) void {
         return;
     }
     const next = level.toInt() + 1;
-    self.regenerate_level = @enumFromInt(next);
+    self.regenerate_level = @fromBackingInt(@intCast(next));
 }
 pub fn requestRecompute(self: *Self) void {
     self.regenerate_level = .recompute;
@@ -361,10 +360,10 @@ pub const ClientRect = struct {
 pub fn getClientRects(self: *Self, tree: *Tree, allocator: std.mem.Allocator) ![]ClientRect {
     const items = tree.render_list.items.items;
 
-    var rects = ArrayList(ClientRect){};
+    var rects: ArrayList(ClientRect) = .empty;
     defer rects.deinit(allocator);
 
-    var current_line_rects = ArrayList(ClientRect){};
+    var current_line_rects: ArrayList(ClientRect) = .empty;
     defer current_line_rects.deinit(allocator);
     var current_line_index: ?usize = null;
 

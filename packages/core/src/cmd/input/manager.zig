@@ -527,10 +527,10 @@ pub const Event = struct {
                 try fbs_writer.print("'", .{});
             },
             .osc => |osc| {
-                try fbs_writer.print("osc <{d}>", .{@intFromEnum(osc.parameter_selector)});
+                try fbs_writer.print("osc <{d}>", .{@backingInt(osc.parameter_selector)});
             },
             .dcs => |dcs| {
-                try fbs_writer.print("dcs <{d}>", .{@intFromEnum(dcs.parameter_selector)});
+                try fbs_writer.print("dcs <{d}>", .{@backingInt(dcs.parameter_selector)});
             },
             .mouse => |mouse| {
                 // try fbs_writer.print("mouse .{s} (x={d} y={d})", .{ @tagName(mouse.normal.action), mouse.normal.x, mouse.normal.y });

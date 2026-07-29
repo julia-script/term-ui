@@ -205,7 +205,7 @@ fn expectSelection(selection: *Self, description: []const u8, tree: *Tree, ancho
     const actual_direction = selection.direction;
 
     if (actual_anchor.node_id != anchor.node_id or actual_anchor.offset != anchor.offset or actual_focus.node_id != focus.node_id or actual_focus.offset != focus.offset or actual_direction != direction) {
-        var buf = std.ArrayList(u8).init(testing.allocator);
+        var buf = std.array_list.Managed(u8).init(testing.allocator);
         defer buf.deinit();
         const buf_writer = buf.writer().any();
 

@@ -89,12 +89,12 @@ const Precompute = struct {
         @setEvalBranchQuota(2_000);
         const info = @typeInfo(GraphemeBoundaryClass).@"enum";
         for (0..std.math.maxInt(u2) + 1) |state_init| {
-            for (info.fields) |field1| {
-                for (info.fields) |field2| {
+            for (info.field_names) |field1| {
+                for (info.field_names) |field2| {
                     var state: BreakState = @bitCast(@as(u2, @intCast(state_init)));
                     const key: Key = .{
-                        .gbc1 = @field(GraphemeBoundaryClass, field1.name),
-                        .gbc2 = @field(GraphemeBoundaryClass, field2.name),
+                        .gbc1 = @field(GraphemeBoundaryClass, field1),
+                        .gbc2 = @field(GraphemeBoundaryClass, field2),
                         .state = state,
                     };
                     const v = graphemeBreakClass(key.gbc1, key.gbc2, &state);

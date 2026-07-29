@@ -653,7 +653,7 @@ export class Document {
     this.writeStream.write(sequences.HIDE_CURSOR);
     this.renderer.paint(this.tree);
     this.restoreCursor();
-    this._devtools?.ee.emit("render");
+    this._devtools?.ee.emit("render", true);
   };
   private restoreCursor = () => {
     if (this.selection?.isEditable()) {

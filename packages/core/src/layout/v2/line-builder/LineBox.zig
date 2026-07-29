@@ -5,7 +5,7 @@ const mod = @import("../mod.zig");
 
 location: mod.CSSPoint = .{ .x = 0, .y = 0 },
 size: mod.CSSPoint = .{ .x = 0, .y = 0 },
-fragments: ArrayListUnmanaged(LineBoxFragment) = .{},
+fragments: ArrayListUnmanaged(LineBoxFragment) = .empty,
 allocator: std.mem.Allocator,
 available_width: f32 = 0,
 
@@ -29,7 +29,7 @@ pub fn dupe(self: *const @This(), allocator: std.mem.Allocator) !Self {
         .location = self.location,
         .size = self.size,
         .available_width = self.available_width,
-        .fragments = .{},
+        .fragments = .empty,
         .allocator = allocator,
     };
     // try new.fragments.ensureUnusedCapacity(allocator, self.fragments.items.len);
@@ -54,7 +54,7 @@ pub fn endsWithWhitespace(self: *@This()) bool {
 }
 
 pub const LineBoxList = struct {
-    list: ArrayListUnmanaged(Self) = .{},
+    list: ArrayListUnmanaged(Self) = .empty,
     allocator: std.mem.Allocator,
 
     pub fn items(self: *@This()) []Self {

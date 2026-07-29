@@ -8,7 +8,7 @@ const RenderList = layout_v2.RenderList;
 
 canvas: Canvas,
 allocator: std.mem.Allocator,
-render_buffer: std.ArrayListUnmanaged(u8) = .{},
+render_buffer: std.ArrayListUnmanaged(u8) = .empty,
 
 const Self = @This();
 
@@ -30,6 +30,10 @@ const BufferWriter = struct {
 
     pub fn writeByte(self: BufferWriter, byte: u8) Error!void {
         self.buffer.append(self.allocator, byte) catch return error.OutOfMemory;
+    }
+
+    pub fn splatByteAll(self: BufferWriter, byte: u8, n: usize) Error!void {
+        try self.writeByteNTimes(byte, n);
     }
 
     pub fn writeByteNTimes(self: BufferWriter, byte: u8, n: usize) Error!void {
@@ -482,12 +486,12 @@ test "Renderer v2 multi-width characters" {
     var renderer = try init(std.testing.allocator);
     defer renderer.deinit();
 
-    var buffer = std.ArrayList(u8).init(std.testing.allocator);
-    defer buffer.deinit();
+    var aw: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer aw.deinit();
 
-    try doc_tree.paint(&renderer, buffer.writer().any(), .app);
+    try doc_tree.paint(&renderer, &aw.writer, .app);
 
-    try std.testing.expect(buffer.items.len > 0);
+    try std.testing.expect(aw.writer.buffered().len > 0);
 }
 
 test "Renderer v2 basic rendering" {
@@ -509,9 +513,9 @@ test "Renderer v2 basic rendering" {
     try doc_tree.computeLayout(std.testing.allocator, available_space);
     var renderer = try init(std.testing.allocator);
     defer renderer.deinit();
-    var buffer = std.ArrayList(u8).init(std.testing.allocator);
-    defer buffer.deinit();
-    try doc_tree.paint(&renderer, buffer.writer().any(), .app);
+    var aw: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer aw.deinit();
+    try doc_tree.paint(&renderer, &aw.writer, .app);
 
-    try std.testing.expect(buffer.items.len > 0);
+    try std.testing.expect(aw.writer.buffered().len > 0);
 }

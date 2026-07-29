@@ -14,15 +14,15 @@ const assert = std.debug.assert;
 const gradient = @import("./gradient.zig");
 const Sampler = gradient.Sampler;
 
-cells: Array(Cell) = .{},
-previous_cells: Array(Cell) = .{},
+cells: Array(Cell) = .empty,
+previous_cells: Array(Cell) = .empty,
 force_redraw: bool = true,
 clear_color: Color = Color.tw.black,
 fg_color: Color = Color.tw.white,
 allocator: std.mem.Allocator,
 size: PointF32,
 /// Stack of clipping rectangles
-clip_stack: Array(RenderList.Rect) = .{},
+clip_stack: Array(RenderList.Rect) = .empty,
 /// Current clipping rectangle
 clip_rect: RenderList.Rect,
 
@@ -38,7 +38,7 @@ pub const Cell = struct {
     width: u32 = 1,
     is_continuation: bool = false,
     // Buffer for storing UTF-8 encoded border characters
-    char_buf: [4]u8 = [_]u8{' '} ** 4,
+    char_buf: [4]u8 = @splat(' '),
     char_len: u8 = 1,
 
     pub const CellData = union(enum) {

@@ -246,15 +246,15 @@ pub fn generateSelectionBoxForFragment(
 
         const start_before =
             if (start_in_node)
-            s_start_off < f_start_off
-        else
-            end_in_frag or has_active_selection;
+                s_start_off < f_start_off
+            else
+                end_in_frag or has_active_selection;
 
         const end_after =
             if (end_in_node)
-            s_end_off > f_end_off
-        else
-            has_active_selection and !end_in_frag;
+                s_end_off > f_end_off
+            else
+                has_active_selection and !end_in_frag;
         // std.debug.print(
         //     \\==========
         //     \\fragment: "{s}"

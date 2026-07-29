@@ -51,15 +51,15 @@ pub fn toType(comptime T: type, value: anytype) T {
 
 test "toType conversions" {
     const testing = std.testing;
-    
+
     // u32 conversions
     try testing.expectEqual(@as(f32, 42.0), toType(f32, @as(u32, 42)));
     try testing.expectEqual(@as(usize, 42), toType(usize, @as(u32, 42)));
-    
+
     // f32 conversions
     try testing.expectEqual(@as(u32, 3), toType(u32, @as(f32, 3.14)));
     try testing.expectEqual(@as(i32, -3), toType(i32, @as(f32, -3.14)));
-    
+
     // comptime values
     try testing.expectEqual(@as(u32, 42), toType(u32, 42));
     try testing.expectEqual(@as(f32, 3.14), toType(f32, 3.14));

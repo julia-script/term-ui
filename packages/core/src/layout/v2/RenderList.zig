@@ -13,7 +13,7 @@ const BoundaryPoint = @import("../../tree/BoundaryPoint.zig");
 const measureText = @import("../../uni/string-width.zig").measureText;
 
 /// A flat list of render items representing the paint order of the layout tree
-items: std.ArrayListUnmanaged(RenderItem) = .{},
+items: std.ArrayListUnmanaged(RenderItem) = .empty,
 allocator: std.mem.Allocator,
 node_boxes_map: std.AutoHashMapUnmanaged(NodeId, usize) = .{},
 

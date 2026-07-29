@@ -64,9 +64,7 @@ pub fn build(b: *std.Build) !void {
         run_step,
     });
 
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
+    run_cmd.addPassthruArgs();
 
     const test_filter = b.option([]const u8, "filter", "Skip tests that do not match filter");
     const update_snapshots = b.option(bool, "update", "Regenerate snapshot files") orelse false;
@@ -78,7 +76,7 @@ pub fn build(b: *std.Build) !void {
 
     const exe_unit_tests = b.addTest(.{
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/tests.zig"),
+            .root_source_file = b.path("src/wasm.zig"),
             .target = target,
             .optimize = optimize,
         }),

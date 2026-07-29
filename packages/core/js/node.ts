@@ -16,7 +16,7 @@ export const distDir = join(
 
 const _initFromFile = async (
   path?: string,
-  args: InitArgs = {},
+  args: Omit<InitArgs, "loader"> = {},
 ) => {
   // Use dev flag from args, defaulting to NODE_ENV check
   const isDev =
@@ -31,7 +31,10 @@ const _initFromFile = async (
   }
 
   const bytes = await readFile(path);
-  return await init(new Uint8Array(bytes), args);
+  return await init({
+    ...args,
+    loader: async () => new Uint8Array(bytes),
+  });
 };
 
 export const initFromFile: typeof _initFromFile =

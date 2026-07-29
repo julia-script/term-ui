@@ -117,8 +117,8 @@ pub const ComputedStyleCache = struct {
     fn copyStyleProperties(self: *ComputedStyleCache, source: *Style, dest: *Style) void {
         _ = self; // Not used yet
 
-        inline for (std.meta.fields(Style)) |field| {
-            @field(dest, field.name) = @field(source, field.name);
+        inline for (comptime std.meta.fieldNames(Style)) |field_name| {
+            @field(dest, field_name) = @field(source, field_name);
         }
     }
 

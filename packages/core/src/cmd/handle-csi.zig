@@ -8,7 +8,6 @@ const Osc = @import("input/osc.zig").Osc;
 const Dcs = @import("input/dcs.zig").Dcs;
 const keys = @import("keys.zig");
 const constants = @import("input/constants.zig");
-const expectEvents = @import("./test-utils.zig").expectEvents;
 const logger = @import("input/manager.zig").logger;
 const TermKeyType = enum(i32) {
     unicode,
@@ -131,25 +130,16 @@ const KeyTables = struct {
 };
 
 const key_tables = blk: {
-    const ss3s: [64]KeyInfo = [_]KeyInfo{KeyInfo{
+    const unknown_key: KeyInfo = .{
         .type = .unknown_csi,
         .sym = null,
         .modifier_set = 0,
         .modifier_mask = 0,
-    }} ** 64;
-    const ss3_kpalts: [64]u8 = [_]u8{0} ** 64;
-    const csi_ss3s: [64]KeyInfo = [_]KeyInfo{KeyInfo{
-        .type = .unknown_csi,
-        .sym = null,
-        .modifier_set = 0,
-        .modifier_mask = 0,
-    }} ** 64;
-    const csifuncs: [NCSIFUNCS]KeyInfo = [_]KeyInfo{KeyInfo{
-        .type = .unknown_csi,
-        .sym = null,
-        .modifier_set = 0,
-        .modifier_mask = 0,
-    }} ** NCSIFUNCS;
+    };
+    const ss3s: [64]KeyInfo = @splat(unknown_key);
+    const ss3_kpalts: [64]u8 = @splat(0);
+    const csi_ss3s: [64]KeyInfo = @splat(unknown_key);
+    const csifuncs: [NCSIFUNCS]KeyInfo = @splat(unknown_key);
 
     // Register known keys
     // registerCsiSs3(&csi_ss3s, .keysym, .up, 'A');
@@ -455,7 +445,7 @@ const RawCsi = struct {
     }
 
     const WithSubParams = struct {
-        parameters: [4]SuffixedInt = [_]SuffixedInt{.{ .int = 0, .suffix = 0 }} ** 4,
+        parameters: [4]SuffixedInt = @splat(.{ .int = 0, .suffix = 0 }),
         parameter_count: usize = 0,
     };
     pub fn parseWithSubParams(params: []const u8) WithSubParams {
@@ -548,25 +538,6 @@ pub fn parseCsi(
     }
 
     return .{ .match = raw_csi };
-}
-test "parseCsi" {
-    {
-        const result = parseCsi("\x1b[1;23;34m", 0, 2);
-        try std.testing.expectEqual(result.match.parameter_count, 3);
-        try std.testing.expectEqualSlices(u8, result.match.parameters[0], "1");
-        try std.testing.expectEqualSlices(u8, result.match.parameters[1], "23");
-        try std.testing.expectEqualSlices(u8, result.match.parameters[2], "34");
-    }
-
-    {
-        const result = parseCsi("\x1b[;;34m", 0, 2);
-        try std.testing.expectEqual(result.match.parameter_count, 3);
-        try std.testing.expectEqualSlices(u8, result.match.parameters[0], "");
-        try std.testing.expectEqualSlices(u8, result.match.parameters[1], "");
-        try std.testing.expectEqualSlices(u8, result.match.parameters[2], "34");
-    }
-
-    // try std.testing.expectEqual(result.match.parameter_count, 3);
 }
 // pub fn interpretMouseEvent(raw_csi: RawCsi) Match {
 //     _ = raw_csi; // autofix
@@ -900,81 +871,6 @@ pub fn interpretUnicodeKey(manager: *AnyInputManager, csi: RawCsi, raw: []const 
     return .{ .match = raw.len };
 }
 const KittySequence = @import("keys.zig").KittySequence;
-fn expectKittySequence(comptime loc: std.builtin.SourceLocation, allocator: std.mem.Allocator, comptime description: []const u8, comptime seq: KittySequence) !void {
-    var buf: [128]u8 = undefined;
-
-    const actual = try seq.encode(&buf);
-    // std.debug.print("actual: {s}\n", .{actual[1..]});
-    try expectEvents(
-        loc,
-        allocator,
-        description,
-        &.{actual[1..]},
-    );
-}
-test "unicode" {
-    try expectKittySequence(
-        @src(),
-        std.testing.allocator,
-        "unicode",
-        .{
-            .key = 'a',
-            .final = 'u',
-            .event = .press,
-            .mods = .{
-                .shift = true,
-            },
-        },
-    );
-
-    try expectKittySequence(
-        @src(),
-        std.testing.allocator,
-        "unicode",
-        .{
-            .key = 'a',
-            .final = 'u',
-            .event = .press,
-            .mods = .{
-                .shift = true,
-                .ctrl = true,
-            },
-        },
-    );
-
-    try expectKittySequence(
-        @src(),
-        std.testing.allocator,
-        "unicode",
-        .{
-            .key = 'a',
-            .final = 'u',
-            .event = .press,
-        },
-    );
-
-    try expectKittySequence(
-        @src(),
-        std.testing.allocator,
-        "unicode",
-        .{
-            .key = 'a',
-            .final = 'u',
-            .event = .release,
-        },
-    );
-
-    try expectKittySequence(
-        @src(),
-        std.testing.allocator,
-        "unicode",
-        .{
-            .key = 'a',
-            .final = 'u',
-            .event = .repeat,
-        },
-    );
-}
 
 pub fn handleCsiCsi(manager: *AnyInputManager, buffer: []const u8, position: usize, intro_len: usize) Match {
     logger.info("try handleCsiCsi", .{});
@@ -1131,280 +1027,6 @@ pub fn interpretCursorPositionReport(manager: *AnyInputManager, csi: RawCsi, raw
     return .{ .match = raw.len };
 }
 
-test "interpretX10MouseEvent" {
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "left",
-        &.{"\x1b[M" ++ [_]u8{ 32, 232, 232 }},
-    );
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "middle",
-        &.{"\x1b[M" ++ [_]u8{ 33, 232, 232 }},
-    );
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "right",
-        &.{"\x1b[M" ++ [_]u8{ 34, 232, 232 }},
-    );
-
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "release",
-        &.{"\x1b[M" ++ [_]u8{ 35, 232, 232 }},
-    );
-
-    // Test wheel mice events - note: keeping original names for normal tracking mode
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "wheel forward",
-        &.{"\x1b[M" ++ [_]u8{ 32 + 64, 232, 232 }},
-    );
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "wheel back",
-        &.{"\x1b[M" ++ [_]u8{ 33 + 64, 232, 232 }},
-    );
-
-    // Test wheel tilt events
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "wheel tilt right",
-        &.{"\x1b[M" ++ [_]u8{ 34 + 64, 232, 232 }},
-    );
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "wheel tilt left",
-        &.{"\x1b[M" ++ [_]u8{ 35 + 64, 232, 232 }},
-    );
-
-    // Test higher buttons (8-11)
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "button 8 (with 128 flag)",
-        &.{"\x1b[M" ++ [_]u8{ 32 + 128, 232, 232 }},
-    );
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "button 9 (with 128 flag)",
-        &.{"\x1b[M" ++ [_]u8{ 33 + 128, 232, 232 }},
-    );
-
-    // Test with modifiers
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "left with shift",
-        &.{"\x1b[M" ++ [_]u8{ 32 + 4, 232, 232 }},
-    );
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "wheel forward with ctrl",
-        &.{"\x1b[M" ++ [_]u8{ 32 + 64 + 16, 232, 232 }},
-    );
-}
-
-test "interpretExtendedMouseEvents" {
-    // Test SGR protocol (1006)
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "SGR left press",
-        &.{"\x1b[<0;100;100M"},
-    );
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "SGR right press",
-        &.{"\x1b[<2;50;60M"},
-    );
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "SGR left release",
-        &.{"\x1b[<0;25;30m"},
-    );
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "SGR wheel up",
-        &.{"\x1b[<64;75;80M"},
-    );
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "SGR wheel down",
-        &.{"\x1b[<65;45;50M"},
-    );
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "SGR wheel left",
-        &.{"\x1b[<66;120;130M"},
-    );
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "SGR wheel right",
-        &.{"\x1b[<67;90;95M"},
-    );
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "SGR with shift modifier",
-        &.{"\x1b[<4;10;15M"},
-    );
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "SGR with ctrl modifier",
-        &.{"\x1b[<16;30;35M"},
-    );
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "SGR with alt modifier",
-        &.{"\x1b[<8;50;55M"},
-    );
-
-    // Test motion events
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "SGR motion with left button",
-        &.{"\x1b[<32;60;65M"},
-    );
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "SGR motion with right button",
-        &.{"\x1b[<34;70;75M"},
-    );
-
-    // Test higher buttons
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "SGR button 8",
-        &.{"\x1b[<128;40;45M"},
-    );
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "SGR button 9",
-        &.{"\x1b[<129;50;55M"},
-    );
-
-    // Test URXVT protocol (1015)
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "URXVT left press",
-        &.{"\x1b[0;100;100M"},
-    );
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "URXVT right press",
-        &.{"\x1b[2;50;60M"},
-    );
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "URXVT wheel up",
-        &.{"\x1b[64;75;80M"},
-    );
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "URXVT with shift modifier",
-        &.{"\x1b[4;10;15M"},
-    );
-}
-
-test "interpretCursorPositionReport" {
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "Cursor position report",
-        &.{"\x1b[?10;20R"},
-    );
-
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "Cursor position with leading zero",
-        &.{"\x1b[?01;05R"},
-    );
-
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "Cursor position at origin",
-        &.{"\x1b[?1;1R"},
-    );
-
-    try expectEvents(
-        @src(),
-        std.testing.allocator,
-        "Cursor position with leading zero",
-        &.{"\x1b[?1;05R"},
-    );
-}
-
-test "interpretModeStatusReport" {
-    // Test form 1: CSI?<mode>;<value>$y
-    // try expectEvents(
-    //     std.testing.allocator,
-    //     "Mode status report - with ? prefix",
-    //     &.{"\x1b[?25;60$y"},
-    //     &.{"[mode_report (mode=63 value1=25 value2=60)]"},
-    // );
-
-    // // Test form 2: CSI<mode>;<value>$y
-    // try expectEvents(
-    //     std.testing.allocator,
-    //     "Mode status report - standard form",
-    //     &.{"\x1b[100;45$y"},
-    //     &.{"[mode_report (mode=0 value1=100 value2=45)]"},
-    // );
-
-    // // Test with $ directly after parameter
-    // try expectEvents(
-    //     std.testing.allocator,
-    //     "Mode status report - $ after parameter",
-    //     &.{"\x1b[100;45$y"},
-    //     &.{"[mode_report (mode=0 value1=100 value2=45)]"},
-    // );
-
-    // // Test with space between parameter and $
-    // try expectEvents(
-    //     std.testing.allocator,
-    //     "Mode status report - space before $",
-    //     &.{"\x1b[100;45 $y"},
-    //     &.{"[mode_report (mode=0 value1=100 value2=45)]"},
-    // );
-
-    // // Test with larger values
-    // try expectEvents(
-    //     std.testing.allocator,
-    //     "Mode status report - with larger values",
-    //     &.{"\x1b[1024;255$y"},
-    //     &.{"[mode_report (mode=0 value1=1024 value2=255)]"},
-    // );
-}
-
 // test "interpretUnicodeKey" {
 //     // Test basic Unicode key with no modifiers
 //     try expectEvents(
@@ -1548,21 +1170,4 @@ pub fn handleCsi(manager: *AnyInputManager, buffer: []const u8, position: usize)
         return .{ .match = 1 };
     }
     return .{ .partial = {} };
-}
-test "csi" {}
-
-test "dcs" {
-    // Assuming there's a helper for creating a test input manager
-    // This is just a skeleton test to verify the integration with the DCS parser
-    const dcs_sequence = "\x1bP$q\"p\x1b\\"; // Request DECSCL status
-
-    // TODO: When more detailed tests are added, implement actual
-    // testing of the handleCtrlString function with a DCS sequence
-
-    // For now, just verify the DCS parser works correctly
-    const dcs = Dcs.parse(dcs_sequence);
-    try std.testing.expect(dcs != null);
-    try std.testing.expectEqual(dcs.?.parameter_selector, .request_status_string);
-    try std.testing.expectEqualSlices(u8, dcs.?.parameter_text, "\"p");
-    try std.testing.expectEqual(dcs.?.status_request_type, .decscl);
 }

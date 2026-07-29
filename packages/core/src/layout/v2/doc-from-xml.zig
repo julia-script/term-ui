@@ -83,7 +83,7 @@ fn nodeFromXmlElement(tree: *Tree, element: *xml.Element, ctx: *BuilderContext) 
             .char_data => {
                 const text_node_id = try tree.createTextNode("");
                 _ = try tree.appendChild(node_id, text_node_id);
-                var str = std.ArrayList(u8).init(tree.allocator);
+                var str = std.array_list.Managed(u8).init(tree.allocator);
                 defer str.deinit();
 
                 var current_index: usize = 0;

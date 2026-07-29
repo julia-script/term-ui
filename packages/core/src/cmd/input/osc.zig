@@ -89,7 +89,7 @@ pub const Osc = struct {
         const command: u8 = std.fmt.parseUnsigned(u8, sequence[start_bytes..command_bytes_end], 10) catch return null;
         const body_bytes = sequence[command_bytes_end + 1 .. sequence.len - end_bytes_len];
         return .{
-            .parameter_selector = @enumFromInt(command),
+            .parameter_selector = @fromBackingInt(@intCast(command)),
             .parameter_text = body_bytes,
         };
     }

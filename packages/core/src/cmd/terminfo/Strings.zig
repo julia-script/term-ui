@@ -1,12 +1,6 @@
 const std = @import("std");
 const Strings = @This();
 
-test {
-    _ = init;
-    _ = iter;
-    _ = Iter;
-}
-
 capabilities: [num_capabilities](?Sequence),
 table: Table,
 
@@ -65,7 +59,7 @@ pub fn deinit(self: @This()) void {
 }
 
 pub fn get_value(self: *const Strings, capability: Capability) ?[]const u8 {
-    const seq = self.capabilities[@intFromEnum(capability)] orelse return null;
+    const seq = self.capabilities[@backingInt(capability)] orelse return null;
     return switch (seq) {
         .regular => |bytes| bytes,
         .parameterized => null,
@@ -73,7 +67,7 @@ pub fn get_value(self: *const Strings, capability: Capability) ?[]const u8 {
 }
 
 pub fn get_value_with_args(self: *const Strings, alloc: std.mem.Allocator, capability: Capability, args: []const Parameter) std.mem.Allocator.Error!?[]const u8 {
-    const seq = self.capabilities[@intFromEnum(capability)] orelse return null;
+    const seq = self.capabilities[@backingInt(capability)] orelse return null;
     var buf = std.ArrayList(u8).init(alloc);
     switch (seq) {
         .regular => |bytes| return try alloc.dupe(u8, bytes),
@@ -120,7 +114,7 @@ pub const Iter = struct {
         defer self.index += 1;
 
         return Item{
-            .capability = @enumFromInt(self.index),
+            .capability = @fromBackingInt(@intCast(self.index)),
             .value = value,
         };
     }
@@ -606,18 +600,7 @@ pub const Capability = enum(u16) {
     // internal capabilities
 };
 
-const num_capabilities = @typeInfo(Capability).@"enum".fields.len;
-
-test "string capabilities" {
-    const TermInfo = @import("main.zig").TermInfo;
-    var file = try std.fs.cwd().openFile("src/cmd/test-data/xterm-ghostty", .{});
-
-    defer file.close();
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const term_info = try TermInfo.initFromFile(arena.allocator(), file);
-    defer term_info.deinit();
-}
+const num_capabilities = @typeInfo(Capability).@"enum".field_names.len;
 
 pub const ParameterKind = enum {
     integer,

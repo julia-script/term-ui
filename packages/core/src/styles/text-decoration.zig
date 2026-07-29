@@ -135,7 +135,6 @@ pub fn parse(src: []const u8, pos: usize) utils.ParseError!utils.Result(TextDeco
 }
 
 test "parse text decoration line" {
-
     const none_result = try parseTextDecorationLine("none", 0);
     try std.testing.expectEqual(none_result.value, .none);
 

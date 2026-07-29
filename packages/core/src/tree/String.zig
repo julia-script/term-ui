@@ -1,7 +1,7 @@
 const std = @import("std");
 const visible = @import("../uni/string-width.zig").visible;
 
-bytes: std.ArrayListUnmanaged(u8) = .{},
+bytes: std.ArrayListUnmanaged(u8) = .empty,
 
 const Self = @This();
 // TODO: lines need to be processed according to w3c spec

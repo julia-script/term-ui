@@ -28,7 +28,7 @@ pub const Box = @import("./Box.zig");
 pub const logger = std.log.scoped(.layout);
 pub const math = @import("./math.zig");
 pub const CollapsibleMarginSet = @import("../compute/compute_constants.zig").CollapsibleMarginSet;
-pub const computeContentSizeContribution = @import("../compute/compute_content_size_contribution.zig").computeContentSizeContribution;
+pub const computeContentSizeContribution = @import("flex/computeContentSizeContribution.zig").computeContentSizeContribution;
 
 pub const CSSLine = @import("../line.zig").CSSLine;
 pub const CSSMaybeLine = @import("../line.zig").CSSMaybeLine;
