@@ -24,8 +24,10 @@
     "version": "changeset version",
     "publish": "pnpm publish -r --access=public",
     "cleanup": "turbo run cleanup",
-    "check:clean-room": "./scripts/clean-room.sh"
+    "check:clean-room": "./scripts/clean-room.sh",
+    "test": "vitest run",
+    "check": "pnpm build && pnpm test"
   },
   "type": "module",
-  "packageManager": "pnpm@10.3.0"
+  "packageManager": "pnpm@11.15.1"
 }

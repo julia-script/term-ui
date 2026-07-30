@@ -1,5 +1,15 @@
 name: Release
 
+# ⚠️  The FILENAME of this workflow is load-bearing.
+#
+# npm matches the trusted publisher's "workflow filename" field against the
+# OIDC token's job_workflow_ref claim. Renaming this file without updating the
+# trusted-publisher config for every published package makes releases fall back
+# to an untrusted publish *silently* — pnpm logs "Skipped OIDC" and carries on.
+# Configured on npm as: release.yml
+#
+# This is the only workflow allowed to publish.
+
 on:
   push:
     branches:
@@ -10,6 +20,7 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}
 permissions:
   contents: write
   pull-requests: write
+  id-token: write # required for npm trusted publishing (OIDC)
 
 jobs:
   release:
@@ -72,9 +83,11 @@ jobs:
         run: wasm-opt --version
 
       - name: Setup PNPM
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
-          version: 10.3.0
+          # must stay >= 11: the entire 10.x line lacks OIDC support, and
+          # `changeset publish` resolves its publish tool from packageManager
+          version: 11.15.1
           run_install: false
 
       - name: Get pnpm store directory
@@ -96,11 +109,26 @@ jobs:
       - name: Build packages
         run: pnpm build
 
+      - name: Run checks
+        run: pnpm test
+
+      - name: Verify a packaged install still renders
+        run: pnpm check:clean-room
+
       - name: Create Release Pull Request or Publish to npm
         id: changesets
         uses: changesets/action@v1
         with:
-          publish: pnpm run publish 
+          # publishes through a guard that fails the release if pnpm reports
+          # "Skipped OIDC" — a warning it would otherwise publish straight past
+          publish: node .github/scripts/publish-with-oidc-guard.mjs
+          version: pnpm run version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
+
+      - name: Verify the release was actually trusted
+        if: steps.changesets.outputs.published == 'true'
+        run: node .github/scripts/verify-release-trust.mjs
+        env:
+          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
