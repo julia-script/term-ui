@@ -93,7 +93,7 @@ const document = new Document(module, {
 
 ## Examples
 
-Check out the [examples](https://github.com/juliaortiz/term-ui/tree/main/examples) directory for more complex examples and use cases.
+Check out the [examples](https://github.com/julia-script/term-ui/tree/main/examples) directory for more complex examples and use cases.
 
 ## License
 
