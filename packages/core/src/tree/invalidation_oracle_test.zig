@@ -28,6 +28,8 @@ const style_palette = [_][]const u8{
     "border-style: double",
     "text-align: center",
     "display: flex; width: 40px; height: 8px",
+    "overflow: scroll; height: 3px",
+    "overflow: hidden; height: 2px; width: 15px",
 };
 
 const text_palette = [_][]const u8{
@@ -40,6 +42,7 @@ const text_palette = [_][]const u8{
 
 const Op = union(enum) {
     append_element: struct { parent: Node.NodeId, style: usize },
+    set_scroll: struct { node: Node.NodeId, top: f32 },
     append_text: struct { parent: Node.NodeId, text: usize },
     remove: struct { parent: Node.NodeId, child: Node.NodeId },
     set_text: struct { node: Node.NodeId, text: usize },
@@ -58,6 +61,11 @@ fn applyOp(tree: *Tree, op: Op) !void {
             _ = try tree.appendChild(o.parent, id);
         },
         .remove => |o| try tree.removeChild(o.parent, o.child),
+        // raw offset assignment: clamping is history-dependent (it reads the
+        // current layout), so the oracle bypasses it to stay deterministic
+        // between incremental and cold replays; clamping itself is covered by
+        // the scroll snapshots
+        .set_scroll => |o| tree.getNode(o.node).scroll_offset.y = o.top,
         .set_text => |o| try tree.setText(o.node, text_palette[o.text]),
         .restyle => |o| try parsers.parseStyleString(tree, o.node, style_palette[o.style]),
     }
@@ -161,6 +169,10 @@ fn generateOp(rand: std.Random, tree: *Tree, allocator: std.mem.Allocator, root:
                 .text = randomIndex(rand, text_palette.len),
             } };
         },
+        8 => .{ .set_scroll = .{
+            .node = elements[randomIndex(rand, elements.len)],
+            .top = @floatFromInt(rand.uintLessThan(u8, 4)),
+        } },
         else => .{ .restyle = .{
             .node = elements[randomIndex(rand, elements.len)],
             .style = randomIndex(rand, style_palette.len),

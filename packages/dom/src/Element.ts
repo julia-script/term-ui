@@ -279,8 +279,26 @@ export class Element extends Node {
 
 
   private setScrollPosition(x: number, y: number) {
+    const prevLeft = this.scrollLeft;
+    const prevTop = this.scrollTop;
     this.scrollLeft = x;
     this.scrollTop = y;
+    if (
+      this.scrollLeft !== prevLeft ||
+      this.scrollTop !== prevTop
+    ) {
+      const event = {
+        type: "scroll" as const,
+        target: this,
+        currentTarget: this,
+        bubbles: false,
+        defaultPrevented: false,
+        cancelable: false,
+        preventDefault: () => {},
+        stopPropagation: () => {},
+      };
+      this.emitEvent(event);
+    }
     this.document.requestPaint();
   }
 

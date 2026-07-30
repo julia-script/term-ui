@@ -1020,6 +1020,7 @@ test {
     _ = @import("./testing/snapshot.zig");
     _ = @import("./tree/invalidation_oracle_test.zig");
     _ = @import("./layout/v2/layout_snapshot_test.zig");
+    _ = @import("./layout/v2/scroll_snapshot_test.zig");
     _ = @import("./tree/selection_snapshot_test.zig");
     _ = @import("./tree/caret_position_test.zig");
     _ = @import("./uni/GraphemeBreak.zig");

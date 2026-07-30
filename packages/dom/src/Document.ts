@@ -1223,6 +1223,14 @@ export class Document {
               : input.action === "wheel_down"
                 ? 1
                 : 0,
+          // own closures: the spread copies the base event's, which would
+          // flag the wrong object and make preventDefault a no-op
+          preventDefault: () => {
+            wheelEvent.defaultPrevented = true;
+          },
+          stopPropagation: () => {
+            wheelEvent.bubbles = false;
+          },
         };
         return wheelEvent;
       }
@@ -1460,6 +1468,23 @@ export class Document {
         this.requestPaint();
         return;
       }
+      if (
+        event.key === "page_up" ||
+        event.key === "page_down"
+      ) {
+        const container =
+          this.findActiveScrollContainer();
+        if (container) {
+          const page = container.clientHeight;
+          container.scrollBy(
+            0,
+            event.key === "page_down"
+              ? page
+              : -page,
+          );
+        }
+        return;
+      }
       if (this.selection) {
         // shift extends, plain movement collapses (browser arrow-key behavior)
         const alter = event.shiftKey
@@ -1479,6 +1504,7 @@ export class Document {
               "forward",
               "line",
             );
+            this.scrollCaretIntoView();
             this.requestPaint();
             break;
           case "up":
@@ -1487,6 +1513,7 @@ export class Document {
               "backward",
               "line",
             );
+            this.scrollCaretIntoView();
             this.requestPaint();
             break;
           case "right":
@@ -1495,6 +1522,7 @@ export class Document {
               "forward",
               horizontalGranularity,
             );
+            this.scrollCaretIntoView();
             this.requestPaint();
             break;
           case "left":
@@ -1503,6 +1531,7 @@ export class Document {
               "backward",
               horizontalGranularity,
             );
+            this.scrollCaretIntoView();
             this.requestPaint();
             break;
           default: {
@@ -1535,7 +1564,7 @@ export class Document {
                     event.text.length,
                 );
                 this.selection.collapseToEnd();
-
+                this.scrollCaretIntoView();
                 this.requestPaint();
                 return;
               }
@@ -1545,6 +1574,83 @@ export class Document {
         }
       }
     }
+  };
+
+  /** After keyboard-driven selection changes, scroll ancestors the minimal
+   * amount so the caret is visible (innermost first). Not applied to mouse
+   * placement: the click already happened at a visible point. */
+  scrollCaretIntoView = () => {
+    const selection = this.selection;
+    if (!selection) return;
+    const focus = selection.getFocus();
+    if (!focus) return;
+    let el: Element | TextElement | undefined =
+      this.getOrAddElement(focus.node);
+    while (el) {
+      if (
+        el instanceof Element &&
+        el.scrollTopMax > 0
+      ) {
+        // fresh geometry for this level
+        this.computeLayout();
+        this.paint();
+        const caret =
+          this.module.Tree_getBoundaryPointPosition(
+            this.tree.ptr,
+            focus.node,
+            focus.offset,
+          );
+        const rect = el.getBoundingClientRect();
+        // ponytail: border widths aren't exposed to JS; assume the
+        // vertical chrome is split evenly (true for uniform borders)
+        const chrome =
+          (rect.height - el.clientHeight) / 2;
+        const top = rect.y + chrome;
+        const bottom = top + el.clientHeight;
+        if (caret.y < top) {
+          el.scrollBy(0, caret.y - top);
+        } else if (caret.y >= bottom) {
+          el.scrollBy(0, caret.y - bottom + 1);
+        }
+      }
+      el = el.parent ?? undefined;
+    }
+  };
+
+  /** The scroll container PgUp/PgDn acts on: nearest scrollable ancestor
+   * of the selection anchor, else the deepest hovered scrollable. */
+  private findActiveScrollContainer = ():
+    | Element
+    | null => {
+    const isScrollable = (el: Element) =>
+      el.scrollTopMax > 0 ||
+      el.scrollLeftMax > 0;
+    const anchor = this.selection?.getAnchor();
+    if (anchor) {
+      let el: Element | TextElement | undefined =
+        this.getOrAddElement(anchor.node);
+      while (el) {
+        if (
+          el instanceof Element &&
+          isScrollable(el)
+        ) {
+          return el;
+        }
+        el = el.parent ?? undefined;
+      }
+    }
+    let deepest: Element | null = null;
+    for (const id of this.state
+      .hoveredElements) {
+      const el = this.nodes.get(id);
+      if (
+        el instanceof Element &&
+        isScrollable(el)
+      ) {
+        deepest = el;
+      }
+    }
+    return deepest;
   };
 
   private handleDefaultMouseBehavior = (

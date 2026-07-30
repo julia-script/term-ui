@@ -1,0 +1,9 @@
+// Snapshot from: layout/v2/scroll_snapshot_test.zig:74:30
+// Function: test.overflow hidden clips tall content
+// Description: hidden clips
+
+--- paint ---
+[49m[38;2;255;255;255m┌──────────────────┐[0m
+[49m[38;2;255;255;255m│[38;2;0;0;0mline[38;2;0;0;0m [38;2;0;0;0mone[38;2;0;0;0m          [38;2;255;255;255m│[0m
+[49m[38;2;255;255;255m│[38;2;0;0;0mline[38;2;0;0;0m [38;2;0;0;0mtwo[38;2;0;0;0m          [38;2;255;255;255m│[0m
+[49m[38;2;255;255;255m└──────────────────┘[0m

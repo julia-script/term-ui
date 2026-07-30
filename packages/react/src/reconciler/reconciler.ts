@@ -34,7 +34,7 @@ type EventHandler = (event: DOMEvent) => void;
 // Map from React prop names to DOM event names
 const propToEventMap: Record<
   string,
-  MouseEventName
+  MouseEventName | "scroll"
 > = {
   onClick: "click",
   onMouseEnter: "mouseenter",
@@ -42,6 +42,7 @@ const propToEventMap: Record<
   onMouseMove: "mousemove",
   onMouseDown: "mousedown",
   onMouseUp: "mouseup",
+  onScroll: "scroll",
 };
 
 const createReconciler: typeof _createReconciler =

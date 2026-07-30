@@ -1,0 +1,13 @@
+// Snapshot from: layout/v2/scroll_snapshot_test.zig:87:30
+// Function: test.overflow visible does not clip
+// Description: visible overflows
+
+--- paint ---
+[49m[38;2;0;0;0mline[38;2;0;0;0m [38;2;0;0;0mone[38;2;0;0;0m              [0m
+[49m[38;2;0;0;0mline[38;2;0;0;0m [38;2;0;0;0mtwo[38;2;0;0;0m              [0m
+[49m[38;2;0;0;0mafterttheebox[38;2;0;0;0m         [0m
+[49m[38;2;0;0;0m                      [0m
+[49m[38;2;0;0;0m                      [0m
+[49m[38;2;0;0;0m                      [0m
+[49m[38;2;0;0;0m                      [0m
+[49m[38;2;0;0;0m                      [0m

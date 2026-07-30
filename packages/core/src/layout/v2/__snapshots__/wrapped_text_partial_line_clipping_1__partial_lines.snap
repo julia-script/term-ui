@@ -1,0 +1,10 @@
+// Snapshot from: layout/v2/scroll_snapshot_test.zig:141:30
+// Function: test.wrapped text partial line clipping
+// Description: partial lines
+
+--- paint ---
+[49m[38;2;0;0;0mwrap[38;2;0;0;0m      [0m
+[49m[38;2;0;0;0macross[38;2;0;0;0m    [0m
+[49m[38;2;0;0;0mseveral[38;2;0;0;0m   [0m
+--- scroll state ---
+outer: top=1.0/3.0 left=0.0/0.0

@@ -184,6 +184,33 @@ importers:
         specifier: 'catalog:'
         version: 5.8.3
 
+  examples/react-log-pane:
+    dependencies:
+      '@term-ui/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@term-ui/dom':
+        specifier: workspace:*
+        version: link:../../packages/dom
+      '@term-ui/react':
+        specifier: workspace:*
+        version: link:../../packages/react
+      '@term-ui/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.1.2
+      react:
+        specifier: 'catalog:'
+        version: 19.1.0
+      tsx:
+        specifier: 'catalog:'
+        version: 4.19.4
+      typescript:
+        specifier: 'catalog:'
+        version: 5.8.3
+
   packages/core:
     dependencies:
       '@types/lodash-es':

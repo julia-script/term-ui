@@ -1,0 +1,11 @@
+// Snapshot from: layout/v2/scroll_snapshot_test.zig:100:30
+// Function: test.scroll container shifts content by offset
+// Description: scrolled by 2
+
+--- paint ---
+[49m[38;2;0;0;0mline[38;2;0;0;0m [38;2;0;0;0mthree[38;2;0;0;0m          [0m
+[49m[38;2;0;0;0mline[38;2;0;0;0m [38;2;0;0;0mfour[38;2;0;0;0m           [0m
+[49m[38;2;0;0;0mline[38;2;0;0;0m [38;2;0;0;0mfive[38;2;0;0;0m           [0m
+[49m[38;2;0;0;0mline[38;2;0;0;0m [38;2;0;0;0msix[38;2;0;0;0m            [0m
+--- scroll state ---
+outer: top=2.0/2.0 left=0.0/0.0

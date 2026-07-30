@@ -1,0 +1,19 @@
+{
+  "name": "@term-ui/example-react-log-pane",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "pnpm tsx src/index.tsx",
+    "dev": "pnpm tsx --watch src/index.tsx"
+  },
+  "dependencies": {
+    "@term-ui/core": "workspace:*",
+    "@term-ui/dom": "workspace:*",
+    "@term-ui/react": "workspace:*",
+    "@term-ui/shared": "workspace:*",
+    "@types/react": "catalog:",
+    "react": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}
