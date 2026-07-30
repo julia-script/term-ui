@@ -92,3 +92,15 @@ test "layout whitespace collapse" {
         \\   c</div>
     , wide);
 }
+
+test "layout gradient background" {
+    try expectLayoutSnapshot(@src(), "gradient background",
+        \\<div style="width: 20px; height: 4px; background-color: linear-gradient(90deg, #e66465, #9198e5);"></div>
+    , wide);
+}
+
+test "layout radial gradient background" {
+    try expectLayoutSnapshot(@src(), "radial gradient",
+        \\<div style="width: 20px; height: 4px; background-color: radial-gradient(circle at top left, #e66465, #9198e5);"></div>
+    , wide);
+}

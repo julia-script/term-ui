@@ -82,7 +82,7 @@ test "background-parse" {
         const result = try parse(src, 0);
         try std.testing.expectEqual(BackgroundType.linear_gradient, @as(BackgroundType, result.value));
         try std.testing.expectEqual(90, result.value.linear_gradient.angle);
-        try std.testing.expectEqual(2, result.value.linear_gradient.color_stops.items.len);
+        try std.testing.expectEqual(2, result.value.linear_gradient.color_stops.items().len);
     }
 
     // Test radial gradient
@@ -91,7 +91,7 @@ test "background-parse" {
         const result = try parse(src, 0);
         try std.testing.expectEqual(BackgroundType.radial_gradient, @as(BackgroundType, result.value));
         try std.testing.expectEqual(styles.radial_gradient.RadialShape.circle, result.value.radial_gradient.shape);
-        try std.testing.expectEqual(2, result.value.radial_gradient.color_stops.items.len);
+        try std.testing.expectEqual(2, result.value.radial_gradient.color_stops.items().len);
         try std.testing.expectEqualStrings(src[result.start..result.end], src);
     }
 }

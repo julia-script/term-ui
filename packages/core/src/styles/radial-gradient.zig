@@ -354,7 +354,7 @@ pub fn parse(src: []const u8, pos: usize) utils.ParseError!utils.Result(RadialGr
         .shape = shape,
         .size = size,
         .position = position,
-        .color_stops = .empty,
+        .color_stops = .{},
     };
     // Parse the color stop list
     const color_stops_result = try styles.color_stop.parseColorStopList(src, cursor);

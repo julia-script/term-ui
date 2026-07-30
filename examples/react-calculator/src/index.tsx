@@ -661,5 +661,4 @@ await TermUi.createRoot(<App />, {
     width: "100%",
     height: "100%",
   },
-  dev: true,
 });

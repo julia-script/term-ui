@@ -104,14 +104,29 @@ pub fn parseColorHint(allocator: std.mem.Allocator, src: []const u8, pos: usize)
 
     return null;
 }
-pub const ColorStopList = std.ArrayListUnmanaged(ColorStop);
+/// Color stops stored inline (max 16): parsed style values are copied by
+/// value through the style system, so the storage must travel with the
+/// struct — a heap/stack slice here becomes dangling after the parse returns.
+pub const ColorStopList = struct {
+    pub const capacity = 16;
+
+    buffer: [capacity]ColorStop = undefined,
+    len: usize = 0,
+
+    pub fn appendAssumeCapacity(self: *ColorStopList, stop: ColorStop) void {
+        self.buffer[self.len] = stop;
+        self.len += 1;
+    }
+
+    pub fn items(self: *const ColorStopList) []const ColorStop {
+        return self.buffer[0..self.len];
+    }
+};
 
 pub fn parseColorStopList(src: []const u8, pos: usize) utils.ParseError!utils.Result(ColorStopList) {
     var cursor = utils.eatWhitespace(src, pos);
 
-    // Parse the color stop list using a fixed buffer
-    var buffer: [16]ColorStop = undefined;
-    var color_stops = ColorStopList.initBuffer(&buffer);
+    var color_stops = ColorStopList{};
 
     // Parse additional color stops
     while (cursor < src.len) {
@@ -162,7 +177,7 @@ pub fn parseColorStopList(src: []const u8, pos: usize) utils.ParseError!utils.Re
     }
 
     // We need at least two color stops for a valid gradient
-    if (color_stops.items.len < 2) {
+    if (color_stops.len < 2) {
         return error.InvalidSyntax;
     }
 

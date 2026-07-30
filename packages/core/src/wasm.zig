@@ -26,6 +26,18 @@ pub const std_options: std.Options = .{
 
 extern fn externalLog(message: [*:0]u8) void;
 
+pub const panic = std.debug.FullPanic(wasmPanic);
+
+fn wasmPanic(msg: []const u8, first_trace_addr: ?usize) noreturn {
+    _ = first_trace_addr;
+    var buffer: [512]u8 = undefined;
+    const formatted = std.fmt.bufPrint(&buffer, "level: err;scope: panic;\r\npanic: {s}", .{msg}) catch msg;
+    const ptr = std.heap.wasm_allocator.allocSentinel(u8, formatted.len, 0) catch @trap();
+    @memcpy(ptr[0..formatted.len], formatted);
+    externalLog(ptr);
+    @trap();
+}
+
 pub fn wasmLog(
     comptime message_level: std.log.Level,
     comptime scope: @TypeOf(.enum_literal),

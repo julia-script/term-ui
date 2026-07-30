@@ -93,7 +93,23 @@ export class TermUi {
    *
    * @public
    */
+  private renderScheduled = false;
+
+  /**
+   * Schedule a render; multiple requests within one event-loop tick are
+   * coalesced into a single layout+paint.
+   */
   render = () => {
+    if (this.renderScheduled) return;
+    this.renderScheduled = true;
+    queueMicrotask(() => {
+      this.renderScheduled = false;
+      this.renderNow();
+    });
+  };
+
+  /** Compute layout and paint immediately. */
+  renderNow = () => {
     try {
       this.document.computeLayout();
       this.document.paint();

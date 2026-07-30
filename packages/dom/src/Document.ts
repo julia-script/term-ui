@@ -1470,6 +1470,11 @@ export class Document {
             this.requestPaint();
             break;
           default: {
+            // typing inserts only inside editable regions, and only for
+            // keys that produce text
+            if (!event.text) {
+              return;
+            }
             const anchor =
               this.selection.getAnchor();
             const focus =
@@ -1478,7 +1483,8 @@ export class Document {
               const anchorNode =
                 this.getOrAddElement(anchor.node);
               if (
-                anchorNode instanceof TextElement
+                anchorNode instanceof TextElement &&
+                anchorNode.isEditable()
               ) {
                 // range.deleteContents();
                 anchorNode.insertData(
