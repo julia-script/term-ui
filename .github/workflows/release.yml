@@ -35,7 +35,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # pnpm 11 requires Node >= 22.13
+          node-version: 22
           registry-url: 'https://registry.npmjs.org'
 
       # setup-zig handles its own caching; the previous manual actions/cache
@@ -110,6 +111,9 @@ jobs:
 
       - name: Run checks
         run: pnpm test
+
+      - name: Install pyte (clean-room terminal harness)
+        run: pip install --quiet pyte
 
       - name: Verify a packaged install still renders
         run: pnpm check:clean-room
