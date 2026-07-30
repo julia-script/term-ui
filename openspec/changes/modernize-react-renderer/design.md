@@ -45,7 +45,7 @@ New `packages/react/src/reconciler.test.tsx` (vitest, headless Document like the
 Verified against the published `react-reconciler@0.33.0` bundle (`$$$config.*` reads):
 
 - **`detachDeletedInstance` fires only for host components** (`fiber.tag === 5`), never text fibers — the doc's "every deleted host instance" overstates it. Text instances must be freed by their parent element's detach (we dispose direct `TextElement` children there) and in `removeChild`/`removeChildFromContainer` for topmost-deleted text.
-- **`getRootHostContext` must return a non-null sentinel.** The 0.33 dev build logs "Expected host context to exist" and destabilizes retry renders when the context is `null`. We return a module-level `NO_CONTEXT = {}`.
+- **`getRootHostContext` must return a non-null sentinel.** The 0.33 dev build logs "Expected host context to exist" on every host component when the context is `null` (independently confirmed by the reference-doc adversarial review, which removed `| null` from the d.ts). We return a module-level `NO_CONTEXT = {}`.
 - **The view-transition family is read but never called in 0.33** (`$$$config.startViewTransition;` is a bare discard). The stubs are inert today and become live on 0.34.
 - **`measureInstance`, `applyViewTransitionName`, `wasInstanceInViewport`, `addViewTransitionFinishedListener`, `afterActiveInstanceBlur` are absent from the 0.33 surface** (main-only). Providing them is harmless and forward-compatible.
 - **Suspense retry commits are throttled** (`FALLBACK_THROTTLE_MS` = 300ms): a commit replacing a recently-shown fallback is deferred via `scheduleTimeout`. Tests must wait ~400ms after resolving a suspended promise.

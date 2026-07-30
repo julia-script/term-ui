@@ -15,18 +15,18 @@
  *     lost their rootContainer parameters
  *   - injectIntoDevTools() takes no arguments (identity comes from host-config fields)
  *   - suspensey-commit methods thread an explicit SuspendedState and are reached by any
- *     transition/retry commit (enableViewTransition is on by default)
+ *     commit whose lanes are only transition/retry/idle lanes (enableViewTransition is on
+ *     by default)
  *
  * See docs/react-reconciler.md in this repo for full per-method semantics.
  *
  * @packageDocumentation
  *
- * term-ui note: vendored from ~/Documents/dev.nosync/reconciler/types (built for
- * main/0.34). We pin react-reconciler@0.33.0, where the view-transition family is
- * read but never invoked, a few VT internals (measureInstance,
- * applyViewTransitionName, …) are not read at all, detachDeletedInstance fires
- * only for host components (never text fibers), and getRootHostContext must
- * return a non-null sentinel in dev builds. See
+ * term-ui note: vendored from ~/Documents/dev.nosync/reconciler/types
+ * (post-adversarial-review revision, built for main/0.34). We pin
+ * react-reconciler@0.33.0, where the view-transition family is read but never
+ * invoked and a few VT internals (measureInstance, applyViewTransitionName, …)
+ * are not read at all. See
  * openspec/changes/modernize-react-renderer/design.md "Findings".
  */
 
@@ -97,7 +97,7 @@ declare module 'react-reconciler' {
    * number is a higher priority. Only ever use the constants from
    * `react-reconciler/constants` (`NoEventPriority` = 0, `DiscreteEventPriority` = 2,
    * `ContinuousEventPriority` = 8, `DefaultEventPriority` = 32,
-   * `IdleEventPriority` = 536870912) — never invent values.
+   * `IdleEventPriority` = 268435456) — never invent values.
    */
   export type EventPriority = number;
 
@@ -246,6 +246,9 @@ declare module 'react-reconciler' {
    * Slots for features you don't enable (hydration, resources, view transitions…)
    * can simply stay `any` — they never surface in your code.
    *
+   * Deliberately absent: the fork's dead `UpdatePayload` and `EventResponder` types
+   * (nothing in the reconciler produces or consumes either anymore).
+   *
    * @example
    * Narrowing the slots a simple mutation-mode renderer cares about:
    * ```typescript
@@ -256,7 +259,7 @@ declare module 'react-reconciler' {
    *   Instance: MyNode;
    *   TextInstance: MyTextNode;
    *   PublicInstance: MyNode | MyTextNode;
-   *   HostContext: null;
+   *   HostContext: object;   // return a stable {} sentinel, not null (DEV warns)
    *   TimeoutHandle: ReturnType<typeof setTimeout>;
    *   NoTimeout: -1;
    * }
@@ -280,7 +283,10 @@ declare module 'react-reconciler' {
     SuspenseInstance: any;
     /** Union of everything the hydration cursor can point at. */
     HydratableInstance: any;
-    /** `useActionState` postback marker (hydration only). */
+    /**
+     * `useActionState` postback marker (hydration only). Named after react-dom's
+     * config; the fork file types it through its generic `mixed` opaque types.
+     */
     FormStateMarkerInstance: any;
     /** What user refs receive — usually the same as `Instance`. */
     PublicInstance: any;
@@ -472,9 +478,14 @@ declare module 'react-reconciler' {
 
     /**
      * The initial {@link HostConfigTypes.HostContext | host context} at the root of
-     * the tree. Return `null` if you don't track any.
+     * the tree.
+     *
+     * @remarks
+     * If you don't track any context, return a **stable non-null sentinel** (a
+     * module-level `{}`): returning `null` triggers a DEV `console.error`
+     * ("Expected host context to exist") on every host component.
      */
-    getRootHostContext(rootContainer: T['Container']): T['HostContext'] | null;
+    getRootHostContext(rootContainer: T['Container']): T['HostContext'];
 
     /**
      * Derives the context for children of a `type` element (e.g. react-dom switches
@@ -508,16 +519,6 @@ declare module 'react-reconciler' {
     resetAfterCommit(containerInfo: T['Container']): void;
 
     /**
-     * Wipe all existing children out of the container.
-     *
-     * @remarks
-     * Before-mutation phase, on the root's *first client-rendered commit* only
-     * (and after abandoned hydration) — clears whatever markup occupied the
-     * container before React took ownership.
-     */
-    clearContainer(container: T['Container']): void;
-
-    /**
      * A container is about to be used as a portal target (portal's first mount,
      * render phase). react-dom attaches its delegated event listeners here; a
      * no-op is fine, but the method must exist if apps use portals.
@@ -525,9 +526,11 @@ declare module 'react-reconciler' {
     preparePortalMount(portalContainer: T['Container']): void;
 
     /**
-     * Passive phase, called for **every** deleted host instance after commit.
-     * Sever renderer-internal pointers (react-dom deletes its fiber expandos to
-     * prevent leaks). No-op is fine; deletions reach it unconditionally.
+     * Passive phase, called for every deleted host **component** instance after
+     * commit — text instances never get this call (clean their state up via GC or
+     * in {@link MutationConfig.removeChild}). Sever renderer-internal pointers
+     * (react-dom deletes its fiber expandos to prevent leaks). No-op is fine;
+     * host-component deletions reach it unconditionally.
      */
     detachDeletedInstance(node: T['Instance']): void;
 
@@ -544,8 +547,9 @@ declare module 'react-reconciler' {
      * A sentinel {@link CoreConfig.scheduleTimeout} can never return (e.g. `-1`).
      *
      * @remarks
-     * Read inside the FiberRoot constructor — omitting it crashes
-     * {@link Reconciler.createContainer} itself, before anything renders.
+     * Stored on the FiberRoot and compared with `!==` to detect pending Suspense
+     * timeouts. Omitting it does not crash — it silently breaks that bookkeeping
+     * instead (the comparison degrades to `undefined !== undefined`), which is worse.
      */
     noTimeout: T['NoTimeout'];
 
@@ -569,7 +573,8 @@ declare module 'react-reconciler' {
 
     /**
      * Resolve the priority for an update that arrives with no explicit context —
-     * called for **every** `setState`/`root.render()` outside a transition.
+     * called for every `setState`/`root.render()` outside a transition (render-phase
+     * updates short-circuit to the in-progress render's lanes first).
      *
      * @remarks
      * The contract, in order: return the stored priority if one is set; otherwise
@@ -621,8 +626,9 @@ declare module 'react-reconciler' {
      *
      * @remarks
      * ⚠️ This family is *not* exotic: `enableViewTransition` defaults on, which
-     * routes every transition/retry/idle-lane commit through the suspensey path.
-     * Renderers with nothing to wait for still need the trivial implementations
+     * routes every commit whose lanes are only transition/retry/idle lanes through
+     * the suspensey path — even when this method always returns `false`. Renderers
+     * with nothing to wait for still need the trivial implementations
      * (see docs/react-reconciler.md §5.5).
      */
     maySuspendCommit(type: T['Type'], props: T['Props']): boolean;
@@ -643,8 +649,10 @@ declare module 'react-reconciler' {
      * ⚠️ `instance` is the **first** parameter now (older docs show `(type, props)`).
      *
      * @returns Whether the instance is already ready (react-dom: `img.complete`).
-     *   `false` lets React keep rendering siblings and suspend the *commit*
-     *   instead of the render.
+     *   On `false` the render suspends unless React decides it can stay on the
+     *   previous screen and defer to a suspended commit. Even on `true` the fiber
+     *   stays flagged for a pre-commit re-check — {@link CoreConfig.suspendInstance}
+     *   still runs for it (the content could have been evicted since).
      */
     preloadInstance(instance: T['Instance'], type: T['Type'], props: T['Props']): boolean;
 
@@ -715,7 +723,8 @@ declare module 'react-reconciler' {
     ): null | ((initiateCommit: () => void) => () => void);
 
     /**
-     * Profiling builds only: a human-readable reason for the performance track
+     * `__PROFILE__` builds (which include npm dev builds), and only when a commit
+     * actually suspends: a human-readable reason for the performance track
      * (react-dom: `'Suspended on CSS'`), or `null`.
      */
     getSuspendedCommitReason(state: T['SuspendedState'], rootContainer: T['Container']): null | string;
@@ -834,7 +843,9 @@ declare module 'react-reconciler' {
    * routes failures to the nearest error boundary. How React picks the
    * container-vs-instance variant of the structural methods: at commit it walks up
    * to the nearest *host* parent fiber — a host component gets the instance
-   * variant, the root or a portal gets the `…Container` variant.
+   * variant, the root or a portal gets the `…Container` variant (singleton scopes
+   * and hoistable parents, when enabled, also count as host parents and use the
+   * instance variants).
    */
   export interface MutationConfig<T extends HostConfigTypes = HostConfigTypes> {
     supportsMutation: true;
@@ -871,8 +882,8 @@ declare module 'react-reconciler' {
      * @remarks
      * Called **only for the topmost deleted node** of a removed subtree —
      * descendants are unmounted logically and left to your platform's GC. Don't
-     * traverse; anything needing per-node cleanup belongs in
-     * {@link CoreConfig.detachDeletedInstance}, which does fire for every node.
+     * traverse; per-node cleanup belongs in {@link CoreConfig.detachDeletedInstance},
+     * which fires for every deleted host component (though not for text instances).
      */
     removeChild(
       parentInstance: T['Instance'],
@@ -883,6 +894,12 @@ declare module 'react-reconciler' {
       container: T['Container'],
       child: T['Instance'] | T['TextInstance'] | T['SuspenseInstance'] | T['ActivityInstance'],
     ): void;
+    /**
+     * Before-mutation phase: wipe all container children. Fires under the root's
+     * Snapshot flag — set whenever a client-rendered root has no committed children
+     * (first commit, after abandoned hydration, or after a committed empty render).
+     */
+    clearContainer(container: T['Container']): void;
 
     // updates
 
@@ -926,8 +943,9 @@ declare module 'react-reconciler' {
     /**
      * **Layout phase**, mount only, and only for instances whose
      * {@link CoreConfig.finalizeInitialChildren} returned `true` — the instance is
-     * now attached and visible (react-dom: trigger `autoFocus`). Also re-fires when
-     * hidden `<Activity>`/Offscreen content reappears. Never fires on updates.
+     * now attached and visible (react-dom: trigger `autoFocus`). The reappear path
+     * for hidden `<Activity>`/Offscreen content can also deliver it, but only for
+     * instances still on their initial mount. Never fires on updates.
      */
     commitMount(
       instance: T['Instance'],
@@ -1027,8 +1045,12 @@ declare module 'react-reconciler' {
       type: T['Type'],
       props: T['Props'],
     ): T['Instance'];
-    /** Text sibling of {@link PersistenceConfig.cloneHiddenInstance}. */
-    cloneHiddenTextInstance(instance: T['Instance'], text: string): T['TextInstance'];
+    /**
+     * Text sibling of {@link PersistenceConfig.cloneHiddenInstance}. (Fabric's own
+     * Flow types loosely say `Instance`, but the value passed is a HostText
+     * `stateNode` — a `TextInstance`.)
+     */
+    cloneHiddenTextInstance(instance: T['TextInstance'], text: string): T['TextInstance'];
   }
 
   // ---------------------------------------------------------------------------
@@ -1041,7 +1063,9 @@ declare module 'react-reconciler' {
    *
    * @remarks
    * **All members are required once you opt in** — including the `<Activity>`
-   * methods, which are unconditional in current builds.
+   * methods, which are unconditional in current builds. (Sole exception: the two
+   * `?`-marked singleton-interop cursor methods, only reached with
+   * {@link SingletonsConfig | supportsSingletons}.)
    *
    * The mental model is a **cursor walk**: the reconciler tracks "the next
    * {@link HostConfigTypes.HydratableInstance | hydratable node} I expect".
@@ -1175,7 +1199,11 @@ declare module 'react-reconciler' {
 
     /** Is the server still streaming this boundary's content? (react-dom: `<!--$?-->`/`<!--$~-->`.) */
     isSuspenseInstancePending(instance: T['SuspenseInstance']): boolean;
-    /** Did the server give up and render the fallback? (`<!--$!-->` — client must render content.) */
+    /**
+     * Must the client render this boundary's content? True when the server rendered
+     * the fallback (`<!--$!-->`) — or when the boundary is still "pending" but the
+     * stream already ended (react-dom: `$?` with `document.readyState !== 'loading'`).
+     */
     isSuspenseInstanceFallback(instance: T['SuspenseInstance']): boolean;
     /** Error details the server embedded alongside a fallback boundary. */
     getSuspenseInstanceFallbackErrorDetails(instance: T['SuspenseInstance']): {
@@ -1411,14 +1439,14 @@ declare module 'react-reconciler' {
       hostContext: T['HostContext'],
       validateDOMNestingDev: boolean,
     ): T['Instance'];
-    /** Commit (layout) on mount: wipe foreign state, apply React's props. */
+    /** Commit (layout) on mount — and on reappear of hidden content: wipe foreign state, apply React's props. */
     acquireSingletonInstance(
       type: T['Type'],
       props: T['Props'],
       instance: T['Instance'],
       internalHandle: OpaqueHandle,
     ): void;
-    /** Commit on delete: clear only React-owned state — never remove the node. */
+    /** Commit on delete (and on visibility-hide): clear only React-owned state — never remove the node. */
     releaseSingletonInstance(
       instance: T['Instance'],
       type: T['Type'],
@@ -1439,8 +1467,9 @@ declare module 'react-reconciler' {
   /**
    * Backing methods for the experimental test-selector API
    * ({@link Reconciler.findAllNodes} & friends, react-dom's `unstable_testing`
-   * entry). All selector exports throw unless `supportsTestSelectors: true` and
-   * this family (plus {@link CoreConfig.getInstanceFromNode}) is implemented.
+   * entry). The five find/observe exports throw unless `supportsTestSelectors: true`
+   * and this family (plus {@link CoreConfig.getInstanceFromNode}) is implemented;
+   * the `create*Selector` factories never check the flag and always work.
    */
   export interface TestSelectorsConfig<T extends HostConfigTypes = HostConfigTypes> {
     supportsTestSelectors: true;
@@ -1529,8 +1558,8 @@ declare module 'react-reconciler' {
       spawnedWorkCallback: () => void,
       passiveCallback: () => void,
       errorCallback: (error: unknown) => void,
-      blockedCallback: (reason: string) => void,
-      finishedAnimation: () => void,
+      blockedCallback: null | ((reason: string) => void),
+      finishedAnimation: null | (() => void),
     ): null | T['RunningViewTransition'];
     /** Abort an in-flight transition — newer work superseded it. */
     stopViewTransition(transition: T['RunningViewTransition']): void;
@@ -1602,7 +1631,7 @@ declare module 'react-reconciler' {
       mutationCallback: () => void,
       animateCallback: () => void,
       errorCallback: (error: unknown) => void,
-      finishedAnimation: () => void,
+      finishedAnimation: null | (() => void),
     ): null | T['RunningViewTransition'];
     /** Current position on the timeline — decides the gesture's start/cancel direction. */
     getCurrentGestureOffset(timeline: T['GestureTimeline']): number;
@@ -1760,7 +1789,7 @@ declare module 'react-reconciler' {
       onRecoverableError: (error: unknown, errorInfo: ErrorInfo) => void,
       onDefaultTransitionIndicator: () => void | (() => void),
       transitionCallbacks: null | TransitionTracingCallbacks,
-      formState: unknown | null,
+      formState: unknown, // ReactFormState<any, any> | null in source
     ): OpaqueRoot;
 
     // ---- updates ----
@@ -1854,6 +1883,8 @@ declare module 'react-reconciler' {
     /**
      * Builds the portal element object. Wrap it as your public
      * `createPortal(children, container)` with `implementation: null`.
+     * (The source also accepts React's internal optimistic-key symbol for `key`;
+     * not typed here — pass strings.)
      */
     createPortal(
       children: ReactNodeList,
@@ -2004,8 +2035,8 @@ declare module 'react-reconciler/constants' {
   export const ContinuousEventPriority: EventPriority; // 8
   /** Everything that isn't user input (value `32` = DefaultLane). The usual fallback. */
   export const DefaultEventPriority: EventPriority; // 32
-  /** Idle/offscreen work (value `536870912` = IdleLane). Runs when nothing else needs to. */
-  export const IdleEventPriority: EventPriority; // 536870912
+  /** Idle/offscreen work (value `268435456` = IdleLane, 2^28). Runs when nothing else needs to. */
+  export const IdleEventPriority: EventPriority; // 268435456
 
   /** Root tag `0`. Legacy mode is compiled out of OSS builds — do not use. */
   export const LegacyRoot: RootTag; // 0
