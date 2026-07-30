@@ -10,12 +10,12 @@
     "cleanup": "rm -rf dist"
   },
   "dependencies": {
-    "react": "latest",
-    "react-dom": "latest",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "vocs": "latest"
   },
   "devDependencies": {
-    "@types/react": "latest",
+    "@types/react": "catalog:",
     "typescript": "latest"
   }
 }

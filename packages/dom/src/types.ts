@@ -4,7 +4,10 @@ import type {
 } from "@term-ui/shared/types";
 import type { Document } from "./Document";
 import type { Element } from "./Element";
-import type { KeyName } from "./InputManager";
+import type {
+  InputEvent,
+  KeyName,
+} from "./InputManager";
 
 export type Size<T = number> = {
   width: T;
@@ -112,6 +115,15 @@ export type DocumentOptions = {
   clearScreenBeforePaint: boolean;
   dev?: boolean;
   onPaintRequest?: () => void;
+  /**
+   * Wraps every input-event dispatch. Lets embedders bracket dispatch with
+   * ambient state (e.g. React update priority) without the dom package
+   * depending on them. Must call `dispatch` exactly once, synchronously.
+   */
+  wrapInputDispatch?: (
+    event: InputEvent,
+    dispatch: () => void,
+  ) => void;
 };
 
 export type EventTarget = Element | Document;

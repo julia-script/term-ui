@@ -98,9 +98,17 @@ export class TextElement extends Node {
   [Symbol.for("nodejs.util.inspect.custom")]() {
     return `<text (${this.id})>${this.getText()}</text>`;
   }
+  isDisposed() {
+    return !this.document.getElement(this.id);
+  }
   dispose() {
-    super.dispose();
+    if (this.isDisposed()) {
+      throw new Error(
+        `Node ${this.id} has already been disposed`,
+      );
+    }
     this.document.removeElement(this);
+    super.dispose();
   }
   disposeRecursively() {
     this.dispose();

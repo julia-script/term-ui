@@ -1,4 +1,9 @@
 export { Tree } from "./Tree";
+export {
+  InputManager,
+  type InputEvent,
+  type KeyEvent,
+} from "./InputManager";
 export * from "./types";
 export { Element } from "./Element";
 export { TextElement } from "./TextElement";

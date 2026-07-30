@@ -1,40 +1,58 @@
 import {
-  Document,
   type DOMEvent,
   type Element,
+  type InputEvent,
   TextElement,
 } from "@term-ui/dom";
 import kebabCase from "lodash-es/kebabCase";
-import _createReconciler from "react-reconciler";
+import createReconciler, {
+  type HostConfig,
+  type HostConfigTypes,
+} from "react-reconciler";
 import {
+  ContinuousEventPriority,
   DefaultEventPriority,
+  DiscreteEventPriority,
   type EventPriority,
+  NoEventPriority,
 } from "react-reconciler/constants";
 import type { TermUi } from "../TermUi.js";
 
-const noop =
-  <T>(value?: T) =>
-  () =>
-    value;
 type ElementType = "text" | "view";
 type Props = Record<string, unknown>;
-type HostContext = {};
-const NO_CONTEXT: HostContext = {};
+const NO_CONTEXT: object = {};
 
-// Types for event handling
-type MouseEventName =
+interface TermUiTypes extends HostConfigTypes {
+  Type: ElementType;
+  Props: Props;
+  Container: TermUi;
+  Instance: Element;
+  TextInstance: TextElement;
+  PublicInstance: Element | TextElement;
+  HostContext: object;
+  TimeoutHandle: ReturnType<typeof setTimeout>;
+  NoTimeout: -1;
+  SuspendedState: null;
+  TransitionStatus: null;
+}
+
+// ---------------------------------------------------------------------------
+// Events
+// ---------------------------------------------------------------------------
+
+type DomEventName =
   | "click"
   | "mouseenter"
   | "mouseleave"
   | "mousemove"
   | "mousedown"
-  | "mouseup";
+  | "mouseup"
+  | "scroll";
 type EventHandler = (event: DOMEvent) => void;
 
-// Map from React prop names to DOM event names
 const propToEventMap: Record<
   string,
-  MouseEventName | "scroll"
+  DomEventName
 > = {
   onClick: "click",
   onMouseEnter: "mouseenter",
@@ -45,23 +63,11 @@ const propToEventMap: Record<
   onScroll: "scroll",
 };
 
-const createReconciler: typeof _createReconciler =
-  (options) => {
-    return _createReconciler(logCalls(options));
-  };
-// Function to attach event handlers
 const attachEventHandlers = (
-  instance: TextElement | Element,
+  instance: Element,
   props: Props,
   oldProps?: Props,
 ) => {
-  if (instance instanceof TextElement) {
-    throw new Error(
-      "attachEventHandlers: instance is a TextElement",
-    );
-  }
-  // instance.removeEventListener("scroll", oldProps?.onScroll);
-  // For each possible event prop
   for (const [
     propName,
     eventName,
@@ -72,17 +78,14 @@ const attachEventHandlers = (
     const newHandler = props[propName] as
       | EventHandler
       | undefined;
-
-    // Remove old handler if it exists and is different from new handler
-    if (oldHandler && oldHandler !== newHandler) {
+    if (oldHandler === newHandler) continue;
+    if (oldHandler) {
       instance.removeEventListener(
         eventName,
         oldHandler,
       );
     }
-
-    // Add new handler if it exists
-    if (newHandler && newHandler !== oldHandler) {
+    if (newHandler) {
       instance.addEventListener(
         eventName,
         newHandler,
@@ -91,47 +94,10 @@ const attachEventHandlers = (
   }
 };
 
-const stringifyStyles = (
-  styles: Record<string, unknown>,
-) => {
-  return Object.entries(styles)
-    .map(
-      ([key, value]) =>
-        `${kebabCase(key)}: ${value}`,
-    )
-    .join(";");
-};
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
 
-const normalizeStyle = (
-  kind: ElementType,
-  propStyles?: unknown,
-) => {
-  const styles: Record<string, unknown> = {};
-  if (kind === "text") {
-    return {
-      display: "inline flow",
-      ...(isPlainObject(propStyles)
-        ? propStyles
-        : {}),
-    };
-  }
-  if (isPlainObject(propStyles)) {
-    return {
-      ...styles,
-      ...propStyles,
-    };
-  }
-  return styles;
-};
-
-// Store props on node instances
-// class NodeWithProps extends BlockNode {
-//   _props?: Props;
-//   constructor(node: Node, props?: Props) {
-//     super(node.tree, node.id);
-//     this._props = props;
-//   }
-// }
 const isPlainObject = (
   value: unknown,
 ): value is Record<string, unknown> => {
@@ -141,292 +107,396 @@ const isPlainObject = (
     !Array.isArray(value)
   );
 };
-import fs from "node:fs";
-import { inspect } from "node:util";
-const logFile = fs.createWriteStream(
-  "./reconciler.log",
-);
-const stringify = (value: unknown) => {
-  const refs = new Set<unknown>();
-  return JSON.stringify(
-    value,
-    (key, value) => {
-      if (typeof value === "function") {
-        return `[Function ${value.name || "anonymous"}]`;
-      }
-      if (typeof value === "symbol") {
-        return `[Symbol ${value.toString()}]`;
-      }
- 
-      if (typeof value === "object" && value !== null) {
-        if (refs.has(value)) {
-          return "[Ref]";
-        }
-        refs.add(value);
-        return value;
-      }
-      if (Array.isArray(value)) {
-        if (refs.has(value)) {
-          return "[Circular Array]";
-        }
-        refs.add(value);
-        return value;
-      }
 
-      return value;
-    },
-    2,
+const styleStringFromProps = (
+  kind: ElementType,
+  propStyles: unknown,
+): string => {
+  const styles: Record<string, unknown> =
+    kind === "text"
+      ? { display: "inline flow" }
+      : {};
+  if (isPlainObject(propStyles)) {
+    Object.assign(styles, propStyles);
+  }
+  return Object.entries(styles)
+    .map(
+      ([key, value]) =>
+        `${kebabCase(key)}: ${value}`,
+    )
+    .join(";");
+};
+
+// Suspense visibility: hidden instances keep their layout state but are
+// removed from layout/paint/hit-testing via a composed `display: none`.
+// The reconciler owns every style string it sets, so composition is safe.
+const lastStyles = new WeakMap<Element, string>();
+const hiddenInstances = new WeakSet<Element>();
+const hiddenTexts = new WeakSet<TextElement>();
+
+const applyStyle = (
+  instance: Element,
+  style: string,
+) => {
+  lastStyles.set(instance, style);
+  instance.setStyle(
+    hiddenInstances.has(instance)
+      ? `${style};display: none`
+      : style,
   );
 };
-const logCalls = <T>(obj: T) => {
-  // @ts-expect-error
-  const entries = Object.entries(obj).map(
-    ([key, value]) => {
-      if (typeof value === "function") {
-        return [
-          key,
-          // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-          (...args: any[]) => {
-            try {
-              
-              logFile.write(
-                `${key} ${inspect(args, { depth: 1, colors: true })}\n`,
-              );
-              const res = value.apply(obj, args);
-              return res;
-            } catch (e) {
-              logFile.write(
-                `ERROR: ${key} ${inspect(args, { depth: 2, colors: true })}\n\n${e}\n`,
-              );
-              throw e;
-            }
-          },
-        ];
-      }
-      return [key, value];
-    },
-  );
-  return Object.fromEntries(entries) as T;
+
+const disposeInstance = (
+  instance: Element | TextElement,
+) => {
+  if (!instance.isDisposed()) {
+    instance.dispose();
+  }
 };
+
+// ---------------------------------------------------------------------------
+// Update priority
+// ---------------------------------------------------------------------------
 
 let currentUpdatePriority: EventPriority =
-  DefaultEventPriority;
-const _reconciler = createReconciler({
+  NoEventPriority;
+
+export const inputEventPriority = (
+  event: InputEvent,
+): EventPriority => {
+  if (event.kind === "key") {
+    return DiscreteEventPriority;
+  }
+  if (
+    event.kind === "mouse" ||
+    event.kind === "mouse-legacy"
+  ) {
+    return event.action === "press" ||
+      event.action === "release"
+      ? DiscreteEventPriority
+      : ContinuousEventPriority;
+  }
+  return DefaultEventPriority;
+};
+
+/**
+ * Brackets an input-event dispatch so state updates from handlers are
+ * scheduled at the right priority: discrete for keys/clicks, continuous
+ * for motion/wheel. Wire as `DocumentOptions.wrapInputDispatch`.
+ */
+export const runWithInputEventPriority = (
+  event: InputEvent,
+  dispatch: () => void,
+) => {
+  const previous = currentUpdatePriority;
+  currentUpdatePriority =
+    inputEventPriority(event);
+  try {
+    dispatch();
+  } finally {
+    currentUpdatePriority = previous;
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Host config
+// ---------------------------------------------------------------------------
+
+const hostConfig: HostConfig<TermUiTypes> = {
+  // ---- mode ----
   supportsMutation: true,
   supportsPersistence: false,
-  supportsMicrotasks: true,
-
+  supportsHydration: false,
   isPrimaryRenderer: true,
+  warnsIfNotActing: false,
+  supportsMicrotasks: true,
+  scheduleMicrotask: queueMicrotask,
 
-  noTimeout: -1,
+  // ---- timers ----
   scheduleTimeout: setTimeout,
   cancelTimeout: clearTimeout,
+  noTimeout: -1,
 
-  createInstance: (
-    type: ElementType,
-    props: Props,
-    termUi: TermUi,
-    _hostContext: HostContext,
-    _internalHandle: unknown,
-  ) => {
-    // console.log("createInstance", type, props);
-    // if (type === "term-text") {
-    //   // console.log("createTextInstance", props);
-    //   return termUi.document.createElement(
-    //     "text",
-    //   );
-    // }
-    const styles = normalizeStyle(
-      type,
-      props?.style,
-    );
+  // ---- update priority ----
+  setCurrentUpdatePriority: (priority) => {
+    currentUpdatePriority = priority;
+  },
+  getCurrentUpdatePriority: () =>
+    currentUpdatePriority,
+  resolveUpdatePriority: () => {
+    if (currentUpdatePriority !== NoEventPriority)
+      return currentUpdatePriority;
+    return DefaultEventPriority;
+  },
+  shouldAttemptEagerTransition: () => false,
 
-    const style = stringifyStyles(styles);
+  // ---- host context ----
+  // note: a non-null sentinel is required — the 0.33 dev build treats a
+  // null host context as missing ("Expected host context to exist")
+  getRootHostContext: () => NO_CONTEXT,
+  getChildHostContext: (parentHostContext) =>
+    parentHostContext,
+
+  // ---- creation (render phase — instances are detached) ----
+  createInstance: (type, props, termUi) => {
     const node =
       termUi.document.createElement(type);
-    node.setStyle(style);
-    if (props?.contentEditable) {
+    applyStyle(
+      node,
+      styleStringFromProps(type, props.style),
+    );
+    if (props.contentEditable) {
       node.setAttribute(
         "contenteditable",
         "true",
       );
     }
-
-    // Attach event handlers on instance creation
     attachEventHandlers(node, props);
-
     return node;
   },
-
-  createTextInstance: (
-    text: string,
-    termUi: TermUi,
-    _hostContext: HostContext,
-  ) => {
-    // console.log("createTextInstance", text);
-    const node =
-      termUi.document.createTextNode(text);
-    return node;
+  createTextInstance: (text, termUi) => {
+    return termUi.document.createTextNode(text);
   },
-  scheduleMicrotask: queueMicrotask,
-  getCurrentUpdatePriority: () =>
-    currentUpdatePriority,
-
-  resolveUpdatePriority: () =>
-    currentUpdatePriority,
-  setCurrentUpdatePriority: (priority) => {
-    currentUpdatePriority = priority;
+  appendInitialChild: (parent, child) => {
+    parent.appendChild(child);
   },
+  finalizeInitialChildren: () => false,
+  shouldSetTextContent: () => false,
   getPublicInstance: (instance) => instance,
 
-  shouldSetTextContent: (type, props) => {
-    // console.log("shouldSetTextContent", type, props);
-    return false 
-  },
-
-  getRootHostContext: () => NO_CONTEXT,
-  getChildHostContext: (parentContext) =>
-    parentContext,
-  finalizeInitialChildren: () => false,
+  // ---- commit lifecycle ----
   prepareForCommit: () => null,
-  resetAfterCommit: (tui) => {
-    try {
-      tui.render();
-    } catch (e) {
-      console.error(e);
-    }
+  resetAfterCommit: (termUi) => {
+    termUi.render();
   },
-  detachDeletedInstance: (instance) => {
-    // if (instance instanceof TextElement) {
-    //   instance.dispose();
-    //   return ;
-    // }
-    if (instance.isDisposed()) {
-      return;
-    }
-    // instance.dispose();
+  clearContainer: (termUi) => {
+    termUi.document.root.removeChildren();
   },
+  preparePortalMount: () => {},
 
-  appendInitialChild: (parent, child) => {
-    // console.log("appendInitialChild", parent, child);
-    if (parent instanceof TextElement) {
-      throw new Error(
-        "appendInitialChild: parent is not a NodeWithProps",
-      );
-    }
-    parent.appendChild(child);
-  },
-
-  appendChildToContainer: (tui, child) => {
-    tui.document.root.appendChild(child);
-  },
+  // ---- mutation ----
   appendChild: (parent, child) => {
-    // console.log("appendChild", parent, child);
     parent.appendChild(child);
   },
-  insertBefore: (parent, child, before) => {
-    // console.log("insertBefore", parent, child, before);
-    parent.insertBefore(child, before);
+  appendChildToContainer: (termUi, child) => {
+    termUi.document.root.appendChild(child);
   },
-  removeChild: (parentInstance, child) => {
-    if (parentInstance instanceof TextElement) {
-      throw new Error(
-        "removeChild: parentInstance is not a NodeWithProps",
-      );
-    }
-
-    parentInstance.removeChild(child);
-
-    // console.log("removeChild", parentInstance);
+  insertBefore: (parent, child, beforeChild) => {
+    parent.insertBefore(child, beforeChild);
   },
-
-  removeChildFromContainer: (tui, child) => {
-    tui.document.root.removeChild(child);
-  },
-
-  clearContainer: (tui) => {
-    tui.document.root.removeChildren();
-  },
-  // resetTextContent(instance) {
-  //   if (instance instanceof TextElement) {
-  //     instance.setText("");
-  //   }
-  //   // if (instance instanceof TextElement) {
-  //   // }
-  // },
-
-  commitTextUpdate: (
-    instance,
-    oldText,
-    newText,
+  insertInContainerBefore: (
+    termUi,
+    child,
+    beforeChild,
   ) => {
-    // debug.log(instance.id, newText, oldText);
-    if (instance instanceof TextElement) {
-      if (newText === oldText) {
-        return;
-      }
-      // debug.log("setText", newText);
-      instance.setText(newText);
-      return;
-    }
-    throw new Error(
-      "commitTextUpdate: instance is not a TextElement",
+    termUi.document.root.insertBefore(
+      child,
+      beforeChild,
     );
   },
-
+  removeChild: (parent, child) => {
+    parent.removeChild(child);
+    // React never calls detachDeletedInstance for text fibers; a topmost
+    // deleted text node would otherwise leak its native handle
+    if (child instanceof TextElement) {
+      disposeInstance(child);
+    }
+  },
+  removeChildFromContainer: (termUi, child) => {
+    termUi.document.root.removeChild(child);
+    if (child instanceof TextElement) {
+      disposeInstance(child);
+    }
+  },
   commitUpdate: (
     instance,
     type,
     oldProps,
     newProps,
   ) => {
-    // TODO: better diffing
-    // if (instance instanceof TextNode) {
-    //   return;
-    // }
-
-    const prevStyle = isPlainObject(
-      oldProps?.style,
-    )
-      ? stringifyStyles(
-          normalizeStyle(type, oldProps?.style),
-        )
-      : "";
-    const newStyle = isPlainObject(
-      newProps?.style,
-    )
-      ? stringifyStyles(
-          normalizeStyle(type, newProps?.style),
-        )
-      : "";
-    if (newStyle !== prevStyle) {
-      instance.setStyle(newStyle);
+    const prevStyle = styleStringFromProps(
+      type,
+      oldProps.style,
+    );
+    const nextStyle = styleStringFromProps(
+      type,
+      newProps.style,
+    );
+    if (
+      prevStyle !== nextStyle ||
+      !lastStyles.has(instance)
+    ) {
+      applyStyle(instance, nextStyle);
     }
-
-    // Attach/update event handlers
+    const prevEditable =
+      !!oldProps.contentEditable;
+    const nextEditable =
+      !!newProps.contentEditable;
+    if (prevEditable !== nextEditable) {
+      if (nextEditable) {
+        instance.setAttribute(
+          "contenteditable",
+          "true",
+        );
+      } else {
+        instance.removeAttribute(
+          "contenteditable",
+        );
+      }
+    }
     attachEventHandlers(
       instance,
       newProps,
       oldProps,
     );
   },
+  commitTextUpdate: (
+    instance,
+    oldText,
+    newText,
+  ) => {
+    if (newText === oldText) return;
+    // hidden text nodes stay blank; unhideTextInstance restores the
+    // latest committed text
+    if (hiddenTexts.has(instance)) return;
+    instance.setText(newText);
+  },
+  commitMount: () => {},
+  resetTextContent: () => {},
 
+  // ---- visibility (Suspense / <Activity>) ----
   hideInstance: (instance) => {
-    // instance.setStyle("display: none");
-
-    return false;
+    hiddenInstances.add(instance);
+    applyStyle(
+      instance,
+      lastStyles.get(instance) ?? "",
+    );
   },
-  unhideInstance: (instance) => {
-    // instance.setStyle("display: block");
-    return false;
+  unhideInstance: (instance, props) => {
+    hiddenInstances.delete(instance);
+    applyStyle(
+      instance,
+      lastStyles.get(instance) ?? "",
+    );
+    // props are authoritative if we never saw a style for this instance
+    if (!lastStyles.has(instance)) {
+      applyStyle(
+        instance,
+        styleStringFromProps(
+          "view",
+          props.style,
+        ),
+      );
+    }
+  },
+  hideTextInstance: (instance) => {
+    hiddenTexts.add(instance);
+    instance.setText("");
+  },
+  unhideTextInstance: (instance, text) => {
+    hiddenTexts.delete(instance);
+    instance.setText(text);
   },
 
+  // ---- deletion (passive phase; React has fully detached the node) ----
+  detachDeletedInstance: (instance) => {
+    if (instance.isDisposed()) return;
+    // React only detaches host *components* (fiber.tag === 5); text
+    // children never get their own callback, so free them with their parent
+    for (const child of instance.getChildren()) {
+      if (child instanceof TextElement) {
+        disposeInstance(child);
+      }
+    }
+    instance.dispose();
+  },
+
+  // ---- suspensey commits (nothing to wait for in a terminal) ----
   maySuspendCommit: () => false,
-
-  preloadInstance: noop(null),
-  startSuspendingCommit: noop(),
-  suspendInstance: noop(null),
+  maySuspendCommitOnUpdate: () => false,
+  maySuspendCommitInSyncRender: () => false,
+  preloadInstance: () => true,
+  startSuspendingCommit: () => null,
+  suspendInstance: () => {},
+  suspendOnActiveViewTransition: () => {},
   waitForCommitToBeReady: () => null,
-});
+  getSuspendedCommitReason: () => null,
 
-export const reconciler = _reconciler;
+  // ---- profiling hooks (live in dev builds) ----
+  trackSchedulerEvent: () => {},
+  resolveEventType: () => null,
+  resolveEventTimeStamp: () => -1.1,
+
+  // ---- forms (no forms in a terminal; sentinel plumbing only) ----
+  NotPendingTransition: null,
+  HostTransitionContext: {
+    $$typeof: Symbol.for("react.context"),
+    Provider: null,
+    Consumer: null,
+    _currentValue: null,
+    _currentValue2: null,
+    _threadCount: 0,
+    // biome-ignore lint/suspicious/noExplicitAny: raw context-shaped object per host contract
+  } as any,
+  resetFormInstance: () => {},
+
+  // ---- view transitions (stub contract: run commit phases synchronously) ----
+  startViewTransition: (
+    _state,
+    _container,
+    _types,
+    mutationCb,
+    layoutCb,
+    _afterMutationCb,
+    spawnedWorkCb,
+  ) => {
+    mutationCb();
+    layoutCb();
+    spawnedWorkCb();
+    return null;
+  },
+  applyViewTransitionName: () => {},
+  restoreViewTransitionName: () => {},
+  cancelViewTransitionName: () => {},
+  cancelRootViewTransitionName: () => {},
+  restoreRootViewTransitionName: () => {},
+  measureInstance: () => null,
+  measureClonedInstance: () => null,
+  wasInstanceInViewport: () => false,
+  hasInstanceChanged: () => false,
+  hasInstanceAffectedParent: () => false,
+  stopViewTransition: () => {},
+  addViewTransitionFinishedListener: () => {},
+  createViewTransitionInstance: (name) => ({
+    name,
+  }),
+
+  // ---- fragment refs (stubbed; <Fragment ref> resolves to null) ----
+  createFragmentInstance: () => null,
+  updateFragmentInstanceFiber: () => {},
+  commitNewChildToFragmentInstance: () => {},
+  deleteChildFromFragmentInstance: () => {},
+
+  // ---- misc ----
+  getInstanceFromNode: () => null,
+  beforeActiveInstanceBlur: () => {},
+  afterActiveInstanceBlur: () => {},
+  prepareScopeUpdate: () => {},
+  getInstanceFromScope: () => null,
+  requestPostPaintCallback: () => {},
+  bindToConsole: (methodName, args) =>
+    Function.prototype.bind.apply(
+      // biome-ignore lint/suspicious/noExplicitAny: console indexed by method name
+      (console as any)[methodName],
+      // biome-ignore lint/suspicious/noExplicitAny: bind tuple
+      [console].concat(args) as any,
+    ),
+
+  // ---- DevTools identity ----
+  rendererVersion: "0.0.2",
+  rendererPackageName: "@term-ui/react",
+  extraDevToolsConfig: null,
+};
+
+export const reconciler =
+  createReconciler<TermUiTypes>(hostConfig);

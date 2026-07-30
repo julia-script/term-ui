@@ -220,9 +220,11 @@ export class Document {
       onPaintRequest = () => {
         this.paintRequested = true;
       },
+      wrapInputDispatch,
     }: Partial<DocumentOptions> = {},
   ) {
     this.onPaintRequest = onPaintRequest;
+    this.wrapInputDispatch = wrapInputDispatch;
     this.clearScreenBeforePaint =
       clearScreenBeforePaint;
     this.reportLeaksOnExit = reportLeaksOnExit;
@@ -301,15 +303,26 @@ export class Document {
   ) => {
     this.cleanups.push(cleanup.bind(this));
   };
+  private wrapInputDispatch?: (
+    event: InputEvent,
+    dispatch: () => void,
+  ) => void;
   private onInput = (event: InputEvent) => {
-    if (event.kind === "key") {
-      this.emitKeyEvents(event);
-    }
-    if (
-      event.kind === "mouse" ||
-      event.kind === "mouse-legacy"
-    ) {
-      this.emitMouseEvents(event);
+    const dispatch = () => {
+      if (event.kind === "key") {
+        this.emitKeyEvents(event);
+      }
+      if (
+        event.kind === "mouse" ||
+        event.kind === "mouse-legacy"
+      ) {
+        this.emitMouseEvents(event);
+      }
+    };
+    if (this.wrapInputDispatch) {
+      this.wrapInputDispatch(event, dispatch);
+    } else {
+      dispatch();
     }
   };
 

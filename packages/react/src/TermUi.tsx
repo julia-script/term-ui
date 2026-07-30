@@ -11,7 +11,10 @@ import {
 import type { OpaqueRoot } from "react-reconciler";
 import { ConcurrentRoot } from "react-reconciler/constants";
 import { Viewport } from "./Viewport.js";
-import { reconciler } from "./reconciler/reconciler.js";
+import {
+  reconciler,
+  runWithInputEventPriority,
+} from "./reconciler/reconciler.js";
 
 /**
  * Options for creating a TermUi instance
@@ -55,26 +58,45 @@ export class TermUi {
     this.container = reconciler.createContainer(
       this,
       ConcurrentRoot,
-      null,
-      process.env.NODE_ENV === "development",
-      true,
-      "id",
-      (error) => {
-        console.error(error);
-      },
-      (error) => {
-        console.error(error);
-      },
-      (error) => {
-        console.error(error);
-      },
-      null,
+      null, // hydrationCallbacks
+      process.env.NODE_ENV === "development", // isStrictMode
+      null, // concurrentUpdatesByDefaultOverride (ignored)
+      "", // identifierPrefix (useId)
+      this.onUncaughtError, // no boundary caught it: tear down and report
+      this.reportError, // an error boundary caught it
+      this.reportError, // React recovered on its own
+      () => {}, // onDefaultTransitionIndicator
+      null, // transitionCallbacks
     );
+    reconciler.injectIntoDevTools();
     document.writeStream.on(
       "resize",
       this.onResize,
     );
   }
+
+  // Errors must not be written into the alternate screen while we own the
+  // terminal; queue them and flush once the screen is restored.
+  private pendingErrors: unknown[] = [];
+  private reportError = (error: unknown) => {
+    if (this.disposed) {
+      console.error(error);
+      return;
+    }
+    this.pendingErrors.push(error);
+  };
+  private onUncaughtError = (error: unknown) => {
+    // the tree is broken beyond recovery: restore the terminal, then report
+    this.reportError(error);
+    this.dispose();
+  };
+  private flushErrors = () => {
+    const errors = this.pendingErrors;
+    this.pendingErrors = [];
+    for (const error of errors) {
+      console.error(error);
+    }
+  };
 
   /**
    * @internal
@@ -151,6 +173,10 @@ export class TermUi {
       onPaintRequest: () => {
         tuiRef?.render();
       },
+      // schedule handler-driven updates at input-derived priority
+      wrapInputDispatch:
+        options.wrapInputDispatch ??
+        runWithInputEventPriority,
     });
     const tui = new TermUi(document);
     tuiRef = tui;
@@ -176,11 +202,15 @@ export class TermUi {
    *
    * @public
    */
+  private disposed = false;
   dispose = () => {
+    if (this.disposed) return;
+    this.disposed = true;
     this.document.writeStream.off(
       "resize",
       this.onResize,
     );
     this.document.dispose();
+    this.flushErrors();
   };
 }
