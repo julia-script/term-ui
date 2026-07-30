@@ -194,7 +194,7 @@ export class Document {
     activeMouseButtons: new Set<
       MouseEvent["button"]
     >(),
-    isDragging: true,
+    isDragging: false,
   };
 
   private cleanups: ((this: Document) => void)[] =
@@ -887,6 +887,43 @@ export class Document {
       { kind: "mouse" | "mouse-legacy" }
     >,
   ) => {
+    // Physical button state is tracked before dispatch: a release is a
+    // fact, not a default action, so it must clear state even when a
+    // handler calls preventDefault or the release can't name its button
+    // (legacy encoding). Button-less motion also heals a missed release
+    // (e.g. button let go outside the window).
+    if (input.kind === "mouse") {
+      if (input.action === "press") {
+        this.state.activeMouseButtons.add(
+          input.button,
+        );
+      } else if (input.action === "release") {
+        this.state.activeMouseButtons.delete(
+          input.button,
+        );
+        this.state.isDragging = false;
+      } else if (
+        input.action === "motion" &&
+        input.button === "none"
+      ) {
+        this.state.activeMouseButtons.clear();
+        this.state.isDragging = false;
+      }
+    } else {
+      if (input.action.endsWith("_press")) {
+        this.state.activeMouseButtons.add(
+          input.action.replace(
+            "_press",
+            "",
+          ) as MouseEvent["button"],
+        );
+      } else if (
+        input.action.includes("release")
+      ) {
+        this.state.activeMouseButtons.clear();
+        this.state.isDragging = false;
+      }
+    }
     const { x, y } = input;
     const hitTestListResult =
       this.tree.module.Tree_hitTestList(
@@ -1515,33 +1552,33 @@ export class Document {
     event: MouseEvent | WheelEvent,
   ) => {
     if (event.type === "mousedown") {
-      this.state.activeMouseButtons.add(
-        event.button,
-      );
+      if (event.button !== "left") {
+        return;
+      }
       const bp = this.caretPositionFromPoint(
         event.clientX,
         event.clientY,
       );
       if (bp) {
         this.createSelection(bp);
+        // arm drag-select only when the press actually placed a caret
+        this.state.isDragging = true;
         this.requestPaint();
       }
       return;
     }
     if (event.type === "mouseup") {
-      this.state.activeMouseButtons.delete(
-        event.button,
-      );
+      this.state.isDragging = false;
       return;
     }
     if (event.type === "mousemove") {
       if (
+        this.state.isDragging &&
         this.state.activeMouseButtons.has(
           "left",
         ) &&
         this.selection
       ) {
-        this.state.isDragging = true;
         const bp = this.caretPositionFromPoint(
           event.clientX,
           event.clientY,

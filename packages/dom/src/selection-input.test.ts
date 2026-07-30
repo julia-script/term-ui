@@ -163,3 +163,37 @@ describe("editing keys", () => {
     );
   });
 });
+
+describe("drag state machine", () => {
+  it("moving after release does not extend the selection", async () => {
+    const { doc, feed } = setup();
+    await feed(press(1, 1));
+    await feed(release(1, 1));
+    await feed(move(8, 1)); // plain move, button up
+    const selection = doc.selection!;
+    expect(selection.isCollapsed()).toBe(true);
+    expect(selection.getFocus().offset).toBe(0);
+  });
+
+  it("a missed release is healed by button-less motion", async () => {
+    const { doc, feed } = setup();
+    await feed(press(1, 1));
+    // release never arrives (e.g. happened outside the window);
+    // any-event tracking then reports motion with no button (code 35)
+    await feed("\x1b[<35;4;1M");
+    await feed(move(8, 1)); // held-button motion encoding, but state is healed
+    const selection = doc.selection!;
+    expect(selection.isCollapsed()).toBe(true);
+  });
+
+  it("drag extends while held and stops after release", async () => {
+    const { doc, feed } = setup();
+    await feed(press(1, 1));
+    await feed(move(4, 1)); // genuine drag while held
+    expect(doc.selection!.isCollapsed()).toBe(false);
+    expect(doc.selection!.getFocus().offset).toBe(3);
+    await feed(release(4, 1));
+    await feed(move(8, 1));
+    expect(doc.selection!.getFocus().offset).toBe(3);
+  });
+});
