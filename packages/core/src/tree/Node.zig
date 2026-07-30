@@ -126,6 +126,7 @@ pub fn replaceData(self: *Self, tree: *Tree, offset: u32, count: u32, data: []co
 
     // Steps 5-7: Perform the text replacement
     try self.text.replace(tree.allocator, offset, adjusted_count, data);
+    tree.requestNodeAndAncestorsInvalidation(self.id, .recompute);
 
     // Update all ranges that might be affected
     self.updateRangesAfterReplace(tree, offset, adjusted_count, data.len);

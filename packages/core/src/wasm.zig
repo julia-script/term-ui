@@ -329,6 +329,7 @@ pub export fn Node_getAttribute(tree: *Tree, node: u32, name: [*:0]u8) ?[*:0]con
 }
 
 export fn Node_setAttribute(tree: *Tree, node_id: u32, name: [*:0]u8, value: [*:0]u8) void {
+    tree.invalidateStyles(node_id);
     logger.info("Node_setAttribute({*}, {d}, \"{s}\", \"{s}\")", .{ tree, node_id, name, value });
     defer freeNullTerminatedBuffer(name);
     defer freeNullTerminatedBuffer(value);
@@ -347,6 +348,7 @@ export fn Node_hasAttribute(tree: *Tree, node_id: u32, name: [*:0]u8) bool {
 }
 
 export fn Node_removeAttribute(tree: *Tree, node_id: u32, name: [*:0]u8) void {
+    tree.invalidateStyles(node_id);
     logger.info("Node_removeAttribute({*}, {d}, \"{s}\")", .{ tree, node_id, name });
     defer freeNullTerminatedBuffer(name);
     const name_slice = name[0..std.mem.len(name)];

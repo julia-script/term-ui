@@ -459,6 +459,11 @@ pub fn parseStyleString(tree: *Tree, node_id: Node.NodeId, styles: []const u8) !
     if (slice.len == 0) {
         return;
     }
+    // style strings can change anything, including display (which changes
+    // layout-tree structure): invalidate computed styles and mark the node
+    // for regeneration like Tree.setStyle does
+    tree.invalidateStyles(node_id);
+    tree.requestNodeAndAncestorsInvalidation(node_id, .regenerate);
     var iter_properties = std.mem.splitSequence(u8, slice, ";");
     while (iter_properties.next()) |_property| {
         const property = trim(_property);

@@ -34,6 +34,7 @@ allocator: std.mem.Allocator,
 style_manager: StyleManager,
 computed_style_cache: ComputedStyleCache,
 input_manager: ?InputManager = null,
+last_available_space: ?layout_mod.constants.AvailableSpacePoint = null,
 
 node_id_counter: Node.NodeId = 1,
 selections: std.AutoHashMapUnmanaged(Selection.Id, Selection) = .{},
@@ -328,7 +329,7 @@ fn requestNodeInvalidation(self: *Self, node_id: Node.NodeId, invalidation: Inva
     }
 }
 
-fn requestNodeAndAncestorsInvalidation(self: *Self, node_id: Node.NodeId, invalidation: InvalidationType) void {
+pub fn requestNodeAndAncestorsInvalidation(self: *Self, node_id: Node.NodeId, invalidation: InvalidationType) void {
     self.requestNodeInvalidation(node_id, invalidation);
 
     var current_id = node_id;
@@ -685,6 +686,9 @@ pub fn hitTestList(self: *const Self, list: *std.ArrayList(RenderList.HitTestRes
 
 pub fn destroyNode(self: *Self, id: Node.NodeId) !void {
     const node = self.getNode(id);
+    if (node.parent) |parent_id| {
+        self.requestNodeAndAncestorsInvalidation(parent_id, .regenerate);
+    }
 
     for (node.children.items) |child_id| {
         var child = self.getNode(child_id);
@@ -760,6 +764,7 @@ fn maybeRemoveNode(self: *Self, node_id: Node.NodeId) !void {
     }
 }
 pub fn appendChildAtIndex(self: *Self, parent_id: Node.NodeId, child_id: Node.NodeId, index: usize) !Node.NodeId {
+    self.requestNodeAndAncestorsInvalidation(parent_id, .regenerate);
     const siblings = self.getNode(parent_id).children;
     const node_at_index = if (index >= siblings.items.len) null else siblings.items[index];
 
@@ -804,6 +809,7 @@ fn ensurePreInsertValidity(self: *Self, node: Node.NodeId, parent: Node.NodeId, 
     // Since you don't have Document nodes, they can be omitted
 }
 pub fn preInsert(self: *Self, parent: Node.NodeId, node: Node.NodeId, child: ?Node.NodeId) !Node.NodeId {
+    self.requestNodeAndAncestorsInvalidation(parent, .regenerate);
     // 1. Ensure pre-insert validity of node into parent before child.
     try ensurePreInsertValidity(self, node, parent, child);
 
@@ -1160,6 +1166,7 @@ test "Tree.removeChild" {
     }
 }
 pub fn removeChildren(self: *Self, parent_id: Node.NodeId) void {
+    self.requestNodeAndAncestorsInvalidation(parent_id, .regenerate);
     var node = self.getNode(parent_id);
     if (node.children.items.len == 0) {
         return;
@@ -2385,16 +2392,32 @@ fn getCharacterPositionInFragment(self: *const Self, fragment_index: usize, x: f
 
     unreachable;
 }
+/// Aggregated invalidation level of the whole tree: `.repaint` means no
+/// node needs style or layout work, so those stages can no-op.
+pub fn aggregateDirtyLevel(self: *Self) Node.RegenerateLevel {
+    return self.propagateNodeRecomputeStatusInner(ROOT_NODE_ID);
+}
+
 pub fn computeStyles(self: *Self) !void {
+    if (self.aggregateDirtyLevel() == .repaint) return;
     try self.computed_style_cache.computeRootStyle(self);
 }
 
 pub fn buildLayoutTree(self: *Self) !void {
+    if (self.aggregateDirtyLevel() == .repaint) return;
     self.propagateNodeRecomputeStatus();
     try self.layout_tree.computeIncremental(self);
 }
 
 pub fn computeLayout(self: *Self, allocator: std.mem.Allocator, available_space: layout_mod.constants.AvailableSpacePoint) !void {
+    // clean tree + unchanged viewport: nothing to lay out (scroll and
+    // selection changes take effect at paint via the render list)
+    if (self.aggregateDirtyLevel() == .repaint) {
+        if (self.last_available_space) |last| {
+            if (std.meta.eql(last, available_space)) return;
+        }
+    }
+    self.last_available_space = available_space;
     var layout_context = layout_mod.LayoutContext{
         .allocator = allocator,
         .doc_tree = self,
@@ -2402,6 +2425,14 @@ pub fn computeLayout(self: *Self, allocator: std.mem.Allocator, available_space:
     };
 
     try layout_mod.computeLayout(&layout_context, available_space);
+
+    // pipeline complete: outstanding work everywhere is repaint-only until
+    // the next mutation lowers a level. computeLayout is only valid after
+    // computeStyles/buildLayoutTree (all call sites run the full order).
+    var node_iter = self.node_map.iterator();
+    while (node_iter.next()) |entry| {
+        entry.value_ptr.regenerate_level = .repaint;
+    }
 }
 pub fn buildRenderList(self: *Self) !void {
     self.render_list.clear();
