@@ -121,3 +121,13 @@ test "layout preserved breaks nowrap" {
         \\two</div>
     , .{ .x = .{ .definite = 12 }, .y = .max_content });
 }
+
+test "layout trailing segment break yields empty final line" {
+    // textarea semantics: "hey\n" occupies two lines so the caret after the
+    // break has a line to land on (deliberate deviation from CSS static
+    // rendering, which drops the final empty line)
+    try expectLayoutSnapshot(@src(), "trailing break",
+        \\<div style="width: 12px; white-space: pre-wrap;">hey
+        \\</div>
+    , .{ .x = .{ .definite = 12 }, .y = .max_content });
+}

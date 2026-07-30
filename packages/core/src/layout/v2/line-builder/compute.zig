@@ -96,6 +96,26 @@ fn tokensToLineBoxes(allocator: std.mem.Allocator, tokens: []const Token, width:
         });
     }
 
+    // A trailing mandatory break must yield a final empty line (textarea
+    // semantics): the caret after "hey\n" needs a line to land on, and
+    // vertical navigation needs a fragment to anchor to. The empty fragment
+    // is collapsed at the end of the source text.
+    const last_token = tokens[tokens.len - 1];
+    if (last_token.break_after == .mandatory) {
+        try line_boxes.breakLine();
+        try line_boxes.appendFragmentToLastLine(.{
+            .text = try allocator.dupe(u8, ""),
+            .l_node_id = last_token.l_node_id,
+            .start = last_token.dom_range.end,
+            .length = 0,
+            .size = .{ .x = 0, .y = 1 },
+            .is_atomic = false,
+            .allocator = allocator,
+            .position = .{ .x = 0, .y = 0 },
+            .dom_range = .{ .start = last_token.dom_range.end, .end = last_token.dom_range.end },
+        });
+    }
+
     if (line_boxes.list.items.len > 1) {
         for (line_boxes.list.items) |*line| {
             line.size.x = width;

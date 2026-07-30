@@ -329,3 +329,108 @@ describe("LF and control chords", () => {
     );
   });
 });
+
+describe("multiline editing (pre-wrap)", () => {
+  // a taller editable with preserved breaks, like a chat input
+  const setupMulti = (content: string) => {
+    const doc = new Document(module, {
+      enableInputs: false,
+      enableAlternateScreen: false,
+      clearScreenBeforePaint: false,
+      exitOnCtrlC: false,
+      writeStream: fakeWriteStream,
+      readStream: fakeReadStream,
+      size: { width: 30, height: 12 },
+    });
+    doc.root.setStyle(
+      "width: 30px; height: 12px; white-space: pre-wrap;",
+    );
+    doc.root.setAttribute(
+      "contenteditable",
+      "true",
+    );
+    const text = doc.createTextNode(content);
+    doc.root.appendChild(text);
+    doc.computeLayout();
+    doc.paint();
+    const im = new InputManager(
+      module,
+      fakeReadStream,
+      doc.tree,
+    );
+    im.subscribe((event) =>
+      (doc as any).onInput(event),
+    );
+    const feed = async (bytes: string) => {
+      im.buffer.appendSlice(
+        new TextEncoder().encode(bytes),
+      );
+      im.consumeEvents();
+      await tick();
+    };
+    return { doc, text, feed };
+  };
+
+  it("a single trailing newline creates a caret-addressable line", async () => {
+    const { doc, text, feed } =
+      setupMulti("hey");
+    doc.createSelection({
+      node: text.id,
+      offset: 3,
+    });
+    await feed("\n"); // shift+enter
+    expect(text.getText()).toBe("hey\n");
+    expect(
+      doc.selection!.getFocus().offset,
+    ).toBe(4);
+    doc.computeLayout();
+    doc.paint();
+    // the position after the break is on its own (second) line
+    expect(
+      doc.caretPositionFromPoint(0, 1),
+    ).toEqual({ node: text.id, offset: 4 });
+    // and typing there lands on that line
+    await feed("\x1b[120u"); // 'x'
+    expect(text.getText()).toBe("hey\nx");
+  });
+
+  it("arrow down/up moves through an empty line", async () => {
+    const { doc, text, feed } = setupMulti(
+      "aaa\n\nccc",
+    );
+    doc.createSelection({
+      node: text.id,
+      offset: 1,
+    });
+    await feed("\x1b[B"); // down -> start of the empty line
+    expect(
+      doc.selection!.getFocus().offset,
+    ).toBe(4);
+    await feed("\x1b[B"); // down -> "ccc", same column
+    expect(
+      doc.selection!.getFocus().offset,
+    ).toBe(6);
+    await feed("\x1b[A"); // up -> empty line again
+    expect(
+      doc.selection!.getFocus().offset,
+    ).toBe(4);
+    await feed("\x1b[A"); // up -> back into "aaa"
+    expect(
+      doc.selection!.getFocus().offset,
+    ).toBe(1);
+  });
+
+  it("arrow down onto the trailing empty line", async () => {
+    const { doc, text, feed } = setupMulti(
+      "aaa\n",
+    );
+    doc.createSelection({
+      node: text.id,
+      offset: 1,
+    });
+    await feed("\x1b[B");
+    expect(
+      doc.selection!.getFocus().offset,
+    ).toBe(4);
+  });
+});

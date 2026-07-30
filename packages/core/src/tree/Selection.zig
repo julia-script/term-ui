@@ -627,14 +627,19 @@ fn getNextLineInSlice(
     // if no candidate line box, we set focus on the linebox boundaries
     if (candidate_line_box_index == null) {
         const linebox = current_line_box.line_box;
+        if (linebox.fragment_indexes.len == 0) return null;
         switch (direction) {
             .forward => {
-                const last_fragment_index = linebox.getLastNonEmptyFragmentIndex(&tree.render_list) orelse return null;
+                // fall back to the last fragment even when it's empty (an
+                // empty line's only fragment is its zero-width break)
+                const last_fragment_index = linebox.getLastNonEmptyFragmentIndex(&tree.render_list) orelse
+                    linebox.fragment_indexes[linebox.fragment_indexes.len - 1];
                 const last_fragment = tree.render_list.at(last_fragment_index).?.text_fragment;
                 return BoundaryPoint{ .node_id = last_fragment.doc_node_id, .offset = last_fragment.visibleDomEnd() };
             },
             .backward => {
-                const first_fragment_index = linebox.getFirstNonEmptyFragmentIndex(&tree.render_list) orelse return null;
+                const first_fragment_index = linebox.getFirstNonEmptyFragmentIndex(&tree.render_list) orelse
+                    linebox.fragment_indexes[0];
                 const first_fragment = tree.render_list.at(first_fragment_index).?.text_fragment;
                 return BoundaryPoint{ .node_id = first_fragment.doc_node_id, .offset = first_fragment.dom_range.start };
             },
@@ -642,8 +647,12 @@ fn getNextLineInSlice(
     }
 
     const linebox = tree.render_list.at(candidate_line_box_index.?).?.line_box;
-    const first_fragment_index = linebox.getFirstNonEmptyFragmentIndex(&tree.render_list) orelse return null;
-    const last_fragment_index = linebox.getLastNonEmptyFragmentIndex(&tree.render_list) orelse return null;
+    // empty lines carry a single zero-width fragment; navigating into them
+    // must not fail just because no fragment has visible text
+    const first_fragment_index = linebox.getFirstNonEmptyFragmentIndex(&tree.render_list) orelse
+        linebox.fragment_indexes[0];
+    const last_fragment_index = linebox.getLastNonEmptyFragmentIndex(&tree.render_list) orelse
+        linebox.fragment_indexes[linebox.fragment_indexes.len - 1];
     const first_fragment = tree.render_list.at(first_fragment_index).?.text_fragment;
     const last_fragment = tree.render_list.at(last_fragment_index).?.text_fragment;
 
