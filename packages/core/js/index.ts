@@ -95,6 +95,13 @@ const _init = async (args: InitArgs) => {
   const eventSubscribers = new Set<
     (inputEvent: Uint32Array) => void
   >();
+  // Events emitted during one wasm call are batched into a single deferred
+  // flush: one dispatch task per burst instead of one per event. Without
+  // this, each event's dispatch triggers its own render pass and fast
+  // wheel streams build a backlog — scrolling keeps "momentum" after the
+  // user stops because stale events are still draining.
+  let pendingEvents: Uint32Array[] = [];
+  let eventFlushScheduled = false;
   const bytes = await loader({
     dev:
       args.dev ??
@@ -314,13 +321,21 @@ const _init = async (args: InitArgs) => {
           ),
         );
 
-        // ensure the event is only called after the current call stack is cleared
-        // TODO: check if queueMicrotask would do the job
-        setTimeout(() => {
-          for (const subscriber of eventSubscribers) {
-            subscriber(data);
-          }
-        }, 0);
+        // deferred: the wasm call that emitted this is still on the stack
+        pendingEvents.push(data);
+        if (!eventFlushScheduled) {
+          eventFlushScheduled = true;
+          setTimeout(() => {
+            eventFlushScheduled = false;
+            const batch = pendingEvents;
+            pendingEvents = [];
+            for (const event of batch) {
+              for (const subscriber of eventSubscribers) {
+                subscriber(event);
+              }
+            }
+          }, 0);
+        }
       },
       // diplomat_console_error_js: notImplemented(
       //   "diplomat_console_error_js",

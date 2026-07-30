@@ -129,3 +129,70 @@ describe("input robustness", () => {
     expect(pane.scrollTop).toBe(5);
   });
 });
+
+describe("event batching (scroll responsiveness)", () => {
+  it("a burst chunk produces one coalesced render pass, and a trailing reversal applies in it", async () => {
+    const doc = new Document(module, {
+      enableInputs: false,
+      enableAlternateScreen: false,
+      clearScreenBeforePaint: false,
+      exitOnCtrlC: false,
+      writeStream: ws,
+      readStream: rs,
+      size: { width: 60, height: 20 },
+    });
+    doc.root.setStyle("width: 60px; height: 20px;");
+    const pane = doc.createElement(
+      "view",
+      "width: 40px; height: 10px; overflow: scroll;",
+    );
+    doc.root.appendChild(pane);
+    for (let i = 0; i < 30; i++) {
+      const row = doc.createElement("view", "");
+      row.appendChild(
+        doc.createTextNode(`row ${i}`),
+      );
+      pane.appendChild(row);
+    }
+    doc.computeLayout();
+    doc.paint();
+
+    // mimic TermUi's microtask paint coalescing and count real renders
+    let renders = 0;
+    let scheduled = false;
+    (doc as any).onPaintRequest = () => {
+      if (scheduled) return;
+      scheduled = true;
+      queueMicrotask(() => {
+        scheduled = false;
+        renders++;
+      });
+    };
+
+    const im = new InputManager(
+      module,
+      rs,
+      doc.tree,
+    );
+    im.subscribe((e) =>
+      (doc as any).onInput(e),
+    );
+
+    // 10 wheel-downs then an immediate reversal, all in one chunk — like
+    // flicking and then scrolling back
+    im.buffer.appendSlice(
+      enc.encode(
+        "\x1b[<65;5;3M".repeat(10) +
+          "\x1b[<64;5;3M",
+      ),
+    );
+    im.consumeEvents();
+    await tick();
+
+    // all 11 events applied: net 10 down - 1 up = 9
+    expect(pane.scrollTop).toBe(9);
+    // and the whole burst cost a single coalesced render pass
+    expect(renders).toBe(1);
+    im.dispose();
+  });
+});
