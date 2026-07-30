@@ -432,9 +432,13 @@ export class InputManager {
           rawModifiers: modifiers,
           source: data.slice(0, 6),
           // press and repeat both produce text (key autorepeat types);
-          // release never does
+          // release never does, and neither do modifier chords — Ctrl+J
+          // must not type "j" (shift is fine: it composes the character)
           text:
-            rawAction === 2
+            rawAction === 2 ||
+            (modifiers &
+              (CTRL | ALT | SUPER | HYPER | META)) !==
+              0
               ? ""
               : getTextFromCodepoint(codepoint),
           shift: (modifiers & SHIFT) !== 0,

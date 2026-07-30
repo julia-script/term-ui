@@ -714,6 +714,14 @@ pub const AnyInputManager = struct {
                     self.emitNamed(.enter, .press, adjusted_modifiers, raw);
                     return;
                 },
+                0x0a => { // Line Feed (LF)
+                    // Plain enter arrives as CR; a raw LF only reaches us from
+                    // a newline keybind (e.g. Ghostty's default shift+enter)
+                    // or an unbracketed paste. Both mean "line break", not
+                    // Ctrl+J — report it as shift+enter.
+                    self.emitNamed(.enter, .press, Event.mod.SHIFT, raw);
+                    return;
+                },
                 0x1b => { // Escape (ESC)
                     self.emitNamed(.escape, .press, adjusted_modifiers, raw);
                     return;

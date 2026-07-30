@@ -279,3 +279,53 @@ describe("newlines in editable text", () => {
     ).toBeGreaterThan(5);
   });
 });
+
+describe("LF and control chords", () => {
+  it("a raw LF byte is shift+enter, not ctrl+j", async () => {
+    const { doc, feed, text } = setup(true);
+    const keys: any[] = [];
+    doc.addEventListener("keydown", (e: any) =>
+      keys.push({
+        key: e.key,
+        shift: e.shiftKey,
+        ctrl: e.ctrlKey,
+      }),
+    );
+    await feed(press(6, 1)); // caret after "hello"
+    await feed("\n");
+    expect(keys).toEqual([
+      { key: "enter", shift: true, ctrl: false },
+    ]);
+    expect(text.getText()).toBe(
+      "hello\n world here",
+    );
+  });
+
+  it("legacy ctrl chords do not type their letter", async () => {
+    const { feed, text } = setup(true);
+    await feed(press(6, 1));
+    await feed("\x01"); // ctrl+a
+    await feed("\x02"); // ctrl+b
+    expect(text.getText()).toBe(
+      "hello world here",
+    );
+  });
+
+  it("kitty ctrl+j does not type j", async () => {
+    const { feed, text } = setup(true);
+    await feed(press(6, 1));
+    await feed("\x1b[106;5u"); // ctrl+j
+    expect(text.getText()).toBe(
+      "hello world here",
+    );
+  });
+
+  it("kitty alt chord does not type", async () => {
+    const { feed, text } = setup(true);
+    await feed(press(6, 1));
+    await feed("\x1b[101;3u"); // alt+e
+    expect(text.getText()).toBe(
+      "hello world here",
+    );
+  });
+});
