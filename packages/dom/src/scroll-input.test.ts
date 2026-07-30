@@ -197,3 +197,135 @@ describe("caret visibility", () => {
     expect(pane.scrollTop).toBe(0);
   });
 });
+
+describe("multiple scrollable sections", () => {
+  // two sibling panes side by side, plus a scrollable box nested in the right pane
+  const setupMulti = () => {
+    const doc = new Document(module, {
+      enableInputs: false,
+      enableAlternateScreen: false,
+      clearScreenBeforePaint: false,
+      exitOnCtrlC: false,
+      writeStream: fakeWriteStream,
+      readStream: fakeReadStream,
+      size: { width: 30, height: 12 },
+    });
+    doc.root.setStyle(
+      "width: 30px; height: 12px; display: flex;",
+    );
+    const makePane = (style: string) => {
+      const pane = doc.createElement(
+        "view",
+        style,
+      );
+      doc.root.appendChild(pane);
+      return pane;
+    };
+    const fill = (
+      el: Element,
+      prefix: string,
+      n: number,
+    ) => {
+      for (let i = 1; i <= n; i++) {
+        const row = doc.createElement("view", "");
+        row.appendChild(
+          doc.createTextNode(`${prefix} ${i}`),
+        );
+        el.appendChild(row);
+      }
+    };
+    const left = makePane(
+      "width: 12px; height: 6px; overflow: scroll;",
+    );
+    fill(left, "left", 12);
+    const right = makePane(
+      "width: 14px; height: 10px; overflow: scroll;",
+    );
+    const inner = doc.createElement(
+      "view",
+      "width: 12px; height: 3px; overflow: scroll;",
+    );
+    fill(inner, "in", 8);
+    right.appendChild(inner);
+    fill(right, "right", 14);
+    doc.computeLayout();
+    doc.paint();
+
+    const im = new InputManager(
+      module,
+      fakeReadStream,
+      doc.tree,
+    );
+    im.subscribe((event) =>
+      (doc as any).onInput(event),
+    );
+    const feed = async (bytes: string) => {
+      im.buffer.appendSlice(
+        new TextEncoder().encode(bytes),
+      );
+      im.consumeEvents();
+      await tick();
+    };
+    return { doc, left, right, inner, feed };
+  };
+
+  it("wheel scrolls only the pane under the pointer", async () => {
+    const { left, right, inner, feed } =
+      setupMulti();
+    await feed(wheelDown(3, 3)); // over left pane
+    expect(left.scrollTop).toBe(1);
+    expect(right.scrollTop).toBe(0);
+    expect(inner.scrollTop).toBe(0);
+    // right pane starts at x=13 (after left width 12); wheel over its
+    // lower rows, below the nested inner box
+    await feed(wheelDown(20, 8));
+    expect(left.scrollTop).toBe(1);
+    expect(right.scrollTop).toBe(1);
+    expect(inner.scrollTop).toBe(0);
+  });
+
+  it("nested pane wins over its ancestor, then chains at the edge", async () => {
+    const { right, inner, feed } = setupMulti();
+    // inner box occupies the right pane's top rows
+    await feed(wheelDown(15, 2));
+    expect(inner.scrollTop).toBe(1);
+    expect(right.scrollTop).toBe(0);
+    // exhaust the inner pane exactly (max = 8 - 3 = 5; already at 1)
+    for (let i = 0; i < 4; i++) {
+      await feed(wheelDown(15, 2));
+    }
+    expect(inner.scrollTop).toBe(5);
+    expect(right.scrollTop).toBe(0);
+    // inner is at its edge: further wheel chains to the ancestor
+    await feed(wheelDown(15, 2));
+    expect(inner.scrollTop).toBe(5);
+    expect(right.scrollTop).toBe(1);
+  });
+
+  it("wheel-up chains independently of wheel-down state", async () => {
+    const { right, inner, feed } = setupMulti();
+    // inner at top: wheel-up over it cannot scroll it, chains to right pane
+    right.scrollTo(0, 2);
+    await feed(wheelUp(15, 2));
+    expect(inner.scrollTop).toBe(0);
+    expect(right.scrollTop).toBe(1);
+  });
+});
+
+describe("event bursts", () => {
+  it("a burst of wheel events in one chunk all apply", async () => {
+    const { pane, feed } = setup();
+    // three wheels in a single buffer chunk, like a fast trackpad flick
+    await feed(wheelDown(3, 2) + wheelDown(3, 2) + wheelDown(3, 2));
+    expect(pane.scrollTop).toBe(3);
+  });
+
+  it("a burst of arrow keys in one chunk all apply", async () => {
+    const { doc, feed } = setup();
+    await feed("\x1b[<0;1;1M");
+    await feed("\x1b[<0;1;1m");
+    // three right-arrows (kitty CSI) in one chunk, like key autorepeat
+    await feed("\x1b[C\x1b[C\x1b[C");
+    expect(doc.selection!.getFocus().offset).toBe(3);
+  });
+});

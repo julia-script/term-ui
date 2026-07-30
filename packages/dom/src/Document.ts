@@ -1145,10 +1145,24 @@ export class Document {
     const offset =
       scrollDirection === 1 ? deltaY : deltaX;
 
+    // scroll latching: a recent scroll keeps targeting the same element,
+    // but only while the pointer is still over it AND it can still scroll
+    // in this direction — otherwise re-resolve (pane switch / edge chain)
     if (this.state.scrollingElementId !== null) {
-      return this.getOrAddElement(
+      const latched = this.getOrAddElement(
         this.state.scrollingElementId,
-      ) as Element;
+      );
+      if (
+        targets.includes(latched) &&
+        this.tree.module.Node_canScroll(
+          this.tree.ptr,
+          latched.id,
+          scrollDirection,
+          offset,
+        )
+      ) {
+        return latched as Element;
+      }
     }
 
     for (const target of targets) {

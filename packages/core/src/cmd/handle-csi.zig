@@ -635,6 +635,7 @@ pub fn interpretNormalTrackingMouseEvent(manager: *AnyInputManager, buffer: []co
 
 // Handles CSI $y and CSI ?$y mode status reports
 pub fn interpretModeStatusReport(manager: *AnyInputManager, csi: RawCsi, raw: []const u8) Match {
+    _ = raw;
     // Command byte must be 'y'
     if (csi.cmd_byte != 'y') {
         return .nomatch;
@@ -687,12 +688,13 @@ pub fn interpretModeStatusReport(manager: *AnyInputManager, csi: RawCsi, raw: []
         value2 = @truncate(value);
     }
 
-    manager.emitModeReport(mode_byte, value1, value2, raw);
-    return .{ .match = raw.len };
+    manager.emitModeReport(mode_byte, value1, value2, csi.raw);
+    return .{ .match = csi.raw.len };
 }
 
 // Handles CSI u sequences for extended Unicode keys and Kitty keyboard protocol
 pub fn interpretUnicodeKey(manager: *AnyInputManager, csi: RawCsi, raw: []const u8) Match {
+    _ = raw;
     const alternates = csi.parseParamAsWithSubParams(0) orelse return .nomatch;
     const unicode_key, const shifted_key, const base_layout_key, _ = alternates.parameters;
 
@@ -870,7 +872,7 @@ pub fn interpretUnicodeKey(manager: *AnyInputManager, csi: RawCsi, raw: []const 
     // // NOTE: Zig doesn't have an event_type field, so we ignore that for now
     // // In a full implementation, we'd want to propagate the event type (press, repeat, release)
     // manager.emitCodepoint(@intCast(final_codepoint), modifiers, raw);
-    return .{ .match = raw.len };
+    return .{ .match = csi.raw.len };
 }
 const KittySequence = @import("keys.zig").KittySequence;
 
@@ -926,6 +928,7 @@ pub fn handleCsiCsi(manager: *AnyInputManager, buffer: []const u8, position: usi
 
 // Handles SGR (1006) and URXVT (1015) mouse protocols
 pub fn interpretExtendedMouseEvent(manager: *AnyInputManager, csi: RawCsi, raw: []const u8) Match {
+    _ = raw;
     var mouse = Event.Mouse{
         .extended = .{
             .button = .none,
@@ -1004,12 +1007,13 @@ pub fn interpretExtendedMouseEvent(manager: *AnyInputManager, csi: RawCsi, raw: 
         };
     }
 
-    manager.emitMouse(mouse, modifiers, raw);
-    return .{ .match = raw.len };
+    manager.emitMouse(mouse, modifiers, csi.raw);
+    return .{ .match = csi.raw.len };
 }
 
 // Handles cursor position reports (CSI row;col R)
 pub fn interpretCursorPositionReport(manager: *AnyInputManager, csi: RawCsi, raw: []const u8) Match {
+    _ = raw;
     // Cursor position reports require at least 2 parameters: row and column
     if (csi.parameter_count < 2) {
         return .nomatch;
@@ -1024,9 +1028,9 @@ pub fn interpretCursorPositionReport(manager: *AnyInputManager, csi: RawCsi, raw
     manager.emit(.{
         .data = .{ .cursor_report = .{ .row = @truncate(row), .col = @truncate(col) } },
         .modifiers = 0,
-        .raw = raw,
+        .raw = csi.raw,
     });
-    return .{ .match = raw.len };
+    return .{ .match = csi.raw.len };
 }
 
 // test "interpretUnicodeKey" {
