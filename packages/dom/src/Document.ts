@@ -1373,7 +1373,28 @@ export class Document {
     }
     if (event.type === "keydown") {
       if (event.key === "delete") {
-        this.selection?.deleteFromDocument();
+        if (!this.selection) {
+          return;
+        }
+        // forward-delete: a collapsed caret removes the next character
+        if (this.selection.isCollapsed()) {
+          this.selection.modify(
+            "extend",
+            "forward",
+            "character",
+          );
+        }
+        const anchor = this.selection.getAnchor();
+        if (!anchor) {
+          return;
+        }
+        const anchorNode = this.getOrAddElement(
+          anchor.node,
+        );
+        if (!anchorNode.isEditable()) {
+          return;
+        }
+        this.selection.deleteFromDocument();
         this.requestPaint();
         return;
       }

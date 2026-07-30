@@ -734,7 +734,9 @@ pub fn interpretUnicodeKey(manager: *AnyInputManager, csi: RawCsi, raw: []const 
             };
             manager.emitFromCodepoint(
                 constants.getFunctionalNumberFromCsiNumber(@truncate(text_cp)),
-                cp,
+                // normalize C0-coded functional keys (esc/enter/tab/backspace)
+                // so the base codepoint matches the legacy-path PUA numbers
+                constants.getFunctionalNumberFromCsiNumber(cp),
                 action,
                 modifiers,
                 csi.raw,

@@ -30,7 +30,7 @@ const tick = () =>
     setTimeout(resolve, 5),
   );
 
-const setup = () => {
+const setup = (editable = false) => {
   const doc = new Document(module, {
     enableInputs: false,
     enableAlternateScreen: false,
@@ -41,6 +41,12 @@ const setup = () => {
     size: { width: 20, height: 10 },
   });
   doc.root.setStyle("width: 20px;");
+  if (editable) {
+    doc.root.setAttribute(
+      "contenteditable",
+      "true",
+    );
+  }
   const text = doc.createTextNode(
     "hello world here",
   );
@@ -63,7 +69,7 @@ const setup = () => {
     im.consumeEvents();
     await tick();
   };
-  return { doc, feed };
+  return { doc, feed, text };
 };
 
 // SGR mouse: \x1b[<0;COL;ROW M(press) / m(release), 1-based coordinates
@@ -116,5 +122,44 @@ describe("selection input integration", () => {
     expect(selection.isCollapsed()).toBe(true);
     // end of "hello"
     expect(selection.getFocus().offset).toBe(5);
+  });
+});
+
+describe("editing keys", () => {
+  it("backspace deletes backward (kitty and legacy encodings)", async () => {
+    const { doc, feed, text } = setup(true);
+    await feed(press(8, 1)); // caret at offset 7, between 'w' and 'o'
+    await feed("\x7f"); // legacy backspace: removes 'w'
+    expect(text.getText()).toBe(
+      "hello orld here",
+    );
+    await feed("\x1b[127u"); // kitty-protocol backspace: removes ' '
+    expect(text.getText()).toBe(
+      "helloorld here",
+    );
+    expect(
+      doc.selection!.getFocus().offset,
+    ).toBe(5);
+  });
+
+  it("delete removes the next character", async () => {
+    const { doc, feed, text } = setup(true);
+    await feed(press(1, 1)); // caret at 0
+    await feed("\x1b[3~"); // delete key
+    expect(text.getText()).toBe(
+      "ello world here",
+    );
+    expect(
+      doc.selection!.getFocus().offset,
+    ).toBe(0);
+  });
+
+  it("backspace does nothing outside editable regions", async () => {
+    const { feed, text } = setup(false);
+    await feed(press(8, 1));
+    await feed("\x7f");
+    expect(text.getText()).toBe(
+      "hello world here",
+    );
   });
 });
