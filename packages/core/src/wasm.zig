@@ -174,6 +174,7 @@ pub fn emitEventFn(_: *anyopaque, event: InputManager.Event) void {
                     event_buffer[3] = @backingInt(extended.action);
                     event_buffer[4] = extended.x;
                     event_buffer[5] = extended.y;
+                    event_buffer[6] = event.modifiers;
                     external.emitEvent((&event_buffer).ptr);
                 },
                 else => {},
@@ -646,18 +647,45 @@ pub export fn Tree_getBoundaryPointPosition(tree: *Tree, node_id: u32, offset: u
 }
 pub export fn Tree_paintSimple(tree: *Tree, renderer: *Renderer) void {
     logger.info("Tree_paint({*}, {*})", .{ tree, renderer });
-    // var buffer = std.ArrayList(u8).init(wasm_allocator);
-    // defer buffer.deinit();
-    // In WASM context, we don't have stderr - use a no-op writer
-    const noop_writer = NoOpWriter{};
-    wasm_try(void, tree.paint(renderer, noop_writer, .simple));
+    const stdout_writer = WasiStdoutWriter{};
+    wasm_try(void, tree.paint(renderer, stdout_writer, .simple));
 }
 pub export fn Tree_paintApp(tree: *Tree, renderer: *Renderer) void {
     logger.info("Tree_paintApp({*}, {*})", .{ tree, renderer });
-    // In WASM context, we don't have stderr - use a no-op writer
-    const noop_writer = NoOpWriter{};
-    wasm_try(void, tree.paint(renderer, noop_writer, .app));
+    const stdout_writer = WasiStdoutWriter{};
+    wasm_try(void, tree.paint(renderer, stdout_writer, .app));
 }
+
+/// Paint output goes to WASI stdout; the JS host's fd_write shim forwards it
+/// to the configured write stream (the terminal).
+const WasiStdoutWriter = struct {
+    pub const Error = error{WriteFailed};
+
+    pub fn writeAll(_: WasiStdoutWriter, bytes: []const u8) Error!void {
+        if (!is_wasm) return;
+        var iovs = [_]std.os.wasi.ciovec_t{.{ .base = bytes.ptr, .len = bytes.len }};
+        var nwritten: usize = 0;
+        _ = std.os.wasi.fd_write(1, &iovs, 1, &nwritten);
+    }
+
+    pub fn writeByte(self: WasiStdoutWriter, byte: u8) Error!void {
+        try self.writeAll(&[_]u8{byte});
+    }
+
+    pub fn writeByteNTimes(self: WasiStdoutWriter, byte: u8, n: usize) Error!void {
+        for (0..n) |_| try self.writeByte(byte);
+    }
+
+    pub fn splatByteAll(self: WasiStdoutWriter, byte: u8, n: usize) Error!void {
+        try self.writeByteNTimes(byte, n);
+    }
+
+    pub fn print(self: WasiStdoutWriter, comptime format: []const u8, args: anytype) Error!void {
+        var buf: [1024]u8 = undefined;
+        const slice = std.fmt.bufPrint(&buf, format, args) catch return error.WriteFailed;
+        try self.writeAll(slice);
+    }
+};
 
 const NoOpWriter = struct {
     pub const Error = error{};
@@ -738,14 +766,16 @@ export fn Selection_setFocus(tree: *Tree, selection_id: Tree.Selection.Id, node_
 export fn Selection_modify(
     tree: *Tree,
     selection_id: Tree.Selection.Id,
+    alter: u8,
     direction: u8,
     granularity: u8,
     ghost_position: f32,
 ) void {
-    logger.debug("Selection_modify({d}, {d}, {d}, {d})", .{ selection_id, direction, granularity, ghost_position });
+    logger.debug("Selection_modify({d}, {d}, {d}, {d}, {d})", .{ selection_id, alter, direction, granularity, ghost_position });
     const selection = tree.getSelection(selection_id);
     wasm_try(void, selection.modify(
         tree,
+        @as(Tree.Selection.Alteration, @fromBackingInt(@intCast(alter))),
         @as(Tree.Selection.ExtendDirection, @fromBackingInt(@intCast(direction))),
         @as(Tree.Selection.ExtendGranularity, @fromBackingInt(@intCast(granularity))),
         if (ghost_position == -1) null else ghost_position,
@@ -956,6 +986,7 @@ test {
     _ = @import("./tree/invalidation_oracle_test.zig");
     _ = @import("./layout/v2/layout_snapshot_test.zig");
     _ = @import("./tree/selection_snapshot_test.zig");
+    _ = @import("./tree/caret_position_test.zig");
     _ = @import("./uni/GraphemeBreak.zig");
     _ = @import("./tree/NodeIterator.zig");
     _ = @import("./layout/v2/mod.zig");

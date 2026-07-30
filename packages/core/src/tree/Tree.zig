@@ -2286,10 +2286,12 @@ pub fn findInLineBox(self: *const Self, linebox_index: usize, x: f32) ?BoundaryP
     }
     const last = items[fragment_indexes[fragment_indexes.len - 1]].text_fragment;
     if (x > last.bounds.x + last.bounds.width) {
-        // we are after the last fragment
+        // we are after the last fragment; clamp to the *visible* end so the
+        // caret stays on this visual line instead of landing inside collapsed
+        // wrap whitespace (which would render at the start of the next line)
         return BoundaryPoint{
             .node_id = last.doc_node_id,
-            .offset = last.dom_range.end,
+            .offset = last.visibleDomEnd(),
         };
     }
     // this could happen when there's space between fragments, like, on justified text

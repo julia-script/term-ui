@@ -1,4 +1,5 @@
 import {
+  SelectionAlteration,
   SelectionExtendDirection,
   SelectionExtendGranularity,
   DocumentPosition,
@@ -53,6 +54,7 @@ export class Selection {
 
 
   modify(
+    alter: keyof typeof SelectionAlteration,
     direction: keyof typeof SelectionExtendDirection,
     granularity: keyof typeof SelectionExtendGranularity,
     ghostPosition?: number,
@@ -77,6 +79,8 @@ export class Selection {
     return this.document.module.Selection_modify(
       this.document.tree.ptr,
       this.id,
+      SelectionAlteration[alter] ??
+        raise("Invalid alteration"),
       SelectionExtendDirection[direction] ??
         raise("Invalid direction"),
       SelectionExtendGranularity[granularity] ??

@@ -1384,6 +1384,7 @@ export class Document {
 
         if (this.selection.isCollapsed()) {
           this.selection.modify(
+            "extend",
             "backward",
             "character",
           );
@@ -1403,51 +1404,48 @@ export class Document {
         return;
       }
       if (this.selection) {
+        // shift extends, plain movement collapses (browser arrow-key behavior)
+        const alter = event.shiftKey
+          ? ("extend" as const)
+          : ("move" as const);
+        // meta jumps to the line boundary, alt/ctrl moves by word
+        const horizontalGranularity =
+          event.metaKey
+            ? ("lineboundary" as const)
+            : event.altKey || event.ctrlKey
+              ? ("word" as const)
+              : ("character" as const);
         switch (event.key) {
           case "down":
             this.selection.modify(
+              alter,
               "forward",
               "line",
             );
-            if (!event.shiftKey) {
-              this.selection.collapseToEnd();
-            }
-
             this.requestPaint();
             break;
           case "up":
             this.selection.modify(
+              alter,
               "backward",
               "line",
             );
-            if (!event.shiftKey) {
-              this.selection.collapseToEnd();
-            }
             this.requestPaint();
             break;
           case "right":
             this.selection.modify(
+              alter,
               "forward",
-              event.metaKey
-                ? "lineboundary"
-                : "character",
+              horizontalGranularity,
             );
-            if (!event.shiftKey) {
-              this.selection.collapseToEnd();
-
-            }
             this.requestPaint();
             break;
           case "left":
             this.selection.modify(
+              alter,
               "backward",
-              event.metaKey
-                ? "lineboundary"
-                : "character",
+              horizontalGranularity,
             );
-            if (!event.shiftKey) {
-              this.selection.collapseToEnd();
-            }
             this.requestPaint();
             break;
           default: {

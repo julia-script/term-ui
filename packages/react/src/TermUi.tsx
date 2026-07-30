@@ -97,7 +97,9 @@ export class TermUi {
     try {
       this.document.computeLayout();
       this.document.paint();
-    } catch (error) {}
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   /**
@@ -126,11 +128,16 @@ export class TermUi {
       ...options,
       loader: options.loader ?? loader,
     });
-    const document = new Document(
-      module,
-      options,
-    );
+    // input default actions request paints; route them to render()
+    let tuiRef: TermUi | undefined;
+    const document = new Document(module, {
+      ...options,
+      onPaintRequest: () => {
+        tuiRef?.render();
+      },
+    });
     const tui = new TermUi(document);
+    tuiRef = tui;
     reconciler.updateContainer(
       <Viewport termUi={tui}>{root}</Viewport>,
       tui.container,

@@ -4,9 +4,6 @@
 //! plus the selection-highlighted paint. Regenerate with
 //! `zig build test -Dupdate=true`.
 //!
-//! Note: `modify` currently only extends (there is no move/alter parameter)
-//! and word granularity is unimplemented — both tracked in the
-//! stabilize-selection-input change.
 const std = @import("std");
 const Tree = @import("Tree.zig");
 const docFromXml = @import("../layout/v2/doc-from-xml.zig").docFromXml;
@@ -18,13 +15,22 @@ const Selection = @import("Selection.zig");
 const viewport = constants.AvailableSpacePoint{ .x = .{ .definite = 20 }, .y = .max_content };
 
 const Step = union(enum) {
-    extend: struct {
+    modify: struct {
+        alter: Selection.Alteration,
         direction: Selection.ExtendDirection,
         granularity: Selection.ExtendGranularity,
     },
     collapse_to_start,
     collapse_to_end,
 };
+
+fn ext(direction: Selection.ExtendDirection, granularity: Selection.ExtendGranularity) Step {
+    return .{ .modify = .{ .alter = .extend, .direction = direction, .granularity = granularity } };
+}
+
+fn mv(direction: Selection.ExtendDirection, granularity: Selection.ExtendGranularity) Step {
+    return .{ .modify = .{ .alter = .move, .direction = direction, .granularity = granularity } };
+}
 
 fn expectSelectionSnapshot(
     comptime loc: std.builtin.SourceLocation,
@@ -50,10 +56,10 @@ fn expectSelectionSnapshot(
 
     for (steps, 0..) |step, i| {
         switch (step) {
-            .extend => |e| {
-                try selection.modify(&tree, e.direction, e.granularity, null);
-                try w.print("--- after step {d}: extend {s} {s} ---\n", .{
-                    i, @tagName(e.direction), @tagName(e.granularity),
+            .modify => |e| {
+                try selection.modify(&tree, e.alter, e.direction, e.granularity, null);
+                try w.print("--- after step {d}: {s} {s} {s} ---\n", .{
+                    i, @tagName(e.alter), @tagName(e.direction), @tagName(e.granularity),
                 });
             },
             .collapse_to_start => {
@@ -90,10 +96,10 @@ test "selection extend character" {
     try expectSelectionSnapshot(@src(), "char extends",
         \\<div style="width: 20px;">hel$S[lo wor$S]ld here</div>
     , &.{
-        .{ .extend = .{ .direction = .forward, .granularity = .character } },
-        .{ .extend = .{ .direction = .backward, .granularity = .character } },
+        ext(.forward, .character),
+        ext(.backward, .character),
         .collapse_to_end,
-        .{ .extend = .{ .direction = .forward, .granularity = .character } },
+        ext(.forward, .character),
     });
 }
 
@@ -101,9 +107,9 @@ test "selection extend to line boundary" {
     try expectSelectionSnapshot(@src(), "lineboundary",
         \\<div style="width: 20px;">alpha bra$S[$S]vo charlie delta</div>
     , &.{
-        .{ .extend = .{ .direction = .forward, .granularity = .lineboundary } },
+        ext(.forward, .lineboundary),
         .collapse_to_start,
-        .{ .extend = .{ .direction = .backward, .granularity = .lineboundary } },
+        ext(.backward, .lineboundary),
     });
 }
 
@@ -111,8 +117,40 @@ test "selection across wrapped lines" {
     try expectSelectionSnapshot(@src(), "wrap selection",
         \\<div style="width: 12px;">words $S[that will wrap$S] across lines in this box</div>
     , &.{
-        .{ .extend = .{ .direction = .forward, .granularity = .line } },
+        ext(.forward, .line),
         .collapse_to_end,
-        .{ .extend = .{ .direction = .backward, .granularity = .line } },
+        ext(.backward, .line),
+    });
+}
+
+test "selection word granularity" {
+    try expectSelectionSnapshot(@src(), "word moves",
+        \\<div style="width: 20px;">alpha bra$S[$S]vo charlie delta</div>
+    , &.{
+        ext(.forward, .word),
+        ext(.forward, .word),
+        ext(.backward, .word),
+        mv(.backward, .word),
+        mv(.backward, .word),
+    });
+}
+
+test "selection move collapses to edge" {
+    try expectSelectionSnapshot(@src(), "move edge collapse",
+        \\<div style="width: 20px;">hel$S[lo wor$S]ld here</div>
+    , &.{
+        mv(.forward, .character),
+        mv(.forward, .character),
+        mv(.backward, .word),
+    });
+}
+
+test "selection move by line keeps caret collapsed" {
+    try expectSelectionSnapshot(@src(), "move by line",
+        \\<div style="width: 12px;">words $S[$S]that will wrap across lines here</div>
+    , &.{
+        mv(.forward, .line),
+        mv(.forward, .line),
+        mv(.backward, .line),
     });
 }

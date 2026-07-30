@@ -244,6 +244,12 @@ const _reconciler = createReconciler({
     const node =
       termUi.document.createElement(type);
     node.setStyle(style);
+    if (props?.contentEditable) {
+      node.setAttribute(
+        "contenteditable",
+        "true",
+      );
+    }
 
     // Attach event handlers on instance creation
     attachEventHandlers(node, props);

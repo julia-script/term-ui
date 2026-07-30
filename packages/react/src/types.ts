@@ -22,9 +22,11 @@ export type TermViewProps = PropsWithChildren<
   {
     key?: string;
     style?: React.CSSProperties;
+    contentEditable?: boolean;
   } & ElementEvents
 >;
 export type TermTextProps = PropsWithChildren<{
   key?: string;
   style?: React.CSSProperties;
+  contentEditable?: boolean;
 }>;

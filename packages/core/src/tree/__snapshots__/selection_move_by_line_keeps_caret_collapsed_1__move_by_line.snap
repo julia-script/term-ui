@@ -1,0 +1,28 @@
+// Snapshot from: tree/selection_snapshot_test.zig:149:33
+// Function: test.selection move by line keeps caret collapsed
+// Description: move by line
+
+--- initial ---
+<element#1><text#2>'words |that will wrap across lines here'</text#2></element#1>
+[49m[38;2;0;0;0mwords[38;2;0;0;0m [38;2;0;0;0mthat[38;2;0;0;0m  [0m
+[49m[38;2;0;0;0mwill[38;2;0;0;0m [38;2;0;0;0mwrap[38;2;0;0;0m   [0m
+[49m[38;2;0;0;0macross[38;2;0;0;0m [38;2;0;0;0mlines[0m
+[49m[38;2;0;0;0mhere[38;2;0;0;0m        [0m
+--- after step 0: move forward line ---
+<element#1><text#2>'words that will w|rap across lines here'</text#2></element#1>
+[49m[38;2;0;0;0mwords[38;2;0;0;0m [38;2;0;0;0mthat[38;2;0;0;0m  [0m
+[49m[38;2;0;0;0mwill[38;2;0;0;0m [38;2;0;0;0mwrap[38;2;0;0;0m   [0m
+[49m[38;2;0;0;0macross[38;2;0;0;0m [38;2;0;0;0mlines[0m
+[49m[38;2;0;0;0mhere[38;2;0;0;0m        [0m
+--- after step 1: move forward line ---
+<element#1><text#2>'words that will wrap across| lines here'</text#2></element#1>
+[49m[38;2;0;0;0mwords[38;2;0;0;0m [38;2;0;0;0mthat[38;2;0;0;0m  [0m
+[49m[38;2;0;0;0mwill[38;2;0;0;0m [38;2;0;0;0mwrap[38;2;0;0;0m   [0m
+[49m[38;2;0;0;0macross[38;2;0;0;0m [38;2;0;0;0mlines[0m
+[49m[38;2;0;0;0mhere[38;2;0;0;0m        [0m
+--- after step 2: move backward line ---
+<element#1><text#2>'words that will w|rap across lines here'</text#2></element#1>
+[49m[38;2;0;0;0mwords[38;2;0;0;0m [38;2;0;0;0mthat[38;2;0;0;0m  [0m
+[49m[38;2;0;0;0mwill[38;2;0;0;0m [38;2;0;0;0mwrap[38;2;0;0;0m   [0m
+[49m[38;2;0;0;0macross[38;2;0;0;0m [38;2;0;0;0mlines[0m
+[49m[38;2;0;0;0mhere[38;2;0;0;0m        [0m

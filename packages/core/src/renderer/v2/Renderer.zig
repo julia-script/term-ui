@@ -251,13 +251,9 @@ fn renderApp(self: *Self, writer: anytype) !void {
     var buf_writer = BufferWriter{ .buffer = &self.render_buffer, .allocator = self.allocator };
     try buf_writer.writeAll("\x1b[H");
 
-    // If no previous state or dimensions changed, do a full render
-    if (previous.len == 0 or previous.len != cells.len) {
-        self.canvas.clear();
-        try self.canvas.savePreviousState();
-
-        return;
-    }
+    // If there is no previous state (first frame) or dimensions changed,
+    // force a full render: every cell is treated as dirty
+    const force_full = previous.len == 0 or previous.len != cells.len;
 
     var last_bg: ?Color = null;
     var last_fg: ?Color = null;
@@ -271,12 +267,13 @@ fn renderApp(self: *Self, writer: anytype) !void {
         for (0..dims.width) |x| {
             const idx = y * dims.width + x;
             const cell = &cells[idx];
-            const prev_cell = &previous[idx];
 
-            // Skip if cell hasn't changed
-            // std.debug.print("Cell {d} {d} is equal {any}\n", .{ x, y, cell.equal(prev_cell) });
-            if (cell.equal(prev_cell)) {
-                continue;
+            // Skip if cell hasn't changed (unless doing a full render)
+            if (!force_full) {
+                const prev_cell = &previous[idx];
+                if (cell.equal(prev_cell)) {
+                    continue;
+                }
             }
 
             any_changes = true;
@@ -327,8 +324,8 @@ fn renderApp(self: *Self, writer: anytype) !void {
         try moveCursorBy(buf_writer, x_offset, y_offset);
         try buf_writer.writeAll("\x1b[0m");
 
-        // Save current state as previous
-        // try self.canvas.savePreviousState();
+        // Save current state so the next frame diffs against this one
+        try self.canvas.savePreviousState();
         try writer.writeAll(self.render_buffer.items);
     }
 }

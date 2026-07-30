@@ -894,6 +894,7 @@ export const getSchema = (
         tuple([
           number(), // tree
           number(), // selection_id
+          number(), // alter
           number(), // direction
           number(), // granularity
           number(), // ghost_position

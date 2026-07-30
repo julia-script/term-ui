@@ -79,7 +79,7 @@ pub fn main() !void {
     // try tree.layout_tree.printRoot(stderr);
     for (0..6) |_| {
         // const selection = tree.getFirstSelection() orelse unreachable;
-        try selection.modify(&tree, .backward, .character, null);
+        try selection.modify(&tree, .extend, .backward, .character, null);
         try tree.paint(&renderer, stderr, .simple);
         // std.time.sleep(std.time.ns_per_s * 1);
     }

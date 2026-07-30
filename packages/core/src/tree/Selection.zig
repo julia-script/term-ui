@@ -5,6 +5,7 @@ const Tree = @import("./Tree.zig");
 const Node = @import("./Node.zig");
 const GraphemeIterator = @import("../uni/GraphemeBreak.zig").Iterator;
 const LineBox = @import("../layout/compute/text/ComputedText.zig").LineBox;
+const db = @import("../uni/db.zig");
 const LineBoxPart = @import("../layout/compute/text/ComputedText.zig").TextPart;
 const RenderList = @import("../layout/v2/RenderList.zig");
 const mod = @import("../layout/v2/mod.zig");
@@ -190,9 +191,14 @@ pub const ExtendDirection = enum(u8) {
     backward = 1,
 };
 
+pub const Alteration = enum(u8) {
+    move = 0,
+    extend = 1,
+};
+
 pub const ExtendGranularity = enum(u8) {
     character = 0,
-    // word = 1, TODO
+    word = 1,
     line = 2,
     lineboundary = 3,
     documentboundary = 4,
@@ -249,10 +255,24 @@ fn expectSelection(selection: *Self, description: []const u8, tree: *Tree, ancho
 pub fn modify(
     selection: *Self,
     tree: *Tree,
+    alter: Alteration,
     direction: ExtendDirection,
     granularity: ExtendGranularity,
     ghost_position: ?f32,
 ) !void {
+    // Browser arrow-key behavior: moving by character over a non-collapsed
+    // range collapses to the range's directional edge without further movement.
+    if (alter == .move and !selection.isCollapsed() and granularity == .character) {
+        const anchor_bp = selection.getAnchor(tree);
+        const focus_bp = selection.getFocus(tree);
+        const edge = switch (direction) {
+            .forward => if (selection.direction == .backward) anchor_bp else focus_bp,
+            .backward => if (selection.direction == .backward) focus_bp else anchor_bp,
+        };
+        try selection.setRange(tree, edge, edge);
+        return;
+    }
+
     const focus = selection.getFocus(tree);
     const anchor = selection.getAnchor(tree);
     const full_list = tree.render_list.slice();
@@ -262,6 +282,11 @@ pub fn modify(
     switch (granularity) {
         .character => {
             if (getNextCharacter(tree, host, focus, direction)) |new_bp| {
+                try selection.setFocus(tree, new_bp);
+            }
+        },
+        .word => {
+            if (getNextWord(tree, host, focus, direction)) |new_bp| {
                 try selection.setFocus(tree, new_bp);
             }
         },
@@ -290,7 +315,7 @@ pub fn modify(
             }
         },
         .documentboundary => {
-            const host_index = tree.render_list.findNodeBox(host orelse Tree.ROOT_NODE_ID) orelse 0;
+            const host_index: ?usize = if (host) |h| tree.render_list.findNodeBox(h) else null;
             switch (direction) {
                 .forward => {
                     if (tree.render_list.firstTextFragment(host_index)) |first_fragment_index| {
@@ -308,6 +333,94 @@ pub fn modify(
             try selection.setFocus(tree, .{ .node_id = host orelse Tree.ROOT_NODE_ID, .offset = 0 });
         },
     }
+
+    if (alter == .move) {
+        const new_focus = selection.getFocus(tree);
+        try selection.setRange(tree, new_focus, new_focus);
+    }
+}
+
+/// Word-constituent classification for word-granularity movement, based on
+/// UAX-29 word-break classes (same database the segmenter uses).
+fn isWordCp(cp: u21) bool {
+    return switch (db.getWordBreak(cp)) {
+        .ALetter, .Hebrew_Letter, .Katakana, .Numeric, .ExtendNumLet => true,
+        .Extend, .Format, .ZWJ => true,
+        else => false,
+    };
+}
+
+/// The codepoint that character-movement in `direction` would cross from `bp`,
+/// or null at the document/context edge.
+fn peekCp(tree: *Tree, host: ?usize, bp: BoundaryPoint, direction: ExtendDirection) ?u21 {
+    var fragment: RenderList.TextFragmentItem = undefined;
+    var offset: u32 = bp.offset;
+    const item_index = tree.render_list.findItemAtBoundaryPoint(bp.node_id, bp.offset) orelse return null;
+    const host_index: ?usize = if (host) |h| tree.render_list.findNodeBox(h) else null;
+
+    switch (tree.render_list.at(item_index).?) {
+        .text_fragment => |_fragment| fragment = _fragment,
+        else => return null,
+    }
+
+    switch (direction) {
+        .forward => {
+            if (offset >= fragment.visibleDomEnd()) {
+                // collapsed whitespace (fragment's invisible tail, or a DOM-offset
+                // gap between fragments) reads as a space for word segmentation
+                if (offset < fragment.dom_range.end) return ' ';
+                const next_index = tree.render_list.firstTextFragmentAfterIndexWithinContext(host_index, item_index) orelse return null;
+                fragment = tree.render_list.at(next_index).?.text_fragment;
+                if (fragment.dom_range.start > offset) return ' ';
+                offset = fragment.dom_range.start;
+            }
+            const local = offset - fragment.dom_range.start;
+            if (local >= fragment.text.len) return null;
+            const len = std.unicode.utf8ByteSequenceLength(fragment.text[local]) catch return null;
+            return std.unicode.utf8Decode(fragment.text[local .. local + len]) catch null;
+        },
+        .backward => {
+            if (offset <= fragment.dom_range.start) {
+                const prev_index = tree.render_list.firstTextFragmentBeforeIndexWithinContext(host_index, item_index) orelse return null;
+                fragment = tree.render_list.at(prev_index).?.text_fragment;
+                if (fragment.visibleDomEnd() < offset) return ' ';
+                offset = fragment.visibleDomEnd();
+            }
+            // find the codepoint ending at `offset`
+            var iter = std.unicode.Utf8Iterator{ .bytes = fragment.text, .i = 0 };
+            var cp: ?u21 = null;
+            var pos = fragment.dom_range.start;
+            while (pos < offset) {
+                const slice = iter.nextCodepointSlice() orelse break;
+                cp = std.unicode.utf8Decode(slice) catch null;
+                pos += @intCast(slice.len);
+            }
+            return cp;
+        },
+    }
+}
+
+/// Word-granularity movement: skip non-word codepoints, then run to the far
+/// edge of the word (forward -> end of word, backward -> start of word).
+fn getNextWord(
+    tree: *Tree,
+    host: ?usize,
+    bp: BoundaryPoint,
+    direction: ExtendDirection,
+) ?BoundaryPoint {
+    var current = bp;
+
+    while (peekCp(tree, host, current, direction)) |cp| {
+        if (isWordCp(cp)) break;
+        current = getNextCharacter(tree, host, current, direction) orelse break;
+    }
+    while (peekCp(tree, host, current, direction)) |cp| {
+        if (!isWordCp(cp)) break;
+        current = getNextCharacter(tree, host, current, direction) orelse break;
+    }
+
+    if (current.node_id == bp.node_id and current.offset == bp.offset) return null;
+    return current;
 }
 
 // Now let's update the helper functions to work with slices
@@ -321,7 +434,7 @@ fn getNextCharacter(
     var fragment: RenderList.TextFragmentItem = undefined;
     var offset: u32 = bp.offset;
     const focus_item_index = tree.render_list.findItemAtBoundaryPoint(bp.node_id, bp.offset) orelse 0;
-    const host_index = tree.render_list.findNodeBox(host orelse Tree.ROOT_NODE_ID) orelse 0;
+    const host_index: ?usize = if (host) |h| tree.render_list.findNodeBox(h) else null;
 
     switch (tree.render_list.at(focus_item_index).?) {
         .text_fragment => |_fragment| {

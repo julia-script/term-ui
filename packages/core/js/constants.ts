@@ -10,6 +10,18 @@ export const SelectionExtendDirection = {
   backward: 1,
 } as const;
 
+/**
+ * Alteration for Selection.modify: move collapses the caret, extend moves
+ * only the focus.
+ */
+export const SelectionAlteration = {
+  move: 0,
+  extend: 1,
+} as const;
+
+export type SelectionAlteration =
+  (typeof SelectionAlteration)[keyof typeof SelectionAlteration];
+
 export type SelectionExtendDirection =
   (typeof SelectionExtendDirection)[keyof typeof SelectionExtendDirection];
 
@@ -18,7 +30,7 @@ export type SelectionExtendDirection =
  */
 export const SelectionExtendGranularity = {
   character: 0,
-  // word: 1, TODO
+  word: 1,
   line: 2,
   lineboundary: 3,
   documentBoundary: 4,

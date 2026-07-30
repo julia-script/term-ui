@@ -1,0 +1,16 @@
+// Snapshot from: tree/selection_snapshot_test.zig:139:33
+// Function: test.selection move collapses to edge
+// Description: move edge collapse
+
+--- initial ---
+<element#1><text#2>'hel[lo wor]ld here'</text#2></element#1>
+[49m[38;2;0;0;0mhel[48;2;0;0;204mlo[38;2;0;0;0m [48;2;255;0;0m[38;2;0;0;0mwor[49mld[38;2;0;0;0m [38;2;0;0;0mhere[38;2;0;0;0m    [0m
+--- after step 0: move forward character ---
+<element#1><text#2>'hello wor|ld here'</text#2></element#1>
+[49m[38;2;0;0;0mhello[38;2;0;0;0m [38;2;0;0;0mworld[38;2;0;0;0m [38;2;0;0;0mhere[38;2;0;0;0m    [0m
+--- after step 1: move forward character ---
+<element#1><text#2>'hello worl|d here'</text#2></element#1>
+[49m[38;2;0;0;0mhello[38;2;0;0;0m [38;2;0;0;0mworld[38;2;0;0;0m [38;2;0;0;0mhere[38;2;0;0;0m    [0m
+--- after step 2: move backward word ---
+<element#1><text#2>'hello |world here'</text#2></element#1>
+[49m[38;2;0;0;0mhello[38;2;0;0;0m [38;2;0;0;0mworld[38;2;0;0;0m [38;2;0;0;0mhere[38;2;0;0;0m    [0m

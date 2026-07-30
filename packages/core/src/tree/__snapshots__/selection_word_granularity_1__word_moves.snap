@@ -1,0 +1,28 @@
+// Snapshot from: tree/selection_snapshot_test.zig:127:33
+// Function: test.selection word granularity
+// Description: word moves
+
+--- initial ---
+<element#1><text#2>'alpha bra|vo charlie delta'</text#2></element#1>
+[49m[38;2;0;0;0malpha[38;2;0;0;0m [38;2;0;0;0mbravo[38;2;0;0;0m [38;2;0;0;0mcharlie[38;2;0;0;0m [0m
+[49m[38;2;0;0;0mdelta[38;2;0;0;0m               [0m
+--- after step 0: extend forward word ---
+<element#1><text#2>'alpha bra[vo] charlie delta'</text#2></element#1>
+[49m[38;2;0;0;0malpha[38;2;0;0;0m [38;2;0;0;0mbra[48;2;255;0;0mvo[49m[38;2;0;0;0m [38;2;0;0;0mcharlie[38;2;0;0;0m [0m
+[49m[38;2;0;0;0mdelta[38;2;0;0;0m               [0m
+--- after step 1: extend forward word ---
+<element#1><text#2>'alpha bra[vo charlie] delta'</text#2></element#1>
+[49m[38;2;0;0;0malpha[38;2;0;0;0m [38;2;0;0;0mbra[48;2;0;0;204mvo[38;2;0;0;0m [48;2;255;0;0m[38;2;0;0;0mcharlie[49m[38;2;0;0;0m [0m
+[49m[38;2;0;0;0mdelta[38;2;0;0;0m               [0m
+--- after step 2: extend backward word ---
+<element#1><text#2>'alpha bra[vo ]charlie delta'</text#2></element#1>
+[49m[38;2;0;0;0malpha[38;2;0;0;0m [38;2;0;0;0mbra[48;2;0;0;204mvo[48;2;255;0;0m[38;2;0;0;0m [49m[38;2;0;0;0mcharlie[38;2;0;0;0m [0m
+[49m[38;2;0;0;0mdelta[38;2;0;0;0m               [0m
+--- after step 3: move backward word ---
+<element#1><text#2>'alpha |bravo charlie delta'</text#2></element#1>
+[49m[38;2;0;0;0malpha[38;2;0;0;0m [38;2;0;0;0mbravo[38;2;0;0;0m [38;2;0;0;0mcharlie[38;2;0;0;0m [0m
+[49m[38;2;0;0;0mdelta[38;2;0;0;0m               [0m
+--- after step 4: move backward word ---
+<element#1><text#2>'|alpha bravo charlie delta'</text#2></element#1>
+[49m[38;2;0;0;0malpha[38;2;0;0;0m [38;2;0;0;0mbravo[38;2;0;0;0m [38;2;0;0;0mcharlie[38;2;0;0;0m [0m
+[49m[38;2;0;0;0mdelta[38;2;0;0;0m               [0m
