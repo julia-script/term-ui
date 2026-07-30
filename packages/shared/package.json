@@ -1,7 +1,7 @@
 {
   "name": "@term-ui/shared",
   "type": "module",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "exports": {
     "./*": {
       "default": "./dist/*.js",
@@ -21,12 +21,14 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/juliaortiz/term-ui.git",
     "directory": "packages/shared"
-  }
+  },
+  "author": "Julia Ortiz"
 }

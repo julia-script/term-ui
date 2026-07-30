@@ -20,17 +20,17 @@
 
 ## 3. Metadata and docs
 
-- [ ] 3.1 Add root `LICENSE` (MIT, matching the README badge) and a `license` field to every published manifest
-- [ ] 3.2 Fix repository URLs (`dom` still says `yourusername`); add `repository.directory` to each
-- [ ] 3.3 Rewrite `packages/react/README.md` against the real API — `<view>`/`<text>`, `TermUi.createRoot`, the `jsxImportSource` line — replacing the `term-view`/`term-text` docs
-- [ ] 3.4 Write `packages/core/README.md` and `packages/shared/README.md` (both currently empty); review `packages/dom/README.md` for accuracy
-- [ ] 3.5 Refresh the root README Status section (the revival plan it describes is fully archived) and point at `openspec/specs/`
+- [x] 3.1 Corrected the existing LICENSE (copyright was a template leftover: "weth, LLC"), copied it into each published package, added `license: MIT` + `author` to every manifest
+- [x] 3.2 Fix repository URLs (`dom` still says `yourusername`); add `repository.directory` to each
+- [x] 3.3 Rewrite `packages/react/README.md` against the real API — `<view>`/`<text>`, `TermUi.createRoot`, the `jsxImportSource` line — replacing the `term-view`/`term-text` docs
+- [x] 3.4 Write `packages/core/README.md` and `packages/shared/README.md` (both currently empty); review `packages/dom/README.md` for accuracy
+- [x] 3.5 Refresh the root README Status section (the revival plan it describes is fully archived) and point at `openspec/specs/`
 
 ## 4. Release mechanics
 
-- [ ] 4.1 Delete the stale `.changeset/wet-breads-win.md`
-- [ ] 4.2 Group published packages as `fixed` in `.changeset/config.json` so versions stay aligned
-- [ ] 4.3 Add changesets taking the published packages to `0.1.0`
+- [x] 4.1 Delete the stale `.changeset/wet-breads-win.md`
+- [x] 4.2 Group published packages as `fixed` in `.changeset/config.json` so versions stay aligned
+- [x] 4.3 Added the release changeset and ran `changeset version` — all four published packages are at `0.1.0` (also upgraded changesets to 2.31.1 and rebuilt node_modules; the store had corrupt dependency nesting that broke the CLI)
 
 ## 5. Verification
 

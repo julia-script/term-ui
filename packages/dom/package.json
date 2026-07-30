@@ -1,6 +1,6 @@
 {
   "name": "@term-ui/dom",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -17,7 +17,7 @@
     "interactive",
     "console"
   ],
-  "author": "",
+  "author": "Julia Ortiz",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/juliaortiz/term-ui.git",
@@ -25,7 +25,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "publishConfig": {
     "access": "public"

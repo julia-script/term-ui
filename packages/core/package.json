@@ -1,7 +1,7 @@
 {
   "name": "@term-ui/core",
   "type": "module",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -48,12 +48,14 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/juliaortiz/term-ui.git",
     "directory": "packages/core"
-  }
+  },
+  "author": "Julia Ortiz"
 }

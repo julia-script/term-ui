@@ -3,7 +3,7 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "devDependencies": {
     "@types/lodash-es": "catalog:",
     "@types/node": "catalog:",
@@ -45,7 +45,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "license": "MIT",
   "repository": {
@@ -55,5 +56,6 @@
   },
   "peerDependencies": {
     "react": ">=19.2.0"
-  }
+  },
+  "author": "Julia Ortiz"
 }

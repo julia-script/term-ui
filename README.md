@@ -15,7 +15,7 @@ The product is the vertical slice:
 | [`@term-ui/react`](packages/react) | React reconciler on top of the DOM layer. |
 | [`@term-ui/shared`](packages/shared) | Shared utilities. |
 
-Parked (kept for later, not part of the build): `packages/cssom` (CSSOM experiment, advanced but never integrated), `packages/devtools` (devtools experiment), `packages/docs`.
+Parked (kept for later, not part of the build): `packages/devtools` (devtools experiment), `packages/docs`.
 
 ## Toolchain
 
@@ -23,4 +23,22 @@ The Zig code tracks Zig master, **pinned** to the exact version recorded in `.zi
 
 ## Status
 
-Under active stabilization. The current plan lives in [`openspec/changes/`](openspec/changes): Zig-master migration → test rebuild (invalidation oracle + selection snapshots) → selection/input stabilization, ending in an editable-text acceptance demo.
+Alpha, and stabilized: the engine has a spec'd behavior contract, a rebuilt test
+suite (invalidation oracle, layout and paint snapshots, leak gates, input
+robustness), and a React renderer on current `react-reconciler`.
+
+Behavior is documented as capability specs in [`openspec/specs/`](openspec/specs) —
+selection, caret positioning, input events, the WASM memory boundary,
+scroll/overflow, and the React renderer contract. Completed work is archived
+under [`openspec/changes/archive/`](openspec/changes/archive).
+
+Expect API churn before 1.0. Terminal support varies by emulator; features that
+depend on newer protocols (kitty keyboard, SGR mouse) degrade to legacy
+encodings where unavailable.
+
+## Examples
+
+Runnable demos live in [`examples/`](examples) — a chat client with streaming
+responses and a multiline editable input, a calculator, multi-pane scrolling
+logs, an editable text region, and a counter. Run one with `pnpm start` from its
+directory.

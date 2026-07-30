@@ -18,11 +18,12 @@ Build beautiful, interactive terminal applications with React. Leverage familiar
 
 * [✨ Features](#-features)
 * [⚙️ Installation](#️-installation)
+* [🔧 Setup](#-setup)
 * [🚀 Quick Start](#-quick-start)
 * [🧩 API Reference](#-api-reference)
 
-  * [`<term-view>`](#term-view)
-  * [`<term-text>`](#term-text)
+  * [`<view>`](#view)
+  * [`<text>`](#text)
 * [🎨 Styling](#-styling)
 * [🖥️ Examples](#️-examples)
 * [📝 Contributing](#-contributing)
@@ -37,7 +38,6 @@ Build beautiful, interactive terminal applications with React. Leverage familiar
 * **Flexbox Layout**: Arrange elements with `display: 'flex'`, `flexDirection`, `justifyContent`, and `alignItems`.
 * **Styling**: Inline styles support colors, borders, padding, margin, and background.
 * **Color Compositing**: Use full RGBA color values for backgrounds, borders, and text.
-  \$1
 * **Built with Zig, WebAssembly & TypeScript**: Zig and WebAssembly for performance, TypeScript and React for developer convenience.
 
 ---
@@ -61,10 +61,30 @@ yarn add @term-ui/react
 
 ---
 
+## 🔧 Setup
+
+term-ui renders its own host elements (`<view>`, `<text>`), so point TypeScript's
+JSX transform at this package:
+
+```jsonc
+// tsconfig.json
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "@term-ui/react"
+  }
+}
+```
+
+Without `jsxImportSource`, TypeScript resolves `<view>` and `<text>` to React's
+SVG elements and their props will not type-check.
+
+---
+
 ## 🚀 Quick Start
 
 ```tsx
-import React, { useState } from 'react';
+import { useState } from 'react';
 import TermUi from '@term-ui/react';
 
 const App = () => {
@@ -72,7 +92,7 @@ const App = () => {
   const [borderColor, setBorderColor] = useState('gray');
 
   return (
-    <term-view
+    <view
       style={{
         width: '100%',
         height: '100%',
@@ -86,9 +106,9 @@ const App = () => {
         borderColor: 'cyan',
       }}
     >
-      <term-text style={{ color: 'cyan', bold: true }}>Count: {count}</term-text>
+      <text style={{ color: 'cyan', fontWeight: 'bold' }}>Count: {count}</text>
 
-      <term-view
+      <view
         style={{
           borderStyle: 'double',
           padding: 1,
@@ -99,20 +119,20 @@ const App = () => {
         onMouseEnter={() => setBorderColor('pink')}
         onMouseLeave={() => setBorderColor('gray')}
       >
-        <term-text>Click to increment</term-text>
-      </term-view>
-    </term-view>
+        <text>Click to increment</text>
+      </view>
+    </view>
   );
 };
 
-TermUi.createRoot(<App />);
+await TermUi.createRoot(<App />, {});
 ```
 
 ---
 
 ## 🧩 API Reference
 
-### `<term-view>`
+### `<view>`
 
 The primary container component. Use it to build layouts and capture events.
 
@@ -128,7 +148,7 @@ The primary container component. Use it to build layouts and capture events.
 | `onScroll`     | `(event: ScrollEvent) => void` |
 | `children`     | `ReactNode` |
 
-### `<term-text>`
+### `<text>`
 
 Text rendering component. Supports styling props for typography.
 
@@ -144,7 +164,7 @@ Text rendering component. Supports styling props for typography.
 Term UI uses inline style objects:
 
 ```tsx
-<term-view
+<view
   style={{
     width: 40,
     height: 5,
@@ -161,8 +181,8 @@ Term UI uses inline style objects:
     cursor: 'pointer',
   }}
 >
-  <term-text style={{ fontWeight: 'bold', textDecoration: 'underline' }}>Hello, Terminal!</term-text>
-</term-view>
+  <text style={{ fontWeight: 'bold', textDecoration: 'underline' }}>Hello, Terminal!</text>
+</view>
 ```
 
 Supported style properties:
@@ -208,7 +228,7 @@ Supported style properties:
 
 ## Examples
 
-Check out the [examples](https://github.com/yourusername/term-ui/tree/main/examples) directory for more complex examples and use cases.
+Check out the [examples](https://github.com/juliaortiz/term-ui/tree/main/examples) directory for more complex examples and use cases.
 
 
 ## 🗺️ Roadmap
@@ -219,7 +239,6 @@ Here are some features and improvements we're planning for future releases:
 * **Form Inputs**: Native form components like text inputs, checkboxes, and select menus
 * **Built-in State Selectors**: CSS-like `:hover` and `:active` state selectors for styling without JavaScript state tracking
 * **Advanced Styling System**: Class-based styling with CSS selectors for targeting children and siblings, with improved style cascading.
-* **DevTools**: Developer tools for inspecting and debugging terminal UI applications
 * **Build Tools**: Optimized build configurations for terminal applications
 * **Hot Reloading**: Support for hot module replacement during development
 
