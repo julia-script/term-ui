@@ -26,7 +26,7 @@ the Version Packages PR that appears. That second merge is what publishes.
 All four published packages are a changesets **`fixed` group**, so they always
 share a version number and release together.
 
-## Three things that will bite you
+## Four things that will bite you
 
 ### 1. The publishing tool must stay pnpm
 
@@ -71,6 +71,19 @@ renders `_npmUser` as a display string and hides `trustedPublisher` entirely.
 
 Both scripts are covered by `.github/scripts/release-guards.test.mjs`, which
 runs as part of `pnpm test`.
+
+### 4. The publish command must be `changeset publish`
+
+`changesets/action@v1` sets its `published` and `publishedPackages` outputs by
+scanning publish stdout for **`New tag: <pkg>@<version>`** — a line the
+changesets CLI prints and `pnpm publish` does not. Calling `pnpm publish`
+directly still publishes correctly, but the action sees zero released packages,
+so **git tags and GitHub releases are never created and the post-publish
+verifier is skipped** (it is gated on `published == 'true'`).
+
+So the chain is: action → OIDC guard → `pnpm run publish` → `changeset publish`
+→ `pnpm publish`. The CLI resolves its publishing tool from `packageManager`,
+which keeps rule 1 satisfied.
 
 ### Bonus: the workflow filename is load-bearing
 
