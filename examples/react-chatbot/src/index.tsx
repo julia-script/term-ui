@@ -74,9 +74,8 @@ const InputBox = memo(
     inputRef: React.RefObject<Element | null>;
   }) => (
     <view
-      // biome-ignore lint/suspicious/noExplicitAny: view JSX types are SVG-typed today
-      ref={inputRef as any}
-      {...({ contentEditable: true } as object)}
+      ref={inputRef}
+      contentEditable
       style={{
         width: "100%",
         height: "4",
@@ -248,8 +247,7 @@ const App = () => {
         {`term-ui chat · ${backend.label}`}
       </text>
       <view
-        // biome-ignore lint/suspicious/noExplicitAny: view JSX types are SVG-typed today
-        ref={historyRef as any}
+        ref={historyRef}
         style={{
           width: "100%",
           flexGrow: 1,

@@ -42,5 +42,6 @@
     "@term-ui/react": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:"
-  }
+  },
+  "private": true
 }

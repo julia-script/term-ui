@@ -33,20 +33,27 @@
     "dev:ts": "tsc --watch --preserveWatchOutput -p tsconfig.build.json"
   },
   "devDependencies": {
-    "@term-ui/shared": "workspace:*",
-    "@types/chrome-remote-interface": "^0.31.14",
-    "concurrently": "^8.2.2"
-  },
-  "dependencies": {
     "@types/lodash-es": "catalog:",
     "@types/node": "catalog:",
-    "chrome-remote-interface": "^0.33.3",
+    "concurrently": "^8.2.2",
+    "ts-dedent": "catalog:"
+  },
+  "dependencies": {
+    "@term-ui/shared": "workspace:*",
     "lodash-es": "catalog:",
-    "ts-dedent": "catalog:",
     "valibot": "catalog:"
   },
   "publishConfig": {
     "access": "public"
   },
-  "files": ["dist", "README.md"]
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/juliaortiz/term-ui.git",
+    "directory": "packages/core"
+  }
 }

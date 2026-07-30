@@ -50,6 +50,4 @@ const App = () => {
   );
 };
 
-await TermUi.createRoot(<App />, {
-  dev: true,
-});
+await TermUi.createRoot(<App />, {});

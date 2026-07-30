@@ -10,10 +10,13 @@
     "@biomejs/biome": "catalog:",
     "@changesets/cli": "catalog:"
   },
-  "workspaces": ["packages/*", "examples/*"],
+  "workspaces": [
+    "packages/*",
+    "examples/*"
+  ],
   "scripts": {
-    "build": "turbo run build --filter=./packages/* --filter=!@term-ui/docs",
-    "dev": "turbo run dev --filter=./packages/* --filter=!@term-ui/docs",
+    "build": "turbo run build --filter=./packages/* --filter=!@term-ui/docs --filter=!@termui/devtools",
+    "dev": "turbo run dev --filter=./packages/* --filter=!@term-ui/docs --filter=!@termui/devtools",
     "dev:docs": "turbo run dev --filter=./packages/docs",
     "lint": "biome check",
     "lint:fix": "biome check --unsafe --write",

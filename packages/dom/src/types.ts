@@ -113,7 +113,6 @@ export type DocumentOptions = {
   exitOnCtrlC: boolean;
   enableAlternateScreen: boolean;
   clearScreenBeforePaint: boolean;
-  dev?: boolean;
   onPaintRequest?: () => void;
   /**
    * Wraps every input-event dispatch. Lets embedders bracket dispatch with

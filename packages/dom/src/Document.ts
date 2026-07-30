@@ -35,7 +35,6 @@ import type {
 } from "./types";
 const noop = () => {};
 import type { KeyboardEvent } from "./types";
-import { devtools } from "./devtools";
 
 const resolvePercentage = (
   size:
@@ -154,7 +153,6 @@ const log = (...args: unknown[]) => {
 
 export class Document {
   module: Module;
-  _devtools: ReturnType<typeof devtools> | null = null;
   tree: Tree;
   root: Element;
   viewportSize: Size = {
@@ -216,7 +214,6 @@ export class Document {
       enableInputs = true,
       exitOnCtrlC = true,
       enableAlternateScreen = true,
-      dev,
       onPaintRequest = () => {
         this.paintRequested = true;
       },
@@ -243,9 +240,6 @@ export class Document {
     this.pushCleanup(() => this.tree.dispose());
 
     this.initInputs();
-    if (dev) {
-      this._devtools = devtools(this);
-    }
 
     this.renderer = Renderer.init(
       module,
@@ -666,7 +660,6 @@ export class Document {
     this.writeStream.write(sequences.HIDE_CURSOR);
     this.renderer.paint(this.tree);
     this.restoreCursor();
-    this._devtools?.ee.emit("render", true);
   };
   private restoreCursor = () => {
     if (this.selection?.isEditable()) {

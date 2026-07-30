@@ -3,7 +3,6 @@ import {
   type PropsWithChildren,
   useState,
 } from "react";
-import { devtools } from "@term-ui/dom/devtools";
 
 const VerticalSegment = ({
   x,

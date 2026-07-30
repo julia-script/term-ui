@@ -5,9 +5,8 @@
   "types": "dist/index.d.ts",
   "version": "0.0.2",
   "devDependencies": {
-    "@term-ui/core": "workspace:*",
-    "@term-ui/dom": "workspace:*",
-    "@term-ui/shared": "workspace:*",
+    "@types/lodash-es": "catalog:",
+    "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@xterm/headless": "catalog:",
@@ -21,13 +20,40 @@
     "cleanup": "rm -rf dist"
   },
   "dependencies": {
-    "@types/lodash-es": "catalog:",
-    "@types/node": "catalog:",
+    "@term-ui/core": "workspace:*",
+    "@term-ui/dom": "workspace:*",
+    "@term-ui/shared": "workspace:*",
     "lodash-es": "catalog:",
     "react-reconciler": "catalog:"
   },
   "publishConfig": {
     "access": "public"
   },
-  "files": ["dist", "README.md"]
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./jsx-runtime": {
+      "types": "./dist/jsx-runtime.d.ts",
+      "default": "./dist/jsx-runtime.js"
+    },
+    "./jsx-dev-runtime": {
+      "types": "./dist/jsx-dev-runtime.d.ts",
+      "default": "./dist/jsx-dev-runtime.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/juliaortiz/term-ui.git",
+    "directory": "packages/react"
+  },
+  "peerDependencies": {
+    "react": ">=19.2.0"
+  }
 }

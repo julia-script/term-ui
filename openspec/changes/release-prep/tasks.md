@@ -2,21 +2,21 @@
 
 ## 1. JSX element typing
 
-- [ ] 1.1 Complete `TermViewProps`/`TermTextProps` in `packages/react/src/types.ts`: `key`, `ref`, `children`, and every event prop the reconciler maps (`onClick`, `onMouseEnter`, `onMouseLeave`, `onMouseMove`, `onMouseDown`, `onMouseUp`, `onScroll`), with our own event types
-- [ ] 1.2 Add `packages/react/jsx-runtime.{js,d.ts}` and `jsx-dev-runtime.{js,d.ts}` re-exporting React's runtime and declaring the `JSX` namespace (`IntrinsicElements`, `Element`, `ElementChildrenAttribute`)
-- [ ] 1.3 Wire `exports` for both entries; ensure they are in `files` so they publish
-- [ ] 1.4 Remove the dead `term-view`/`term-text` global augmentation from `packages/react/src/index.ts`
-- [ ] 1.5 Set `jsxImportSource` in the react package and all examples; delete every `as object` cast and `biome-ignore` for SVG-typed props
-- [ ] 1.6 Confirm a wrong prop is a type error and event handler params are our types (not SVG)
+- [x] 1.1 Complete `TermViewProps`/`TermTextProps` in `packages/react/src/types.ts`: `key`, `ref`, `children`, and every event prop the reconciler maps (`onClick`, `onMouseEnter`, `onMouseLeave`, `onMouseMove`, `onMouseDown`, `onMouseUp`, `onScroll`), with our own event types
+- [x] 1.2 Add `packages/react/jsx-runtime.{js,d.ts}` and `jsx-dev-runtime.{js,d.ts}` re-exporting React's runtime and declaring the `JSX` namespace (`IntrinsicElements`, `Element`, `ElementChildrenAttribute`)
+- [x] 1.3 Wire `exports` for both entries; ensure they are in `files` so they publish
+- [x] 1.4 Remove the dead `term-view`/`term-text` global augmentation from `packages/react/src/index.ts`
+- [x] 1.5 Set `jsxImportSource` in the react package and all examples; delete every `as object` cast and `biome-ignore` for SVG-typed props
+- [x] 1.6 Confirm a wrong prop is a type error and event handler params are our types (not SVG)
 
 ## 2. Dependencies and publish surface
 
-- [ ] 2.1 `dom`: remove `@trpc/client`, `socket.io-client`, `@types/ws`; move `@trpc/server`, `ws`, `zod` out of `dependencies`
-- [ ] 2.2 `dom`: drop the `./devtools` export from the published surface (design decision (b))
-- [ ] 2.3 `core`: remove `chrome-remote-interface`, `ts-dedent`; move `@types/*` to devDependencies
-- [ ] 2.4 `react`: move `@types/node` to devDependencies
-- [ ] 2.5 Mark `packages/cssom` and `packages/devtools` private; resolve the mis-scoped `@termui/devtools` name and its 1.0.0 version
-- [ ] 2.6 Verify each published package's `files`/`exports` covers exactly the built artifacts (core must include both wasm files)
+- [x] 2.1 `dom`: remove `@trpc/client`, `socket.io-client`, `@types/ws`; move `@trpc/server`, `ws`, `zod` out of `dependencies`
+- [x] 2.2 `dom`: remove devtools entirely — `Document` imported it at top level, so dropping only the export was not possible (see design note)
+- [x] 2.3 `core`: remove `chrome-remote-interface`, `ts-dedent`; move `@types/*` to devDependencies
+- [x] 2.4 `react`: move `@types/node` to devDependencies
+- [x] 2.5 `packages/cssom` deleted (empty, only a stale zig cache); `packages/devtools` marked private and excluded from the build pipeline
+- [x] 2.6 Verify each published package's `files`/`exports` covers exactly the built artifacts (core must include both wasm files)
 
 ## 3. Metadata and docs
 

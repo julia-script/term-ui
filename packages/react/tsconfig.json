@@ -5,8 +5,15 @@
     "module": "ESNext",
     "allowJs": true,
     "jsx": "react-jsx",
+    "jsxImportSource": "@term-ui/react",
     // Bundler mode
     "moduleResolution": "bundler",
+    // this package sets jsxImportSource to itself; map it to source so it
+    // resolves without a self-dependency (turbo rejects dependency cycles)
+    "paths": {
+      "@term-ui/react/jsx-runtime": ["./src/jsx-runtime.ts"],
+      "@term-ui/react/jsx-dev-runtime": ["./src/jsx-dev-runtime.ts"]
+    },
     "verbatimModuleSyntax": true,
     "noEmit": true,
     // Best practices

@@ -2,6 +2,7 @@
 // that each respond to the mouse position. Wheel over a pane scrolls that
 // pane; the nested box inside the right pane scrolls first and chains to
 // its parent at the edge. The status line reports offsets via onScroll.
+import { Element, type ScrollEvent } from "@term-ui/dom";
 import TermUi from "@term-ui/react";
 import {
   memo,
@@ -70,12 +71,15 @@ const App = () => {
 
   const report =
     (key: "logs" | "metrics" | "nested") =>
-    // biome-ignore lint/suspicious/noExplicitAny: view props carry SVG types
-    (event: any) =>
+    (event: ScrollEvent) => {
+      // scroll targets an element, but the event type allows the document too
+      if (!(event.target instanceof Element)) return;
+      const { scrollTop } = event.target;
       setOffsets((prev) => ({
         ...prev,
-        [key]: event.target.scrollTop,
+        [key]: scrollTop,
       }));
+    };
 
   return (
     <view

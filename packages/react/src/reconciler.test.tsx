@@ -272,14 +272,8 @@ describe("commitUpdate diffing", () => {
     const App = () => {
       const [editable, se] = useState(false);
       setEditable = se;
-      // contentEditable is cast: <view> JSX types accidentally resolve
-      // to SVG's view element today (see jsx typing follow-up task)
       return (
-        <view
-          {...({
-            contentEditable: editable,
-          } as object)}
-        >
+        <view contentEditable={editable}>
           <text>field</text>
         </view>
       );

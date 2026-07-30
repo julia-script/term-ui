@@ -3,10 +3,7 @@
 import { loader } from "@term-ui/core/node";
 import { init } from "@term-ui/core";
 // import {}
-import { devtools } from "@term-ui/dom/devtools";
 import { Document } from "@term-ui/dom";
-// import type { ServerRouter } from "@termui/devtools/router/server";
-// import { createClient } from "@termui/devtools/rpc";
 
 // const client = createClient<ServerRouter>(
 //   io("http://localhost:9001"),
@@ -69,7 +66,6 @@ try {
     document.render();
   };
   const document = new Document(module, {
-    dev: true,
     onPaintRequest() {
       // render
       // console.log(

@@ -51,7 +51,9 @@ Determined by grepping shipped source for each declared dependency:
 
 `lodash-es` and `valibot` (core), `lodash-es` and `react-reconciler` (react) stay — they are genuinely imported.
 
-**Decision needed on `dom`'s devtools export.** `package.json` exposes `./devtools`, which means those deps are arguably legitimate. Two options: (a) keep the export and move tRPC/ws/zod to `peerDependencies` + `optionalDependencies` so normal installs skip them, or (b) drop the `./devtools` export from the published surface until devtools is a real product. **Recommend (b)** — devtools is an unfinished experiment, and shipping an export nobody can use is worse than not shipping it. It can return as its own package.
+**Devtools removed outright** (revised during implementation). Dropping only the `./devtools` export was not sufficient: `Document.ts` imported `devtools` at module top level and invoked it under a `dev` option, so tRPC/ws/zod were runtime dependencies of the *main* export, and excluding the folder from the build broke `Document`. Devtools is therefore deleted from `dom` along with the `dev` option; `packages/devtools` (the UI half, which imported `@term-ui/dom/devtools`) is private and excluded from the build pipeline. The experiment can return as a self-contained package.
+
+**Also found during implementation**: `@term-ui/core` and `@term-ui/shared` were `devDependencies` of `dom` and `react` despite being imported for *values* at runtime (`HitTestFilter`, `raise`, `loader`) — a clean install of either package would have failed. They are now real dependencies. `@types/node` had been reaching `dom` transitively through the removed devtools deps; `dom` genuinely needs it (`process`, `node:util`, `Symbol.dispose`), so it is now an explicit devDependency. `packages/cssom` turned out to be an empty directory containing only a stale zig cache, and was deleted.
 
 ## Versioning
 
