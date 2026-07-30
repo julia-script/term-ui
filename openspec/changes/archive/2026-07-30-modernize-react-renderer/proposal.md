@@ -26,8 +26,7 @@ The react-reconciler host config in `packages/react` was written blind against o
 - `react-renderer`: the react-reconciler host-config contract — instance lifecycle (create/append/insert/remove/dispose), update semantics (style, contentEditable, event handlers, text), visibility for Suspense, update-priority model tied to input events, error surfacing, and the stub contracts (view transitions, fragment refs, suspensey commits) required by the current reconciler.
 
 ### Modified Capabilities
-
-None. (`input-events` gains no new requirements; priority wiring is covered by `react-renderer`.)
+- `input-events`: held keys must repeat (autorepeat events were dropped), modifier chords must not produce text, a bare line feed means shift+enter rather than Ctrl+J, and empty lines (including a trailing line break) must be caret-addressable and traversable by vertical arrows.
 
 ## Impact
 
@@ -36,4 +35,7 @@ None. (`input-events` gains no new requirements; priority wiring is covered by `
 - `packages/react/src/TermUi.tsx` — createContainer arg cleanup, error routing, DevTools injection.
 - `pnpm-workspace.yaml` catalog + lockfile — react 19.2.x, react-reconciler 0.33.0.
 - New test file(s) in `packages/react/src/`.
+- `packages/dom/src/InputManager.ts`, `packages/core/src/cmd/input/manager.zig` — repeat/chord/line-feed key semantics.
+- `packages/core/src/layout/v2/line-builder/{compute,wrap}.zig`, `packages/core/src/tree/Selection.zig` — preserved segment breaks and empty-line caret navigation.
+- `examples/react-chatbot` — multiline chat input demo exercising the above.
 - Ref surface unchanged: `getPublicInstance` keeps exposing the DOM `Element` (browser-like).
