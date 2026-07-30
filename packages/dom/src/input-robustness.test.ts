@@ -69,6 +69,31 @@ const enc = new TextEncoder();
 const tick = () =>
   new Promise((r) => setTimeout(r, 20));
 
+/**
+ * Wait until `predicate` holds, polling the macrotask queue.
+ *
+ * Events are delivered through a batched `setTimeout(…, 0)` flush, and each
+ * dispatch drags layout and paint along with it. A fixed sleep therefore races
+ * the pipeline: it passes on an idle machine and fails when the box is busy.
+ * Waiting on the condition itself is both faster in the common case and stable
+ * under load — the timeout only bounds an outright failure.
+ */
+const waitFor = async (
+  predicate: () => boolean,
+  message: string,
+  timeoutMs = 3000,
+) => {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() > deadline) {
+      throw new Error(
+        `timed out after ${timeoutMs}ms waiting for ${message}`,
+      );
+    }
+    await tick();
+  }
+};
+
 describe("input robustness", () => {
   it("wheel streams split at every chunk size apply fully", async () => {
     // 20 wheel-downs per chunk size; pane max is 20, so each pass pins
@@ -88,7 +113,11 @@ describe("input robustness", () => {
         );
         im.consumeEvents();
       }
-      await tick();
+      await waitFor(
+        () =>
+          pane.scrollTop === pane.scrollTopMax,
+        `scrollTop to reach max with chunk size ${chunk}`,
+      );
       expect(pane.scrollTop).toBe(
         pane.scrollTopMax,
       );
@@ -106,7 +135,10 @@ describe("input robustness", () => {
         );
         im.consumeEvents();
       }
-      await tick();
+      await waitFor(
+        () => pane.scrollTop === 0,
+        `scrollTop to return to 0 with chunk size ${chunk}`,
+      );
       expect(pane.scrollTop).toBe(0);
       im.dispose();
     }
@@ -124,8 +156,10 @@ describe("input robustness", () => {
       );
       im.consumeEvents();
     }
-    await tick();
-    await tick();
+    await waitFor(
+      () => pane.scrollTop === 5,
+      "all 5 wheel events to apply despite interleaved garbage",
+    );
     expect(pane.scrollTop).toBe(5);
   });
 });
@@ -187,7 +221,13 @@ describe("event batching (scroll responsiveness)", () => {
       ),
     );
     im.consumeEvents();
-    await tick();
+    // wait for the burst to land, not for a fixed duration — the render count
+    // is unaffected by waiting longer, since coalescing is per flush and no
+    // further input arrives
+    await waitFor(
+      () => pane.scrollTop === 9,
+      "the burst (10 down, 1 up) to apply",
+    );
 
     // all 11 events applied: net 10 down - 1 up = 9
     expect(pane.scrollTop).toBe(9);
