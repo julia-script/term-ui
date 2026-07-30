@@ -19,3 +19,9 @@ dist
 *.log
 .DS_Store
 
+
+# local-only tooling (MCP servers, scratch compose files) — never commit,
+# these tend to carry API keys
+docker-compose.yml
+docker-compose.*.yml
+!examples/**/docker-compose.yml
