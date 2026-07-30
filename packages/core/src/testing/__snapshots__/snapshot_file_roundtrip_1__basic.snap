@@ -1,0 +1,5 @@
+// Snapshot from: testing/snapshot.zig:489:29
+// Function: test.snapshot file roundtrip
+// Description: basic
+
+hello snapshot

@@ -189,7 +189,80 @@ const _init = async (args: InitArgs) => {
       ),
       path_open: notImplemented("path_open"),
       proc_exit: notImplemented("proc_exit"),
-      random_get: notImplemented("random_get"),
+      random_get: (ptr: number, len: number) => {
+        const bytes = new Uint8Array(
+          memory.buffer,
+          ptr,
+          len,
+        );
+        crypto.getRandomValues(bytes);
+        return 0;
+      },
+      clock_res_get: notImplemented(
+        "clock_res_get",
+      ),
+      poll_oneoff: notImplemented("poll_oneoff"),
+      environ_sizes_get: (
+        countPtr: number,
+        sizePtr: number,
+      ) => {
+        const dataView = new DataView(
+          memory.buffer,
+        );
+        dataView.setUint32(countPtr, 0, true);
+        dataView.setUint32(sizePtr, 0, true);
+        return 0;
+      },
+      environ_get: () => 0,
+      fd_pwrite: notImplemented("fd_pwrite"),
+      fd_pread: notImplemented("fd_pread"),
+      fd_filestat_set_times: notImplemented(
+        "fd_filestat_set_times",
+      ),
+      fd_filestat_set_size: notImplemented(
+        "fd_filestat_set_size",
+      ),
+      fd_sync: notImplemented("fd_sync"),
+      fd_seek: notImplemented("fd_seek"),
+      fd_filestat_get: notImplemented(
+        "fd_filestat_get",
+      ),
+      path_link: notImplemented("path_link"),
+      path_symlink: notImplemented(
+        "path_symlink",
+      ),
+      path_readlink: notImplemented(
+        "path_readlink",
+      ),
+      path_rename: notImplemented("path_rename"),
+      path_remove_directory: notImplemented(
+        "path_remove_directory",
+      ),
+      path_unlink_file: notImplemented(
+        "path_unlink_file",
+      ),
+      path_filestat_get: notImplemented(
+        "path_filestat_get",
+      ),
+      fd_readdir: notImplemented("fd_readdir"),
+      path_create_directory: notImplemented(
+        "path_create_directory",
+      ),
+      clock_time_get: (
+        _clockId: number,
+        _precision: bigint,
+        timePtr: number,
+      ) => {
+        const dataView = new DataView(
+          memory.buffer,
+        );
+        dataView.setBigUint64(
+          timePtr,
+          BigInt(Math.round(Date.now() * 1e6)),
+          true,
+        );
+        return 0;
+      },
     },
     env: {
       memory: memory,

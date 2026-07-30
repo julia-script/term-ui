@@ -25,7 +25,7 @@ pub fn logFn(
         }
     }
 }
-const test_options = @import("test_options");
+pub const test_options = @import("test_options");
 pub const std_options: std.Options = .{
     // .log_level = if (is_debug) .debug else .err,
     .log_level = .debug,
@@ -68,7 +68,7 @@ const Update = struct {
 pub var files_to_update: std.StringHashMapUnmanaged(Update) = .{};
 
 var arena = std.heap.ArenaAllocator.init(root_allocator);
-var test_io: std.Io = undefined;
+pub var test_io: std.Io = undefined;
 
 pub fn getSource(file: []const u8) ![]const u8 {
     const allocator = arena.allocator();
@@ -84,7 +84,7 @@ pub fn getSource(file: []const u8) ![]const u8 {
         return error.FileNotFound;
     }
 
-    const file_content = try std.Io.Dir.cwd().readFileAlloc(test_io, path, allocator, .limited64(stat.size));
+    const file_content = try std.Io.Dir.cwd().readFileAlloc(test_io, path, allocator, .unlimited);
     gop.value_ptr.* = .{
         .file = allocator.dupe(u8, file) catch @panic("OOM"),
         .content = file_content,

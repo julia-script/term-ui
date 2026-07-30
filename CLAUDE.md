@@ -7,9 +7,9 @@
 - Always reference new test files in `packages/core/src/wasm.zig` test block
 
 ## Zig-specific (packages/core only)
-- Use `cd packages/core && zig build debugbuild -Dtest-filter=<dir> && ./zig-out/bin/test` for testing
+- Use `cd packages/core && zig build test` for testing (`-Dfilter=<substr>` to filter)
 - Never run `zig test` directly - always use build script
-- run UPDATE_SNAPSHOTS=true zig build test to update the snapshots
+- run `zig build test -Dupdate=true` to regenerate snapshots (file + inline)
 
 ## Coding Patterns
 - Follow existing code conventions (check nearby files first)

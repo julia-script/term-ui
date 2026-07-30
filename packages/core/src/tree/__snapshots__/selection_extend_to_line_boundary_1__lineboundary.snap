@@ -1,0 +1,20 @@
+// Snapshot from: tree/selection_snapshot_test.zig:101:33
+// Function: test.selection extend to line boundary
+// Description: lineboundary
+
+--- initial ---
+<element#1><text#2>'alpha bra|vo charlie delta'</text#2></element#1>
+[49m[38;2;0;0;0malpha[38;2;0;0;0m [38;2;0;0;0mbravo[38;2;0;0;0m [38;2;0;0;0mcharlie[38;2;0;0;0m [0m
+[49m[38;2;0;0;0mdelta[38;2;0;0;0m               [0m
+--- after step 0: extend forward lineboundary ---
+<element#1><text#2>'alpha bra[vo charlie] delta'</text#2></element#1>
+[49m[38;2;0;0;0malpha[38;2;0;0;0m [38;2;0;0;0mbra[48;2;0;0;204mvo[38;2;0;0;0m [48;2;255;0;0m[38;2;0;0;0mcharlie[49m[38;2;0;0;0m [0m
+[49m[38;2;0;0;0mdelta[38;2;0;0;0m               [0m
+--- after step 1: collapseToStart ---
+<element#1><text#2>'alpha bra|vo charlie delta'</text#2></element#1>
+[49m[38;2;0;0;0malpha[38;2;0;0;0m [38;2;0;0;0mbravo[38;2;0;0;0m [38;2;0;0;0mcharlie[38;2;0;0;0m [0m
+[49m[38;2;0;0;0mdelta[38;2;0;0;0m               [0m
+--- after step 2: extend backward lineboundary ---
+<element#1><text#2>'[alpha bra]vo charlie delta'</text#2></element#1>
+[48;2;0;0;204m[38;2;0;0;0malpha[38;2;0;0;0m [48;2;255;0;0m[38;2;0;0;0mbra[49mvo[38;2;0;0;0m [38;2;0;0;0mcharlie[38;2;0;0;0m [0m
+[49m[38;2;0;0;0mdelta[38;2;0;0;0m               [0m

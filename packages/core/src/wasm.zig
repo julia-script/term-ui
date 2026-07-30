@@ -952,6 +952,10 @@ const Cursor = @import("styles/cursor.zig").Cursor;
 
 test {
     _ = @import("./tree/Range.zig");
+    _ = @import("./testing/snapshot.zig");
+    _ = @import("./tree/invalidation_oracle_test.zig");
+    _ = @import("./layout/v2/layout_snapshot_test.zig");
+    _ = @import("./tree/selection_snapshot_test.zig");
     _ = @import("./uni/GraphemeBreak.zig");
     _ = @import("./tree/NodeIterator.zig");
     _ = @import("./layout/v2/mod.zig");

@@ -85,7 +85,7 @@ pub fn build(b: *std.Build) !void {
         // .filter = test_filter,
         .test_runner = .{
             .path = b.path("test_runner.zig"),
-            .mode = .server,
+            .mode = .simple,
         },
     });
 

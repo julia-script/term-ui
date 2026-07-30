@@ -1,0 +1,49 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: Read Zig version
+        id: zigversion
+        run: echo "version=$(cat .zigversion)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: ${{ steps.zigversion.outputs.version }}
+
+      - name: Zig tests
+        working-directory: packages/core
+        run: zig build test
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build core (wasm + ts)
+        working-directory: packages/core
+        run: pnpm build
+
+      - name: Vitest (dom)
+        working-directory: packages/dom
+        run: pnpm vitest run
