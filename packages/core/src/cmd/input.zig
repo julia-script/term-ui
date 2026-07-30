@@ -91,12 +91,10 @@ fn handleRawChar(manager: *AnyInputManager, buffer: []const u8, position: usize)
     logger.info("[BUFFER]: {s}", .{buffer});
     var cursor: usize = position;
 
-    var iter = std.unicode.Utf8Iterator{
-        .bytes = buffer,
-        .i = cursor,
-    };
-    while (iter.i < buffer.len) {
-        const byte = buffer[iter.i];
+    // Terminal input is untrusted bytes: decode defensively. Utf8Iterator
+    // asserts validity and panics on garbage, so it must not be used here.
+    while (cursor < buffer.len) {
+        const byte = buffer[cursor];
         if (byte == ESC) {
             if (manager.modeIs(.force)) {
                 manager.emitNamed(.escape, .press, 0, buffer[cursor .. cursor + 1]);
@@ -107,9 +105,25 @@ fn handleRawChar(manager: *AnyInputManager, buffer: []const u8, position: usize)
                 break;
             }
         }
-        const codepoint = iter.nextCodepoint() orelse break;
-        manager.emitInterpretedCodepoint(codepoint, 0, buffer[cursor..iter.i]);
-        cursor = iter.i;
+        const seq_len = std.unicode.utf8ByteSequenceLength(byte) catch {
+            // invalid start byte: drop it rather than crash
+            cursor += 1;
+            continue;
+        };
+        if (cursor + seq_len > buffer.len) {
+            // split multi-byte codepoint at the chunk boundary: wait for the
+            // rest, unless we're force-flushing (then drop the fragment)
+            if (manager.modeIs(.force)) {
+                cursor = buffer.len;
+            }
+            break;
+        }
+        const codepoint = std.unicode.utf8Decode(buffer[cursor .. cursor + seq_len]) catch {
+            cursor += 1;
+            continue;
+        };
+        manager.emitInterpretedCodepoint(codepoint, 0, buffer[cursor .. cursor + seq_len]);
+        cursor += seq_len;
     }
     // if we didn't consume any bytes, return nomatch
     if (cursor == position) {

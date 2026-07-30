@@ -44,6 +44,10 @@ export class ByteArrayList {
 
   appendSlice(slice: ArrayLike<number>) {
     this.assertNotDisposed();
+    // capture the existing length BEFORE growing: new bytes go after the
+    // unconsumed remainder, not over it (writing at offset 0 corrupted the
+    // buffer whenever a partial sequence was pending)
+    const offset = this.length;
     this.module.ArrayList_appendUnusedSlice(
       this.ptr,
       slice.length,
@@ -53,7 +57,7 @@ export class ByteArrayList {
     );
     const buffer = new Uint8Array(
       this.module.memory.buffer,
-      ptr,
+      ptr + offset,
       slice.length,
     );
     buffer.set(slice);

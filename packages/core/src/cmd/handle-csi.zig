@@ -507,10 +507,10 @@ pub fn parseCsi(
         end += 1;
     }
 
-    logger.info("[RAW CSI] {s}", .{buffer[position .. end + 1]});
     if (end >= buffer.len) {
         return .partial;
     }
+    logger.info("[RAW CSI] {s}", .{buffer[position .. end + 1]});
 
     // See if there is an initial byte
     var raw_csi = RawCsi{
@@ -531,6 +531,10 @@ pub fn parseCsi(
         var param_end = params_start;
         while (param_end < end and buffer[param_end] != ';') {
             param_end += 1;
+        }
+        if (raw_csi.parameter_count >= raw_csi.parameters.len) {
+            // more parameters than we can hold: not a sequence we understand
+            return .nomatch;
         }
         raw_csi.parameters[raw_csi.parameter_count] = buffer[params_start..param_end];
         raw_csi.parameter_count += 1;

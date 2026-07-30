@@ -1153,7 +1153,9 @@ export class Document {
         this.state.scrollingElementId,
       );
       if (
-        targets.includes(latched) &&
+        targets.includes(
+          latched as EventTarget,
+        ) &&
         this.tree.module.Node_canScroll(
           this.tree.ptr,
           latched.id,
