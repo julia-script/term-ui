@@ -22,7 +22,7 @@
     "lint:fix": "biome check --unsafe --write",
     "changeset": "changeset",
     "version": "changeset version",
-    "publish": "pnpm publish -r --access=public",
+    "publish": "changeset publish",
     "cleanup": "turbo run cleanup",
     "check:clean-room": "./scripts/clean-room.sh",
     "test": "vitest run",

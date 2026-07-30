@@ -73,12 +73,7 @@ if (isMain) {
   const [command, ...rest] =
     args.length > 0
       ? args
-      : [
-          "pnpm",
-          "publish",
-          "-r",
-          "--access=public",
-        ];
+      : ["pnpm", "run", "publish"];
 
   const { code, sawSkippedOidc } =
     await runGuardedPublish(command, rest, {
