@@ -391,10 +391,19 @@ const MixedContextBuilder = struct {
     current_container_id: LayoutNode.Id,
     allocator: std.mem.Allocator,
     stack: Array(LayoutNode.Id) = .empty,
+    /// Is there an anonymous inline container open to receive inline content?
+    ///
+    /// This asks about *this builder's* run of inline siblings, not about the
+    /// box type of the last node placed. A block-level child with only inline
+    /// content is itself an `inline_container_node` (it establishes an inline
+    /// formatting context), but it is closed as far as we are concerned —
+    /// inline siblings after it must start a new anonymous container rather
+    /// than be appended inside it.
     pub fn isCurrentContainerInline(self: *MixedContextBuilder) bool {
+        if (self.current_container_id == self.root_container_id) return false;
         const current_container = self.layout_tree.getNodePtr(self.current_container_id);
         return switch (current_container.data) {
-            .inline_container_node => true,
+            .inline_container_node => current_container.ref == .anonymous,
             .block_container_node => false,
             else => unreachable,
         };
@@ -472,10 +481,47 @@ const MixedContextBuilder = struct {
 
     pub fn build(self: *MixedContextBuilder) BuildError!void {
         const children = self.doc_tree.getNodeChildren(self.doc_node_id);
-        for (children) |child| {
+        for (children, 0..) |child, i| {
             if (isDisplayNone(self.doc_tree, child)) continue;
+            // Whitespace between block-level siblings is not rendered — it
+            // generates no box at all, so pretty-printed markup does not grow
+            // the container. Whitespace adjacent to inline content still
+            // matters (it separates words), so only skip a whitespace-only
+            // text node when no inline sibling on either side would consume it.
+            if (self.doc_tree.getNodeKind(child) == .text and
+                isAllWhitespace(self.doc_tree, child) and
+                !self.hasInlineNeighbor(children, i))
+            {
+                continue;
+            }
             try self.buildFromNode(child);
         }
+    }
+
+    /// Would an adjacent sibling put this whitespace inside an inline run?
+    fn hasInlineNeighbor(self: *MixedContextBuilder, children: []const DocNodeId, index: usize) bool {
+        var before = index;
+        while (before > 0) {
+            before -= 1;
+            const sibling = children[before];
+            if (isDisplayNone(self.doc_tree, sibling)) continue;
+            if (self.isInlineLevel(sibling)) return true;
+            break;
+        }
+        var after = index + 1;
+        while (after < children.len) : (after += 1) {
+            const sibling = children[after];
+            if (isDisplayNone(self.doc_tree, sibling)) continue;
+            if (self.isInlineLevel(sibling)) return true;
+            break;
+        }
+        return false;
+    }
+
+    fn isInlineLevel(self: *MixedContextBuilder, node_id: DocNodeId) bool {
+        if (self.doc_tree.getNodeKind(node_id) == .text) return true;
+        return isInlineFlow(self.doc_tree, node_id) or
+            isAtomicInline(self.doc_tree, node_id);
     }
     pub fn buildFromNode(self: *MixedContextBuilder, node_id: DocNodeId) BuildError!void {
         const kind = self.doc_tree.getNodeKind(node_id);
@@ -506,12 +552,13 @@ const MixedContextBuilder = struct {
             return;
         }
 
-        // otherwise it's a block
-        // const block_container_id = if (self.isCurrentContainerInline()) try self.createBlockContainer() else self.current_container_id;
-        // _ = block_container_id; // autofix
+        // otherwise it's a block: it closes any open run of inline siblings,
+        // so reset to the root container. Leaving `current_container_id`
+        // pointing at the block would make following inline content land
+        // *inside* it (the block's own box may itself be an inline container).
         const block_node = try self.layout_tree.buildIncremental(self.doc_tree, node_id);
         try self.layout_tree.appendNode(self.root_container_id, block_node);
-        self.current_container_id = block_node;
+        self.current_container_id = self.root_container_id;
 
         return;
     }

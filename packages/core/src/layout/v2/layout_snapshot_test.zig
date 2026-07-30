@@ -131,3 +131,25 @@ test "layout trailing segment break yields empty final line" {
         \\</div>
     , .{ .x = .{ .definite = 12 }, .y = .max_content });
 }
+
+test "layout block between inline siblings" {
+    // A block-level sibling closes the inline run around it: "before" and
+    // "after" each get their own anonymous container, and the block keeps its
+    // own height. Regression — the block's box (itself an inline container,
+    // since its content is inline) used to be mistaken for an open inline
+    // context, so "after" was laid out *inside* it and the height ignored.
+    try expectLayoutSnapshot(@src(), "block between inline siblings",
+        \\<div style="width: 20px;">before<div style="height: 2px;"></div>after</div>
+    , .{ .x = .{ .definite = 20 }, .y = .max_content });
+}
+
+test "layout whitespace between blocks is not rendered" {
+    // Newlines between block siblings must generate no boxes, so
+    // pretty-printed markup lays out the same as minified markup.
+    try expectLayoutSnapshot(@src(), "whitespace between blocks",
+        \\<div style="width: 20px;">
+        \\  <div style="height: 2px;"></div>
+        \\  <div style="height: 2px;"></div>
+        \\</div>
+    , .{ .x = .{ .definite = 20 }, .y = .max_content });
+}

@@ -125,7 +125,10 @@ pub fn main() !void {
     var threaded: std.Io.Threaded = .init(root_allocator, .{});
     defer threaded.deinit();
     test_io = threaded.io();
-    if (test_options.update) {
+    // Snapshots are pruned before regenerating so renamed/removed tests do not
+    // leave orphans behind. Only safe when the whole suite runs: with a filter,
+    // every snapshot outside the filter would be deleted and never rewritten.
+    if (test_options.update and test_options.filter.len == 0) {
         var src = try std.Io.Dir.cwd().openDir(test_io, "src", .{ .iterate = true });
         defer src.close(test_io);
         try rmSnapshotsRecursively(src);

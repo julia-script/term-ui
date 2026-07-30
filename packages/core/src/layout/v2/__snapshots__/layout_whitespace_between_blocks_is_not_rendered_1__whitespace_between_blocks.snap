@@ -1,0 +1,15 @@
+// Snapshot from: layout/v2/layout_snapshot_test.zig:149:30
+// Function: test.layout whitespace between blocks is not rendered
+// Description: whitespace between blocks
+
+--- layout tree ---
+[block_container_node #1 ref={anon} children={1} box={.{ .size = .{ .x = 20, .y = 4 }, .content_size = .{ .x = 20, .y = 4 }, .scrollbar_size = .{ .x = 0, .y = 0 }, .location = .{ .x = 0, .y = 0 }, .padding = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 }, .border = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 }, .margin = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 } }} gen={1} cache_empty={false}]
+└── [block_container_node #2 ref={doc#1} children={2} box={.{ .size = .{ .x = 20, .y = 4 }, .content_size = .{ .x = 20, .y = 4 }, .scrollbar_size = .{ .x = 0, .y = 0 }, .location = .{ .x = 0, .y = 0 }, .padding = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 }, .border = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 }, .margin = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 } }} gen={1} cache_empty={false}]
+    ├── [inline_container_node #3 ref={doc#3} children={0} lines={0} box={.{ .size = .{ .x = 20, .y = 2 }, .content_size = .{ .x = 0, .y = 0 }, .scrollbar_size = .{ .x = 0, .y = 0 }, .location = .{ .x = 0, .y = 0 }, .padding = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 }, .border = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 }, .margin = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 } }} gen={1} cache_empty={false}]
+    └── [inline_container_node #4 ref={doc#5} children={0} lines={0} box={.{ .size = .{ .x = 20, .y = 2 }, .content_size = .{ .x = 0, .y = 0 }, .scrollbar_size = .{ .x = 0, .y = 0 }, .location = .{ .x = 0, .y = 2 }, .padding = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 }, .border = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 }, .margin = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 } }} gen={1} cache_empty={false}]
+
+--- paint ---
+[49m[38;2;0;0;0m                    [0m
+[49m[38;2;0;0;0m                    [0m
+[49m[38;2;0;0;0m                    [0m
+[49m[38;2;0;0;0m                    [0m
