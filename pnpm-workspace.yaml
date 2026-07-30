@@ -11,7 +11,7 @@ catalog:
   "@xterm/headless": ^5.5.0
   "@xterm/xterm": ^5.5.0
   css-tree: ^3.1.0
-  lodash-es: ^4.17.21
+  lodash-es: ^4.18.1
   react: ^19.2.0
   react-dom: ^19.2.0
   react-reconciler: 0.33.0
@@ -22,6 +22,6 @@ catalog:
   typedoc-plugin-markdown: ^4.6.3
   typescript: ^5.8.3
   use-effect-event: ^1.0.2
-  valibot: ^1.0.0
+  valibot: ^1.4.2
   vitest: ^3.1.2
   vocs: ^1.0.11
