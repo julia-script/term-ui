@@ -34,6 +34,6 @@
 
 ## 5. Verification
 
-- [ ] 5.1 Write a clean-room script: build → `npm pack` → install tarballs into a scratch project outside the repo → run the README quickstart under a pty → assert rendered output and clean exit
-- [ ] 5.2 Run it; fix whatever it catches (missing files, bad exports, missing runtime deps)
-- [ ] 5.3 Full suite green (`zig build test`, dom + react vitest) and every example still runs
+- [x] 5.1 Write a clean-room script: build → `npm pack` → install tarballs into a scratch project outside the repo → run the README quickstart under a pty → assert rendered output and clean exit
+- [x] 5.2 Ran it; it caught two real shipping bugs: `npm pack` leaves `workspace:`/`catalog:` protocols in the tarball (must use `pnpm pack`/`pnpm publish`), and `dom` shipped both `src/types.ts` and a `src/types/` directory, so Node resolved the directory and failed on a missing `types/index.js`
+- [x] 5.3 Full suite green (`zig build test`, dom + react vitest) and every example still runs

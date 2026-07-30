@@ -23,7 +23,8 @@
     "changeset": "changeset",
     "version": "changeset version",
     "publish": "pnpm publish -r --access=public",
-    "cleanup": "turbo run cleanup"
+    "cleanup": "turbo run cleanup",
+    "check:clean-room": "./scripts/clean-room.sh"
   },
   "type": "module",
   "packageManager": "pnpm@10.3.0"

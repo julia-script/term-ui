@@ -71,7 +71,12 @@ The one check that actually proves distribution works, and the only way to catch
 4. run a quickstart program copied verbatim from the README, under a pty
 5. assert it renders expected output and exits cleanly
 
-This runs as a script so it can be repeated before any future publish. It also validates the README, since the program is copied from it rather than written for the test.
+This runs as a script (`pnpm check:clean-room`) so it can be repeated before any future publish. It also validates the README, since the program is copied from it rather than written for the test.
+
+**It earned its keep immediately**, catching two bugs no in-repo check could see, because pnpm's workspace links paper over both:
+
+1. **`npm pack` ships unusable tarballs.** The `workspace:*` and `catalog:` protocols reach the tarball verbatim, and a consumer install dies with `EUNSUPPORTEDPROTOCOL`. `pnpm pack`/`pnpm publish` rewrite them to real ranges (`workspace:*` → `0.1.0`, `catalog:` → `^4.17.21`). **The publishing tool must be pnpm.**
+2. **`@term-ui/dom` had a module collision**: both `src/types.ts` and a `src/types/` directory existed. TypeScript resolved the file, but Node resolved the directory at runtime and failed on a missing `types/index.js`. The directory existed only for `InputState.ts`, which was dead code (its sole reference was commented out); both were removed.
 
 ## Out of scope
 

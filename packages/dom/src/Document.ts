@@ -264,7 +264,6 @@ export class Document {
     };
 
     // Initialize event system
-    // this.inputState = new InputState();
     // this.mouseEventHandler =
     //   new MouseEventHandler(this.inputState);
     // this.keyboardEventHandler =
