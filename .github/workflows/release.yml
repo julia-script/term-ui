@@ -28,31 +28,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Cache Zig
-        uses: actions/cache@v3
-        id: cache-zig
-        with:
-          path: ~/.zig
-          key: ${{ runner.os }}-zig-0.17.0-dev.1503+1f1bee62e
+      # setup-zig handles its own caching; the previous manual actions/cache
+      # layer skipped this step on a cache hit without ever putting zig on
+      # PATH. Version comes from .zigversion so the pin has one source.
+      - name: Read Zig version
+        id: zigversion
+        run: echo "version=$(cat .zigversion)" >> $GITHUB_OUTPUT
 
       - name: Setup Zig
-        uses: mlugg/setup-zig@v1
-        if: steps.cache-zig.outputs.cache-hit != 'true'
+        uses: mlugg/setup-zig@v2
         with:
-          version: 0.17.0-dev.1503+1f1bee62e
+          version: ${{ steps.zigversion.outputs.version }}
         
       - name: Cache wasm-opt
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: cache-wasm-opt
         with:
           path: ~/.local/bin/wasm-opt
@@ -96,7 +95,7 @@ jobs:
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
       - name: Setup pnpm cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ env.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}

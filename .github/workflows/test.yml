@@ -21,7 +21,7 @@ jobs:
         run: echo "version=$(cat .zigversion)" >> "$GITHUB_OUTPUT"
 
       - name: Setup Zig
-        uses: mlugg/setup-zig@v1
+        uses: mlugg/setup-zig@v2
         with:
           version: ${{ steps.zigversion.outputs.version }}
 
