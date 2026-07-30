@@ -1,9 +1,6 @@
 packages:
   - examples/*
   - packages/*
-allowBuilds:
-  '@biomejs/biome': set this to true or false
-  esbuild: set this to true or false
 catalog:
   "@biomejs/biome": 1.9.4
   "@changesets/cli": ^2.31.1
