@@ -31,20 +31,31 @@ const Self = @This();
 pub const Rect = RenderList.Rect;
 
 pub const Cell = struct {
-    data: CellData = .{ .text = " " },
+    data: CellData = .text,
     bg: Color,
     fg: Color,
     format: TextFormat = .{},
     width: u32 = 1,
     is_continuation: bool = false,
-    // Buffer for storing UTF-8 encoded border characters
-    char_buf: [4]u8 = @splat(' '),
+    // Inline UTF-8 storage for the cell's grapheme (text and border chars).
+    // Cells are copied wholesale into previous_cells for frame diffing, so
+    // they must own their bytes: a slice into the render list would dangle
+    // once the next frame rebuilds it (this caused transient scrambling
+    // while scrolling).
+    char_buf: [28]u8 = @splat(' '),
     char_len: u8 = 1,
 
     pub const CellData = union(enum) {
-        text: []const u8,
+        text: void,
         border_char: styles.border.BoxChar,
     };
+
+    pub fn setTextBytes(self: *Cell, bytes: []const u8) void {
+        const n: u8 = @intCast(@min(bytes.len, self.char_buf.len));
+        @memcpy(self.char_buf[0..n], bytes[0..n]);
+        self.char_len = n;
+        self.data = .text;
+    }
 
     /// Set border character, merging with existing border if present
     pub fn setBorderChar(self: *Cell, border_char: styles.border.BoxChar) void {
@@ -81,10 +92,7 @@ pub const Cell = struct {
 
     /// Get the character to render
     pub fn getChar(self: *const Cell) []const u8 {
-        switch (self.data) {
-            .text => |text| return text,
-            .border_char => return self.char_buf[0..self.char_len],
-        }
+        return self.char_buf[0..self.char_len];
     }
 
     /// Set background color with compositing
@@ -107,10 +115,11 @@ pub const Cell = struct {
         // Compare format
         if (!self.format.equal(other.format)) return false;
 
-        // Compare cell data
+        // Compare cell data (bytes are owned inline)
+        if (!std.mem.eql(u8, self.getChar(), other.getChar())) return false;
         switch (self.data) {
-            .text => |a_text| switch (other.data) {
-                .text => |b_text| if (!std.mem.eql(u8, a_text, b_text)) return false,
+            .text => switch (other.data) {
+                .text => {},
                 .border_char => return false,
             },
             .border_char => |a_border| switch (other.data) {
@@ -213,7 +222,7 @@ fn clearCell(self: *Self, x: u32, y: u32, check_related: bool) void {
                         const width = main_cell.width;
                         for (0..width) |offset| {
                             if (self.getCell(@intCast(main_x + @as(i32, @intCast(offset))), y)) |c| {
-                                c.data = .{ .text = "" };
+                                c.setTextBytes("");
                                 c.width = 0;
                                 c.is_continuation = false;
                             }
@@ -228,7 +237,7 @@ fn clearCell(self: *Self, x: u32, y: u32, check_related: bool) void {
             // This is a main cell with width > 1, clear all continuations
             for (1..cell.width) |offset| {
                 if (self.getCell(x + @as(u32, @intCast(offset)), y)) |cont_cell| {
-                    cont_cell.data = .{ .text = "" };
+                    cont_cell.setTextBytes("");
                     cont_cell.width = 0;
                     cont_cell.is_continuation = false;
                 }
@@ -237,7 +246,7 @@ fn clearCell(self: *Self, x: u32, y: u32, check_related: bool) void {
     }
 
     // Clear the current cell
-    cell.data = .{ .text = "" };
+    cell.setTextBytes("");
     cell.width = 0;
     cell.is_continuation = false;
 }
@@ -790,7 +799,7 @@ fn drawText(self: *Self, x: f32, y: f32, text: []const u8, color: Color, format:
                         if (self.getCell(scan_x - 1, y_int)) |prev_cell| {
                             if (!prev_cell.is_continuation and prev_cell.width > 1) {
                                 // Found the original multi-width cell, clear it
-                                prev_cell.data = .{ .text = " " };
+                                prev_cell.setTextBytes(" ");
                                 prev_cell.width = 1;
                                 break;
                             }
@@ -804,7 +813,7 @@ fn drawText(self: *Self, x: f32, y: f32, text: []const u8, color: Color, format:
                     while (i < cell.width) : (i += 1) {
                         if (x_int + i < width_int) {
                             if (self.getCell(x_int + i, y_int)) |next_cell| {
-                                next_cell.data = .{ .text = " " };
+                                next_cell.setTextBytes(" ");
                                 next_cell.width = 1;
                                 next_cell.is_continuation = false;
                             }
@@ -814,7 +823,7 @@ fn drawText(self: *Self, x: f32, y: f32, text: []const u8, color: Color, format:
 
                 // Now set the new content
                 if (!std.mem.eql(u8, slice, " ")) {
-                    cell.data = .{ .text = slice };
+                    cell.setTextBytes(slice);
                     cell.setFg(color);
                     cell.format = format;
                     cell.width = width;
@@ -831,7 +840,7 @@ fn drawText(self: *Self, x: f32, y: f32, text: []const u8, color: Color, format:
                 while (i < width) : (i += 1) {
                     if (x_int + i < width_int) {
                         if (self.getCell(x_int + i, y_int)) |next_cell| {
-                            next_cell.data = .{ .text = "" };
+                            next_cell.setTextBytes("");
                             next_cell.width = 0;
                             next_cell.bg = current_cell.bg; // Keep same background
                             next_cell.fg = current_cell.fg;
@@ -868,4 +877,19 @@ pub fn getDimensions(self: *const Self) struct { width: u32, height: u32 } {
         .width = toType(u32, @ceil(self.size.x)),
         .height = toType(u32, @ceil(self.size.y)),
     };
+}
+
+test "cells own their text bytes" {
+    // previous_cells is a wholesale copy used for frame diffing; if cells
+    // borrowed text from the render list, the copy would dangle when the
+    // next frame rebuilds it (transient scrambling while scrolling)
+    var cell = Cell{ .bg = Color.tw.black, .fg = Color.tw.white };
+    var source = [_]u8{ 'a', 'b', 'c' };
+    cell.setTextBytes(&source);
+    const copy = cell;
+    // mutating the original source or the live cell must not affect the copy
+    source[0] = 'z';
+    cell.setTextBytes("xyz");
+    try std.testing.expectEqualStrings("abc", copy.getChar());
+    try std.testing.expect(!copy.equal(&cell));
 }
