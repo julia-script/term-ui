@@ -226,7 +226,10 @@ pub fn wrapDefiniteWidth(tokens: []Token, width: f32, white_space_collapse: css_
             },
         }
 
-        if (token.break_after == .mandatory) {
+        // the group loop above may have consumed tokens past `token`; the
+        // break that matters is the one on the last token placed, otherwise a
+        // segment break absorbed into a text group is silently dropped
+        if (tokens[i].break_after == .mandatory) {
             line_index += 1;
             line_width = 0;
         }

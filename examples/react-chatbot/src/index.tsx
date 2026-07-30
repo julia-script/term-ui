@@ -51,7 +51,13 @@ const MessageRow = memo(
       >
         {`${roleLabel(message.role)}: `}
       </text>
-      <text style={{ color: "white" }}>
+      <text
+        style={{
+          color: "white",
+          // model replies contain real newlines; keep them
+          whiteSpace: "pre-wrap",
+        }}
+      >
         {message.content}
       </text>
     </view>
@@ -74,10 +80,14 @@ const InputBox = memo(
       style={{
         width: "100%",
         height: "4",
+        overflow: "scroll",
         borderStyle: "double",
         borderColor: "cyan",
         padding: "0 1",
         color: "white",
+        // shift+enter inserts a real newline; preserve it (and still wrap
+        // long lines) instead of collapsing it to a space like normal text
+        whiteSpace: "pre-wrap",
       }}
     />
   ),

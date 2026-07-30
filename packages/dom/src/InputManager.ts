@@ -431,10 +431,12 @@ export class InputManager {
           rawAction,
           rawModifiers: modifiers,
           source: data.slice(0, 6),
+          // press and repeat both produce text (key autorepeat types);
+          // release never does
           text:
-            rawAction === 0
-              ? getTextFromCodepoint(codepoint)
-              : "",
+            rawAction === 2
+              ? ""
+              : getTextFromCodepoint(codepoint),
           shift: (modifiers & SHIFT) !== 0,
           ctrl: (modifiers & CTRL) !== 0,
           alt: (modifiers & ALT) !== 0,

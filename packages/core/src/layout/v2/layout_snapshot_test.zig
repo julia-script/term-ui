@@ -104,3 +104,20 @@ test "layout radial gradient background" {
         \\<div style="width: 20px; height: 4px; background-color: radial-gradient(circle at top left, #e66465, #9198e5);"></div>
     , wide);
 }
+
+test "layout preserved segment breaks wrap" {
+    // pre-wrap must honor the newline as a forced break AND still wrap the
+    // long line; regression for a mandatory break being swallowed when the
+    // break token got absorbed into a preceding text group
+    try expectLayoutSnapshot(@src(), "pre-wrap segment breaks",
+        \\<div style="width: 12px; white-space: pre-wrap;">one
+        \\two words that wrap here</div>
+    , .{ .x = .{ .definite = 12 }, .y = .max_content });
+}
+
+test "layout preserved breaks nowrap" {
+    try expectLayoutSnapshot(@src(), "pre segment breaks",
+        \\<div style="width: 12px; white-space: pre;">one
+        \\two</div>
+    , .{ .x = .{ .definite = 12 }, .y = .max_content });
+}

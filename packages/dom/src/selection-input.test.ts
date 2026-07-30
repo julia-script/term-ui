@@ -197,3 +197,85 @@ describe("drag state machine", () => {
     expect(doc.selection!.getFocus().offset).toBe(3);
   });
 });
+
+describe("key autorepeat", () => {
+  // kitty reports held keys as event type 2 (repeat); those must type and
+  // edit exactly like a press, or holding a key does nothing
+  const press_ = (cp: number) => `\x1b[${cp}u`;
+  const repeat_ = (cp: number) =>
+    `\x1b[${cp};1:2u`;
+  const release_ = (cp: number) =>
+    `\x1b[${cp};1:3u`;
+
+  it("held character keys keep inserting", async () => {
+    const { doc, feed, text } = setup(true);
+    await feed(press(1, 1)); // caret at 0
+    await feed(press_(120)); // 'x'
+    await feed(repeat_(120));
+    await feed(repeat_(120));
+    await feed(release_(120));
+    expect(text.getText()).toBe(
+      "xxxhello world here",
+    );
+    expect(
+      doc.selection!.getFocus().offset,
+    ).toBe(3);
+  });
+
+  it("held backspace keeps deleting", async () => {
+    const { feed, text } = setup(true);
+    await feed(press(6, 1)); // caret after "hello"
+    await feed("\x1b[127u"); // backspace press
+    await feed("\x1b[127;1:2u"); // repeat
+    await feed("\x1b[127;1:2u"); // repeat
+    expect(text.getText()).toBe(
+      "he world here",
+    );
+  });
+
+  it("key release never inserts", async () => {
+    const { feed, text } = setup(true);
+    await feed(press(1, 1));
+    await feed(release_(120)); // release of 'x' alone
+    expect(text.getText()).toBe(
+      "hello world here",
+    );
+  });
+});
+
+describe("newlines in editable text", () => {
+  it("shift+enter inserts a line break", async () => {
+    const { feed, text } = setup(true);
+    await feed(press(6, 1)); // caret after "hello"
+    await feed("\x1b[57345;2u"); // shift+enter (functional enter + shift)
+    expect(text.getText()).toBe(
+      "hello\n world here",
+    );
+  });
+
+  it("white-space: pre-wrap keeps the break on its own line", async () => {
+    const { doc, feed, text } = setup(true);
+    // default collapse mode folds "\n" into a space, like a browser;
+    // pre-wrap preserves it as a forced break
+    doc.root.setStyle(
+      "width: 20px; white-space: pre-wrap;",
+    );
+    await feed(press(6, 1));
+    await feed("\x1b[57345;2u");
+    doc.computeLayout();
+    doc.paint();
+    expect(text.getText()).toBe(
+      "hello\n world here",
+    );
+    // the break forced a second visual line: hit-testing row 2 (y=1)
+    // lands past the newline, in " world here"
+    const onSecondLine = doc.caretPositionFromPoint(
+      1,
+      1,
+    );
+    expect(onSecondLine).toBeTruthy();
+    expect(
+      onSecondLine!.offset,
+    ).toBeGreaterThan(5);
+  });
+});

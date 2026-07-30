@@ -1,0 +1,17 @@
+// Snapshot from: layout/v2/layout_snapshot_test.zig:119:30
+// Function: test.layout preserved breaks nowrap
+// Description: pre segment breaks
+
+--- layout tree ---
+[block_container_node #1 ref={anon} children={1} box={.{ .size = .{ .x = 12, .y = 2 }, .content_size = .{ .x = 12, .y = 2 }, .scrollbar_size = .{ .x = 0, .y = 0 }, .location = .{ .x = 0, .y = 0 }, .padding = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 }, .border = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 }, .margin = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 } }} gen={1} cache_empty={false}]
+└── [inline_container_node #2 ref={doc#1} children={1} lines={2} box={.{ .size = .{ .x = 12, .y = 2 }, .content_size = .{ .x = 12, .y = 2 }, .scrollbar_size = .{ .x = 0, .y = 0 }, .location = .{ .x = 0, .y = 0 }, .padding = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 }, .border = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 }, .margin = .{ .top = 0, .right = 0, .bottom = 0, .left = 0 } }} gen={1} cache_empty={false}]
+    ├── [line_box #0 fragments=2 size={.{ .x = 12, .y = 1 }} location={.{ .x = 0, .y = 0 }}]   
+    │   ├── [fragment node={#3} range=0-3 pos={.{ .x = 0, .y = 0 }} size={.{ .x = 3, .y = 1 }} text="one"]
+    │   └── [fragment node={#3} range=3-4 pos={.{ .x = 3, .y = 0 }} size={.{ .x = 0, .y = 1 }} text=""]
+    ├── [line_box #1 fragments=1 size={.{ .x = 12, .y = 1 }} location={.{ .x = 0, .y = 1 }}]   
+    │   └── [fragment node={#3} range=4-7 pos={.{ .x = 0, .y = 0 }} size={.{ .x = 3, .y = 1 }} text="two"]
+    └── [text_node #3 ref={doc#2} gen={1} cache_empty={true}]
+
+--- paint ---
+[49m[38;2;0;0;0mone[38;2;0;0;0m         [0m
+[49m[38;2;0;0;0mtwo[38;2;0;0;0m         [0m
