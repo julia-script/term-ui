@@ -72,6 +72,16 @@ const wasm_allocator = blk: {
     }
 };
 
+/// Reply arena: every export returning transient data allocates its output
+/// here and resets the arena at entry. Contract: an output stays valid until
+/// the NEXT call into any wasm export; the client never frees it.
+var reply_arena = std.heap.ArenaAllocator.init(wasm_allocator);
+
+fn replyAllocator() std.mem.Allocator {
+    _ = reply_arena.reset(.retain_capacity);
+    return reply_arena.allocator();
+}
+
 pub fn main() void {}
 
 pub inline fn wasm_try(T: type, triable: anytype) T {
@@ -250,8 +260,15 @@ export fn Tree_getChildrenCount(tree: *Tree, parent: u32) u32 {
 }
 export fn Tree_getChildren(tree: *Tree, node_id: u32) [*]u32 {
     logger.info("Tree_getChildren({*}, {d})", .{ tree, node_id });
-
-    return @ptrCast(tree.getChildren(node_id).items.ptr);
+    const reply = replyAllocator();
+    const children = tree.getChildren(node_id).items;
+    // length-prefixed: [u32 count][ids] so the JS wrapper is self-contained
+    const out = wasm_try([]u32, reply.alloc(u32, 1 + children.len));
+    out[0] = @intCast(children.len);
+    for (children, 0..) |child, i| {
+        out[i + 1] = @intCast(child);
+    }
+    return out.ptr;
 }
 export fn Tree_getNodeParent(tree: *Tree, node: u32) i32 {
     logger.info("Tree_getNodeParent({*}, {d})", .{ tree, node });
@@ -307,8 +324,8 @@ pub export fn Node_getAttribute(tree: *Tree, node: u32, name: [*:0]u8) ?[*:0]con
         // Return null for non-existent attributes
         return null;
     };
-    // Return the actual string pointer (could be empty string)
-    return @ptrCast(result);
+    const reply = replyAllocator();
+    return wasm_try([:0]u8, reply.dupeSentinel(u8, result, 0)).ptr;
 }
 
 export fn Node_setAttribute(tree: *Tree, node_id: u32, name: [*:0]u8, value: [*:0]u8) void {
@@ -337,40 +354,36 @@ export fn Node_removeAttribute(tree: *Tree, node_id: u32, name: [*:0]u8) void {
     node.removeAttribute(name_slice);
 }
 
-pub var HIT_TEST_RESULT_BUFFER = [2]u32{ 0, 0 };
-
 pub export fn Tree_hitTest(tree: *Tree, x: f32, y: f32, filter: u8) [*]u32 {
     logger.info("Tree_hitTest({*}, {d}, {d}, {d})", .{ tree, x, y, filter });
-
-    // Hit test with the provided filter
+    const reply = replyAllocator();
+    const out = wasm_try([]u32, reply.alloc(u32, 2));
     const hit_result = tree.hitTest(.{ .x = x, .y = y }, filter) orelse {
-        HIT_TEST_RESULT_BUFFER[0] = 0;
-        HIT_TEST_RESULT_BUFFER[1] = 0;
-        return &HIT_TEST_RESULT_BUFFER;
+        out[0] = 0;
+        out[1] = 0;
+        return out.ptr;
     };
-
-    HIT_TEST_RESULT_BUFFER[0] = @intCast(hit_result.external_id);
-    HIT_TEST_RESULT_BUFFER[1] = @backingInt(hit_result.item_type);
-    return @ptrCast(&HIT_TEST_RESULT_BUFFER);
+    out[0] = @intCast(hit_result.external_id);
+    out[1] = @backingInt(hit_result.item_type);
+    return out.ptr;
 }
-var HIT_TEST_LIST_RESULT_BUFFER: [1024]u32 = undefined;
 pub export fn Tree_hitTestList(tree: *Tree, x: f32, y: f32, filter: u8) [*]u32 {
     logger.info("Tree_hitTestList({*}, {d}, {d}, {d})", .{ tree, x, y, filter });
+    const reply = replyAllocator();
     var list: std.ArrayList(RenderList.HitTestResult) = .empty;
-    defer list.deinit(wasm_allocator);
-    wasm_try(void, tree.hitTestList(&list, wasm_allocator, .{ .x = x, .y = y }, filter));
-    var i: usize = 0;
-    for (list.items) |result| {
-        HIT_TEST_LIST_RESULT_BUFFER[i * 2] = @intCast(result.external_id);
-        HIT_TEST_LIST_RESULT_BUFFER[i * 2 + 1] = @backingInt(result.item_type);
-        i += 1;
+    wasm_try(void, tree.hitTestList(&list, reply, .{ .x = x, .y = y }, filter));
+    const out = wasm_try([]u32, reply.alloc(u32, list.items.len * 2 + 2));
+    for (list.items, 0..) |result, i| {
+        out[i * 2] = @intCast(result.external_id);
+        out[i * 2 + 1] = @backingInt(result.item_type);
     }
-    HIT_TEST_LIST_RESULT_BUFFER[i * 2] = 0;
-    HIT_TEST_LIST_RESULT_BUFFER[i * 2 + 1] = 0;
-    return @ptrCast(&HIT_TEST_LIST_RESULT_BUFFER);
+    out[list.items.len * 2] = 0;
+    out[list.items.len * 2 + 1] = 0;
+    return out.ptr;
 }
+/// Deprecated no-op: hit-test results are reply-arena owned; nothing to free.
 pub export fn Tree_deinitHitTestList(list: [*:0]u32) void {
-    wasm_allocator.free(list[0..std.mem.len(list)]);
+    _ = list;
 }
 
 pub export fn Tree_getNodeInvalidationStatus(tree: *Tree, node: u32) u32 {
@@ -440,8 +453,6 @@ export fn Node_canScroll(tree: *Tree, node_id: u32, direction: u8, delta: f32) b
 }
 
 const tree_dump_logger = std.log.scoped(.tree_dump);
-var dump_array_list: std.ArrayList(u8) = .empty;
-
 const ArrayListWriter = struct {
     list: *std.ArrayList(u8),
     allocator: std.mem.Allocator,
@@ -474,13 +485,12 @@ const ArrayListWriter = struct {
 };
 
 pub export fn Tree_dump(tree: *Tree) [*:0]u8 {
-    dump_array_list.clearRetainingCapacity();
-
-    const list_writer = ArrayListWriter{ .list = &dump_array_list, .allocator = wasm_allocator };
+    const reply = replyAllocator();
+    var list: std.ArrayList(u8) = .empty;
+    const list_writer = ArrayListWriter{ .list = &list, .allocator = reply };
     wasm_try(void, tree.print(list_writer));
-    wasm_try(void, dump_array_list.append(wasm_allocator, 0));
-
-    return @ptrCast(dump_array_list.items.ptr);
+    wasm_try(void, list.append(reply, 0));
+    return @ptrCast(list.items.ptr);
 }
 pub export fn Tree_dumpLayoutTree(tree: *Tree) void {
     var array_list: std.ArrayList(u8) = .empty;
@@ -495,10 +505,15 @@ pub export fn Node_setText(tree: *Tree, node: u32, text: [*:0]u8) void {
     const text_slice = text[0..std.mem.len(text)];
     wasm_try(void, tree.setText(node, text_slice));
 }
-export fn Node_getText(tree: *Tree, node: u32) [*:0]u8 {
+export fn Node_getText(tree: *Tree, node: u32) [*]u8 {
     logger.info("Node_getText({*}, {d})", .{ tree, node });
-    const node_obj = tree.getNode(node);
-    return @ptrCast(node_obj.text.bytes.items.ptr);
+    const reply = replyAllocator();
+    const bytes = tree.getNode(node).text.bytes.items;
+    // length-prefixed: [u32 len][bytes] so the JS wrapper is self-contained
+    const out = wasm_try([]u8, reply.alloc(u8, 4 + bytes.len));
+    std.mem.writeInt(u32, out[0..4], @intCast(bytes.len), .little);
+    @memcpy(out[4..], bytes);
+    return out.ptr;
 }
 export fn Node_getTextLength(tree: *Tree, node: u32) u32 {
     logger.info("Node_getTextLength({*}, {d})", .{ tree, node });
@@ -576,13 +591,13 @@ export fn Node_getClientRects(tree: *Tree, node_id: u32) [*]f32 {
     logger.info("Node_getClientRects({*}, {d})", .{ tree, node_id });
     const node = tree.getNode(node_id);
 
-    const rects = wasm_try([]ClientRect, node.getClientRects(tree, wasm_allocator));
-    defer wasm_allocator.free(rects);
+    const reply = replyAllocator();
+    const rects = wasm_try([]ClientRect, node.getClientRects(tree, reply));
 
     // Convert to flat f32 array with flag format
     // Format: [flag, x, y, width, height, ...] where flag is 1 for valid rect, 0 for end
     const result_size = rects.len * 5 + 1; // 5 values per rect + sentinel
-    const result = wasm_try([]f32, wasm_allocator.alloc(f32, result_size));
+    const result = wasm_try([]f32, reply.alloc(f32, result_size));
 
     var idx: usize = 0;
     for (rects) |rect| {
@@ -605,13 +620,13 @@ export fn Node_getBoundingClientRect(tree: *Tree, node_id: u32) [*]f32 {
     const node = tree.getNode(node_id);
     const rect = node.getBoundingClientRect(tree);
 
-    // Use global scratch buffer
-    client_rect_buffer[0] = rect.x;
-    client_rect_buffer[1] = rect.y;
-    client_rect_buffer[2] = rect.width;
-    client_rect_buffer[3] = rect.height;
-
-    return &client_rect_buffer;
+    const reply = replyAllocator();
+    const out = wasm_try([]f32, reply.alloc(f32, 4));
+    out[0] = rect.x;
+    out[1] = rect.y;
+    out[2] = rect.width;
+    out[3] = rect.height;
+    return out.ptr;
 }
 
 pub export fn Tree_computeStyles(tree: *Tree) void {
@@ -649,13 +664,14 @@ pub export fn Tree_computeLayout(tree: *Tree, width: [*:0]u8, height: [*:0]u8) v
         },
     }));
 }
-var point_buffer: [2]f32 = undefined;
 pub export fn Tree_getBoundaryPointPosition(tree: *Tree, node_id: u32, offset: u32) [*]f32 {
     logger.info("Tree_getBoundaryPointPosition({*}, {d}, {d})", .{ tree, node_id, offset });
+    const reply = replyAllocator();
+    const out = wasm_try([]f32, reply.alloc(f32, 2));
     const position = tree.getBoundaryPointPosition(node_id, offset);
-    point_buffer[0] = position.x;
-    point_buffer[1] = position.y;
-    return &point_buffer;
+    out[0] = position.x;
+    out[1] = position.y;
+    return out.ptr;
 }
 pub export fn Tree_paintSimple(tree: *Tree, renderer: *Renderer) void {
     logger.info("Tree_paint({*}, {*})", .{ tree, renderer });
@@ -709,18 +725,17 @@ const NoOpWriter = struct {
     pub fn splatByteAll(_: NoOpWriter, _: u8, _: usize) Error!void {}
 };
 
-var boundary_point_buffer: [4]u32 = undefined;
-var client_rect_buffer: [4]f32 = undefined;
-
 pub export fn Tree_caretPositionFromPoint(tree: *Tree, x: f32, y: f32) [*]u32 {
+    const reply = replyAllocator();
+    const out = wasm_try([]u32, reply.alloc(u32, 2));
     const boundary_point = tree.caretPositionFromPoint(.{ .x = x, .y = y }) orelse {
-        boundary_point_buffer[0] = NULL;
-        boundary_point_buffer[1] = 0;
-        return &boundary_point_buffer;
+        out[0] = NULL;
+        out[1] = 0;
+        return out.ptr;
     };
-    boundary_point_buffer[0] = @intCast(boundary_point.node_id);
-    boundary_point_buffer[1] = @intCast(boundary_point.offset);
-    return &boundary_point_buffer;
+    out[0] = @intCast(boundary_point.node_id);
+    out[1] = @intCast(boundary_point.offset);
+    return out.ptr;
 }
 
 export fn Tree_createSelection(tree: *Tree, start_node: u32, start_offset: u32, end_node: u32, end_offset: u32) Tree.Selection.Id {
@@ -730,23 +745,26 @@ export fn Tree_createSelection(tree: *Tree, start_node: u32, start_offset: u32, 
     )));
 }
 export fn Selection_getFocusPosition(tree: *Tree, selection_id: Tree.Selection.Id) [*]f32 {
+    const reply = replyAllocator();
+    const out = wasm_try([]f32, reply.alloc(f32, 2));
     const selection = tree.getSelection(selection_id);
     const position = selection.getFocusPosition(tree) orelse {
-        point_buffer[0] = 0;
-        point_buffer[1] = 0;
-        return &point_buffer;
+        out[0] = 0;
+        out[1] = 0;
+        return out.ptr;
     };
-    point_buffer[0] = position.x;
-    point_buffer[1] = position.y;
-    return &point_buffer;
+    out[0] = position.x;
+    out[1] = position.y;
+    return out.ptr;
 }
 export fn Selection_getAnchor(tree: *Tree, selection_id: Tree.Selection.Id) [*]u32 {
+    const reply = replyAllocator();
+    const out = wasm_try([]u32, reply.alloc(u32, 2));
     const selection = tree.getSelection(selection_id);
     const anchor = selection.getAnchor(tree);
-
-    boundary_point_buffer[0] = @intCast(anchor.node_id);
-    boundary_point_buffer[1] = @intCast(anchor.offset);
-    return &boundary_point_buffer;
+    out[0] = @intCast(anchor.node_id);
+    out[1] = @intCast(anchor.offset);
+    return out.ptr;
 }
 
 export fn Tree_removeSelection(tree: *Tree, selection_id: Tree.Selection.Id) void {
@@ -757,11 +775,13 @@ export fn Selection_getDirection(tree: *Tree, selection_id: Tree.Selection.Id) i
     return @backingInt(selection.direction);
 }
 export fn Selection_getFocus(tree: *Tree, selection_id: Tree.Selection.Id) [*]u32 {
+    const reply = replyAllocator();
+    const out = wasm_try([]u32, reply.alloc(u32, 2));
     const selection = tree.getSelection(selection_id);
     const focus = selection.getFocus(tree);
-    boundary_point_buffer[0] = @intCast(focus.node_id);
-    boundary_point_buffer[1] = @intCast(focus.offset);
-    return &boundary_point_buffer;
+    out[0] = @intCast(focus.node_id);
+    out[1] = @intCast(focus.offset);
+    return out.ptr;
 }
 export fn Selection_setAnchor(tree: *Tree, selection_id: Tree.Selection.Id, node_id: u32, offset: u32) void {
     const selection = tree.getSelection(selection_id);
@@ -978,6 +998,9 @@ export fn ArrayList_dump(list: *std.ArrayList(u8)) void {
 const handleRawBuffer = @import("cmd/input.zig").handleRawBuffer;
 
 export fn detectLeaks() bool {
+    // the reply arena retains working-set capacity by design; release it so
+    // only genuine leaks are counted
+    _ = reply_arena.reset(.free_all);
     if (builtin.mode == .debug) {
         const leaked = gpa.detectLeaks();
         return leaked > 0;

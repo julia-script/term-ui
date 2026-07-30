@@ -51,20 +51,11 @@ export class TextElement extends Node {
     );
   }
   getText() {
-    const length = this.tree.module.Node_getTextLength(
+    // wrapper returns a materialized string (reply-arena copied)
+    return this.tree.module.Node_getText(
       this.tree.ptr,
       this.id,
     );
-    const textPtr = this.tree.module.Node_getText(
-      this.tree.ptr,
-      this.id,
-    );
-    const buffer = new Uint8Array(this.tree.module.memory.buffer, textPtr, length);
-    
-    const text = new TextDecoder().decode(
-      buffer,
-    );
-    return text;
   }
 
   // CharacterData methods

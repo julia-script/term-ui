@@ -238,18 +238,13 @@ export class Element extends Node {
     if (count === 0) {
       return [];
     }
-    const children =
+    // wrapper returns a materialized id array (reply-arena copied)
+    const childrenArray =
       this.tree.module.Tree_getChildren(
         this.tree.ptr,
         this.id,
       );
-
-    const childrenArray = new Uint32Array(
-      this.tree.module.memory.buffer,
-      children,
-      count,
-    );
-    return [...childrenArray].map((ptr) => {
+    return childrenArray.map((ptr) => {
       const kind =
         this.tree.module.Tree_getNodeKind(
           this.tree.ptr,

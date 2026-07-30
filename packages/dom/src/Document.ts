@@ -672,7 +672,6 @@ export class Document {
   render = () => {
     this.computeLayout();
     this.paint();
-    this.tree.dump();
   };
   dispose = () => {
     this.cleanup();

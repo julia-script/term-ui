@@ -220,3 +220,49 @@ test "invalidation oracle" {
         try runOracle(seed, 30);
     }
 }
+
+test "memory: steady-state churn does not accumulate" {
+    // Non-growing workload: text edits + restyles + full pipeline + paint,
+    // hundreds of cycles. Live bytes after warm-up must not grow.
+    var dbg = std.heap.DebugAllocator(.{ .enable_memory_limit = true }){};
+    defer std.debug.assert(dbg.deinit() == .ok);
+    const allocator = dbg.allocator();
+
+    var tree = try Tree.init(allocator);
+    defer tree.deinit();
+    const root = try tree.createNode();
+    try parsers.parseStyleString(&tree, root, "width: 40px; height: 12px");
+    const box = try tree.createNode();
+    try parsers.parseStyleString(&tree, box, "display: flex; padding: 1px");
+    _ = try tree.appendChild(root, box);
+    const text = try tree.createTextNode("hello world");
+    _ = try tree.appendChild(box, text);
+
+    var renderer = try Renderer.init(allocator);
+    defer renderer.deinit();
+
+    const texts = [_][]const u8{ "hello world", "a rather longer text that wraps around", "x" };
+    const styles_cycle = [_][]const u8{ "display: flex; padding: 1px", "display: block; margin: 1px" };
+
+    var high_water: usize = 0;
+    var discard: std.Io.Writer.Allocating = .init(allocator);
+    defer discard.deinit();
+
+    for (0..300) |i| {
+        try tree.setText(text, texts[i % texts.len]);
+        try parsers.parseStyleString(&tree, box, styles_cycle[i % styles_cycle.len]);
+        try runPipeline(&tree, allocator);
+        discard.clearRetainingCapacity();
+        try tree.paint(&renderer, &discard.writer, .simple);
+
+        // live bytes oscillate with the text/style combination, so the
+        // baseline is the max over one full warm period, not a single cycle
+        if (i >= 24 and i <= 30) {
+            high_water = @max(high_water, dbg.total_requested_bytes);
+        }
+        if (i > 30 and dbg.total_requested_bytes > high_water) {
+            std.debug.print("memory grew: cycle={d} baseline={d} now={d}\n", .{ i, high_water, dbg.total_requested_bytes });
+            return error.MemoryAccumulation;
+        }
+    }
+}

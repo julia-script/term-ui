@@ -265,7 +265,27 @@ export const getSchema = (
     Tree_getChildren: pipe(
       function_(),
       args(tuple([number(), number()])),
-      returns(number()),
+      returns(
+        pipe(
+          number(),
+          transform((ptr) => {
+            // reply-arena buffer: [u32 count][ids]; copy immediately
+            const view = new DataView(
+              memory.buffer,
+            );
+            const count = view.getUint32(
+              ptr,
+              true,
+            );
+            const ids = new Uint32Array(
+              memory.buffer,
+              ptr + 4,
+              count,
+            );
+            return Array.from(ids);
+          }),
+        ),
+      ),
       catchError("Tree_getChildren"),
     ),
 
@@ -351,7 +371,29 @@ export const getSchema = (
     Node_getText: pipe(
       function_(),
       args(tuple([number(), number()])),
-      returns(number()),
+      returns(
+        pipe(
+          number(),
+          transform((ptr) => {
+            // reply-arena buffer: [u32 len][utf8 bytes]; copy immediately
+            const view = new DataView(
+              memory.buffer,
+            );
+            const len = view.getUint32(
+              ptr,
+              true,
+            );
+            const bytes = new Uint8Array(
+              memory.buffer,
+              ptr + 4,
+              len,
+            );
+            return new TextDecoder().decode(
+              bytes,
+            );
+          }),
+        ),
+      ),
       catchError("Node_getText"),
     ),
     Node_getTextLength: pipe(
@@ -469,17 +511,8 @@ export const getSchema = (
               idx += 5;
             }
 
-            // Calculate total bytes:
-            // - Each rect has 5 f32 values (flag + x + y + width + height)
-            // - Plus 1 f32 for the sentinel (0.0)
-            // - Each f32 is 4 bytes
-            const totalFloats =
-              rects.length * 5 + 1;
-            const totalBytes = totalFloats * 4;
-
-            // Free the buffer immediately since we've made a copy
-            module.freeBuffer(ptr, totalBytes);
-
+            // Buffer is reply-arena owned: valid until the next wasm call,
+            // never freed by the client.
             return rects;
           }),
         ),
