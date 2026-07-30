@@ -25,3 +25,10 @@ catalog:
   valibot: ^1.4.2
   vitest: ^3.1.2
   vocs: ^1.0.11
+
+# pnpm 11 errors on unapproved build scripts; both need their postinstall to
+# link a native binary. (This lives here, not package.json — pnpm 11 no longer
+# reads the "pnpm" field there.)
+onlyBuiltDependencies:
+  - "@biomejs/biome"
+  - esbuild

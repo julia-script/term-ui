@@ -29,11 +29,5 @@
     "check": "pnpm build && pnpm test"
   },
   "type": "module",
-  "packageManager": "pnpm@11.15.1",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@biomejs/biome",
-      "esbuild"
-    ]
-  }
+  "packageManager": "pnpm@11.15.1"
 }
