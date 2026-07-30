@@ -1,0 +1,20 @@
+{
+  "name": "@term-ui/example-react-chatbot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "pnpm tsx src/index.tsx",
+    "dev": "pnpm tsx --watch src/index.tsx"
+  },
+  "dependencies": {
+    "@term-ui/core": "workspace:*",
+    "@term-ui/dom": "workspace:*",
+    "@term-ui/react": "workspace:*",
+    "@term-ui/shared": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "react": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}
